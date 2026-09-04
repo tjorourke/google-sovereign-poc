@@ -140,6 +140,32 @@ done
 
 NEG_STATUS="$(kc -n "$NS" get svc "$GW_SVC" -o jsonpath='{.metadata.annotations.cloud\.google\.com/neg-status}' 2>/dev/null || true)"
 
+# ── optional laptop access ───────────────────────────────────────────────────
+# The Gateway's Service is internal, so *.BASE_DOMAIN is unreachable from a
+# laptop. This adds a SECOND Service selecting the same gateway pods, so the
+# identical host-based HTTPRoutes work from outside the VPC. The internal
+# Service is untouched: in-cluster traffic and the DNS records do not change.
+if [[ "${EXPOSE_EXTERNAL:-0}" == "1" ]]; then
+  step "external LoadBalancer for the gateway (EXPOSE_EXTERNAL=1)"
+  kc apply -f "$REPO_ROOT/docs/demo/agentgateway-external-lb.yaml" >/dev/null 2>&1 \
+    || warn "could not apply the external gateway Service"
+  for _ in $(seq 1 30); do
+    GW_IP="$(kc -n "$NS" get svc agentgateway-proxy-external \
+      -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null)"
+    [[ -n "$GW_IP" ]] && break
+    sleep 10
+  done
+  if [[ -n "${GW_IP:-}" ]]; then
+    ok "gateway reachable at http://${GW_IP}"
+    log "add to /etc/hosts, all on this one address:"
+    for h in keycloak agentregistry mcp llm; do
+      log "  ${GW_IP}  ${h}.${BASE_DOMAIN}"
+    done
+  else
+    warn "external LoadBalancer has no address yet"
+  fi
+fi
+
 cat >&2 <<EOF
 
   Consoles, resolvable inside the VPC via the Cloud DNS private zone:

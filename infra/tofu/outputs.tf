@@ -8,6 +8,10 @@ output "kms_key_ring" { value = module.kms.key_ring_id }
 output "kms_keys" { value = module.kms.key_ids }
 output "network_name" { value = module.network.network_name }
 output "buckets" { value = module.storage.bucket_names }
+output "allowlist_bucket" {
+  description = "Bucket holding Autopilot WorkloadAllowlist files, read by the AllowlistSynchronizer."
+  value       = module.storage.allowlist_bucket
+}
 output "private_dns_zone" { value = try(module.dns[0].dns_name, null) }
 output "private_dns_zone_name" {
   description = "Cloud DNS managed-zone NAME (not the dns_name) — what gcloud dns --zone wants."

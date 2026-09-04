@@ -127,6 +127,41 @@ else
 fi
 chmod 600 "$ENVF"
 
+# ── optional laptop access ───────────────────────────────────────────────────
+# GCD has no public DNS zone, so the issuer hostname resolves only in-cluster.
+# A browser on a laptop cannot reach the login page at all, which blocks every
+# console in the stack. EXPOSE_EXTERNAL=1 adds a second Service with an external
+# address; add a matching /etc/hosts line and the browser works.
+#
+# Deliberately opt-in: it puts the IdP on a public address. Do not set it in an
+# environment anyone would mistake for production.
+if [[ "${EXPOSE_EXTERNAL:-0}" == "1" ]]; then
+  step "external LoadBalancer for Keycloak (EXPOSE_EXTERNAL=1)"
+  SEL="$(kc -n "$NS" get svc keycloak -o jsonpath='{.spec.selector}' 2>/dev/null)"
+  python3 - "$NS" "$SEL" <<'PY' | kc apply -f - >/dev/null 2>&1
+import json, sys
+ns, sel = sys.argv[1], json.loads(sys.argv[2] or '{}')
+print(json.dumps({
+    "apiVersion": "v1", "kind": "Service",
+    "metadata": {"name": "keycloak-external", "namespace": ns},
+    "spec": {"type": "LoadBalancer", "selector": sel,
+             "ports": [{"name": "http", "port": 80, "targetPort": 8080}]},
+}))
+PY
+  for _ in $(seq 1 30); do
+    KC_IP="$(kc -n "$NS" get svc keycloak-external \
+      -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null)"
+    [[ -n "$KC_IP" ]] && break
+    sleep 10
+  done
+  if [[ -n "${KC_IP:-}" ]]; then
+    ok "Keycloak reachable at http://${KC_IP}"
+    log "add to /etc/hosts:  ${KC_IP}  keycloak.${BASE_DOMAIN:-agentic.eu0.internal}"
+  else
+    warn "external LoadBalancer has no address yet"
+  fi
+fi
+
 cat >&2 <<EOF
 
   Issuer: ${ISSUER}

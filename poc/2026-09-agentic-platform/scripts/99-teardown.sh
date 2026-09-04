@@ -19,11 +19,32 @@ WHAT="${1:-help}"
 case "$WHAT" in
   workloads)
     step "removing the Solo stack, leaving the infrastructure"
-    for ns in mcp model solo-enterprise agentregistry-system kagent agentgateway-system keycloak observability external-secrets cert-manager; do
+    # agents holds the waypoint-governed path; istio-system holds the mesh.
+    # istio-system LAST of the workload namespaces: deleting ztunnel while other
+    # namespaces are still enrolled leaves their traffic unmediated mid-teardown.
+    for ns in mcp model agents solo-enterprise agentregistry-system kagent agentgateway-system keycloak observability external-secrets cert-manager istio-system; do
       kc delete ns "$ns" --ignore-not-found --wait=false >/dev/null 2>&1 || true
       log "deleting ns/$ns"
     done
     ok "namespaces deleting in the background"
+    ;;
+  allowlist)
+    step "removing the Autopilot allowlist plumbing"
+    # The synchroniser is the only thing that can create or remove a
+    # WorkloadAllowlist, so it goes first; the allowlists disappear with it.
+    kc delete allowlistsynchronizer istio-ambient --ignore-not-found >/dev/null 2>&1 || true
+    ok "AllowlistSynchronizer removed"
+    # Reset the cluster to GKE-managed allowlists only. gke://* must be passed
+    # explicitly: an empty value disables every allowlist including the defaults.
+    if gcloud container clusters update "${CLUSTER_NAME:-agentic}" \
+         --location "${UNIVERSE_REGION:?}" \
+         --autopilot-privileged-admission='gke://*' >/dev/null 2>&1; then
+      ok "cluster reset to gke://* (took ~20 minutes)"
+    else
+      warn "could not reset the cluster's allowlist paths; check by hand"
+    fi
+    log "the org policy is left in place on purpose: it is organisation-scoped,"
+    log "harmless without a cluster referencing it, and a rebuild reuses it."
     ;;
   infra)
     warn "this destroys the cluster, Cloud SQL, the buckets and the network."
@@ -47,6 +68,10 @@ usage: 99-teardown.sh <workloads|infra|all>
   workloads  delete the Kubernetes namespaces, keep the cloud infrastructure.
              Do this first — it lets the LoadBalancers and NEGs clean up, which
              otherwise blocks the network destroy.
+  allowlist  remove the AllowlistSynchronizer and reset the cluster's
+             allowlist paths. Do this before `infra`, and note the ORG POLICY is
+             left alone deliberately: it is organisation-scoped, survives
+             teardown, and a new cluster in the same org inherits it.
   infra      tofu destroy. Prompts for the project id.
   all        both, in order, with a pause between.
 

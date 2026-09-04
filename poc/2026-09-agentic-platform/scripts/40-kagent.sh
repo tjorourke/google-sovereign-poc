@@ -111,6 +111,13 @@ ok "CRDs installed"
 # MODEL_PROVIDER=selfhosted to wire kagent at the gateway instead of a SaaS
 # provider. anthropic remains available only if probe 0.2 said egress works,
 # and it is the wrong demo for this audience.
+# AccessPolicy (policy.kagent-enterprise.solo.io) only compiles into enforcement
+# objects when this is on, and it is what stamps kagent.solo.io/waypoint onto
+# Agents. The chart default is false, which is right for a cluster with no mesh.
+# Turn it on once Istio ambient is installed (64-istio-ambient.sh). Leaving it on
+# without a mesh is harmless: AccessPolicy objects simply report Failed.
+ISTIO_AUTHZ_TRANSLATION="${ISTIO_AUTHZ_TRANSLATION:-true}"
+
 MODEL_PROVIDER="${MODEL_PROVIDER:-selfhosted}"
 PROVIDER_ARGS=()
 case "$MODEL_PROVIDER" in
@@ -146,6 +153,7 @@ helm --kube-context "$(kube_context)" upgrade --install kagent \
   -n "$NS" --version "$VERSION" \
   --set global.licensing.licenseKey="$SOLO_LICENSE_KEY" \
   "${PROVIDER_ARGS[@]}" \
+  --set controller.istioAuthzTranslation.enabled="$ISTIO_AUTHZ_TRANSLATION" \
   --set oidc.issuer="$OIDC_ISSUER" \
   --set oidc.clientId=kagent-backend \
   --set oidc.secretRef=kagent-enterprise-oidc-secret \

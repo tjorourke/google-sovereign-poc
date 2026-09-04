@@ -59,6 +59,15 @@ else
   CH_ARGS=(--set clickhouse.persistentVolume.enabled=false)
 fi
 
+# The management chart ships ClickHouse with ephemeral-storage limited to 50Mi.
+# ClickHouse writes its database to local disk, exceeds that, and Autopilot
+# EVICTS the pod. The give-away is restarts=0 while the pod keeps reappearing:
+# eviction recreates the pod rather than restarting the container, so nothing
+# looks like it is crashing. Raise the floor.
+CH_ARGS+=(
+  --set clickhouse.resources.requests.ephemeral-storage=2Gi
+  --set clickhouse.resources.limits.ephemeral-storage=8Gi
+)
 step "solo-enterprise management $VERSION"
 helm --kube-context "$(kube_context)" upgrade --install solo-mgmt "$CHART" \
   -n "$NS" --version "$VERSION" \

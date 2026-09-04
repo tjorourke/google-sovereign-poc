@@ -1,209 +1,200 @@
 #!/usr/bin/env bash
-# 60-model.sh — self-hosted, in-universe LLM inference.
+# 60-model.sh — self-hosted model inside the sovereign boundary.
 #
-# GCD has NO aiplatform: no Vertex, no Gemini, no managed model endpoint of any
-# kind. Google's own GCD reference architectures (/docs/gcd-solutions/) answer
-# that by self-hosting open-weight Gemma on GKE, so that is what we do — with
-# one difference that is the entire point of this repo: the model sits behind
-# agentgateway, so prompts and tokens are policy-checked and audited. Google's
-# blueprints call Gemma directly with nothing in the path.
+# GCD has no aiplatform, so there is no managed inference of any kind. The only
+# in-universe path is to host the model yourself, which is also what Google's own
+# GCD reference architectures do.
 #
-# Two profiles:
-#   MODEL_PROFILE=gpu   gemma-3-27b-it on a3-highgpu-8g-nolssd (H100 80GB x8),
-#                       Accelerator compute class. Needs GPU quota, which a
-#                       preview project almost certainly does not have — and in
-#                       GCD a quota increase can ONLY be requested through GCD
-#                       support, which needs the public GCP org + Assured
-#                       Workloads folder + up to 48 business hours.
-#   MODEL_PROFILE=cpu   a small Gemma on C3. Google's own Compute differences
-#                       page says "Consider doing CPU inferencing if A3 High or
-#                       A3 Edge is too large for your workload", so this is
-#                       their advice, not a fudge. Poor model, fine demo: the
-#                       agent gets a real in-universe endpoint with no egress.
-set -euo pipefail
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# TWO PROFILES, and the default is the one that actually works here:
+#
+#   cpu (default)  llama.cpp serving a 4-bit GGUF on general-purpose C3.
+#                  Qwen2.5-3B-Instruct, chosen because it is UNGATED on Hugging
+#                  Face. Gemma and Llama both need an access token, and GCD has
+#                  no Secret Manager to hold one.
+#
+#   gpu            vLLM serving Gemma 3 27B IT on A3/H100, which is what Google's
+#                  blueprints assume. CURRENTLY IMPOSSIBLE in Berlin: the H100 is
+#                  catalogued but no GPU node ever provisions, and the autoscaler
+#                  reports a node affinity mismatch rather than a quota error.
+#                  See feedback/google/06. Kept here so the switch is one
+#                  variable once Google unblocks it.
+#
+# Two earlier attempts that failed, recorded so nobody repeats them:
+#   - vLLM on CPU. The standard vllm-openai image is CUDA-only; it cannot run
+#     without a GPU at all, so it is not a fallback.
+#   - Qwen2.5-0.5B. Too weak for tool calling: it emitted `reverse_text("` as
+#     literal text instead of calling the tool. 3B is the smallest that reliably
+#     drives MCP.
+set -uo pipefail
+SD="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # shellcheck source=lib.sh
-source "$SCRIPT_DIR/lib.sh"
-
-require gcloud kubectl
+source "$SD/lib.sh"
 load_env
-assert_universe
+kube_context >/dev/null 2>&1 || true
+assert_kube_reachable
 
 NS="${MODEL_NS:-model}"
-PROFILE="${MODEL_PROFILE:-auto}"
-WEIGHTS_BUCKET="${WEIGHTS_BUCKET:-$( cd "$TOFU_DIR" && tofu output -json buckets 2>/dev/null | jq -r '.weights // empty' )}"
-
-# ── quota check decides the profile ─────────────────────────────────────────
-if [[ "$PROFILE" == "auto" ]]; then
-  step "checking GPU quota in $UNIVERSE_REGION (probe 0.10)"
-  GPU_LIMIT="$(gcloud compute regions describe "$UNIVERSE_REGION" --project "$PROJECT_ID" \
-    --format='value(quotas.filter("metric:NVIDIA_H100_GPUS").limit)' 2>/dev/null || true)"
-  [[ -z "$GPU_LIMIT" ]] && GPU_LIMIT="$(gcloud compute regions describe "$UNIVERSE_REGION" \
-    --project "$PROJECT_ID" --format=json 2>/dev/null \
-    | jq -r '[.quotas[] | select(.metric|test("GPU"))] | max_by(.limit) | .limit // 0' 2>/dev/null || echo 0)"
-  GPU_LIMIT="${GPU_LIMIT:-0}"
-  log "largest GPU quota limit: $GPU_LIMIT"
-  if (( $(printf '%.0f' "$GPU_LIMIT" 2>/dev/null || echo 0) >= 8 )); then
-    PROFILE=gpu; ok "GPU quota available — using the A3/H100 profile"
-  else
-    PROFILE=cpu
-    warn "no usable GPU quota. Falling back to CPU inference on C3."
-    warn "To fix it: quota increases in GCD go ONLY through GCD support, which"
-    warn "needs a public GCP org + an Assured Workloads folder + an empty"
-    warn "support project, then up to 48 business hours. Stand that up this week."
-  fi
-fi
+PROFILE="${MODEL_PROFILE:-cpu}"
+require kubectl
 
 case "$PROFILE" in
+  cpu)
+    MODEL_ID="${MODEL_ID:-Qwen/Qwen2.5-3B-Instruct-GGUF:Q4_K_M}"
+    SERVED_NAME="${SERVED_NAME:-Qwen2.5-3B-Instruct}"
+    IMAGE="${LLAMA_IMAGE:-ghcr.io/ggml-org/llama.cpp:server}"
+    ;;
   gpu)
     MODEL_ID="${MODEL_ID:-google/gemma-3-27b-it}"
-    COMPUTE_CLASS_ANN='cloud.google.com/compute-class: "Accelerator"'
-    GPU_ANN='cloud.google.com/gke-accelerator: "nvidia-h100-80gb"'
-    GPU_COUNT_ANN='cloud.google.com/gke-accelerator-count: "8"'
-    RESOURCES='requests: { cpu: "8", memory: 64Gi, nvidia.com/gpu: 8 }
-            limits:   { cpu: "16", memory: 128Gi, nvidia.com/gpu: 8 }'
-    EXTRA_ARGS='--tensor-parallel-size=8'
+    SERVED_NAME="${SERVED_NAME:-gemma-3-27b-it}"
+    IMAGE="${VLLM_IMAGE:-vllm/vllm-openai:v0.8.5}"
+    warn "MODEL_PROFILE=gpu. In Berlin this WILL stay Pending: the H100 is"
+    warn "catalogued but no GPU node provisions. See feedback/google/06."
     ;;
-  cpu)
-    MODEL_ID="${MODEL_ID:-google/gemma-3-1b-it}"
-    COMPUTE_CLASS_ANN='cloud.google.com/compute-class: "general-purpose"'
-    GPU_ANN=''
-    GPU_COUNT_ANN=''
-    RESOURCES='requests: { cpu: "8", memory: 16Gi }
-            limits:   { cpu: "16", memory: 32Gi }'
-    EXTRA_ARGS='--device=cpu --dtype=float32'
-    ;;
-  *) die "MODEL_PROFILE must be gpu, cpu or auto" ;;
+  *) die "MODEL_PROFILE must be cpu or gpu" ;;
 esac
+ok "profile=$PROFILE model=$MODEL_ID served as $SERVED_NAME"
 
-ok "profile=$PROFILE model=$MODEL_ID"
+kubectl create ns "$NS" --dry-run=client -o yaml | kubectl apply -f - >/dev/null 2>&1
+# Enrol at creation, so the model is inside the mesh from its first breath and an
+# ALLOW policy on it can identify the gateway. Harmless if ambient is absent.
+kubectl label ns "$NS" istio.io/dataplane-mode=ambient --overwrite >/dev/null 2>&1
 
-# ── weights ─────────────────────────────────────────────────────────────────
-# Gemma is a gated repo on Hugging Face, so pulling weights needs a token — a
-# secret, in a universe with no Secret Manager. Envelope-encrypt it.
-if [[ -z "${HF_TOKEN:-}" ]]; then
-  warn "HF_TOKEN not set. Gemma weights are gated on Hugging Face, so vLLM cannot"
-  warn "download them. Two options:"
-  warn "  a) export HF_TOKEN=<token> and re-run (needs pod egress — probe 0.2)"
-  warn "  b) stage the weights into gs://${WEIGHTS_BUCKET:-<bucket>} and mount them"
-  warn "     with the Cloud Storage FUSE CSI driver (GKE 1.36.0-gke.1266000+,"
-  warn "     with skipCSIBucketAccessCheck: \"true\")"
-  die "no weights source"
-fi
-
-step "namespace + HF token (envelope-encrypted where possible)"
-kc create ns "$NS" --dry-run=client -o yaml | kc apply -f - >/dev/null
-kc -n "$NS" create secret generic hf-token --from-literal=token="$HF_TOKEN" \
-  --dry-run=client -o yaml | kc apply -f - >/dev/null
-warn "note: this Secret is PLAINTEXT in etcd. GKE on GCD does not support"
-warn "application-layer Secret encryption, and there is no Secret Manager to"
-warn "move it to. That is a real gap, not a solved problem — say so."
-
-step "vLLM ($PROFILE)"
-kc -n "$NS" apply -f - >/dev/null <<YAML
+if [[ "$PROFILE" == "cpu" ]]; then
+  step "llama.cpp serving $SERVED_NAME on CPU"
+  # ephemeral-storage is the trap here. llama.cpp downloads the GGUF to local
+  # disk at start-up, roughly 2 GB for a 3B model at Q4_K_M. Autopilot defaults
+  # a pod to 1Gi and EVICTS on overrun, which looks like a crash with restarts=0
+  # because eviction recreates the pod. The Autopilot maximum is 10Gi, so 9Gi is
+  # the safe ceiling; asking for more is rejected outright.
+  kubectl apply -f - >/dev/null 2>&1 <<YAML
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: vllm
-  labels: { app: vllm }
+  name: llm
+  namespace: ${NS}
+  labels: { app: llm }
 spec:
   replicas: 1
-  selector: { matchLabels: { app: vllm } }
+  selector: { matchLabels: { app: llm } }
   template:
-    metadata:
-      labels: { app: vllm }
-      annotations:
-        ${COMPUTE_CLASS_ANN}
-        ${GPU_ANN}
-        ${GPU_COUNT_ANN}
+    metadata: { labels: { app: llm } }
     spec:
-      serviceAccountName: default
       containers:
-        - name: vllm
-          image: ${VLLM_IMAGE:-vllm/vllm-openai:v0.8.5}
+        - name: server
+          image: ${IMAGE}
           args:
-            - --model=${MODEL_ID}
-            - --served-model-name=${MODEL_ID##*/}
-            - --host=0.0.0.0
-            - --port=8000
-            - --max-model-len=8192
-            - ${EXTRA_ARGS}
-          env:
-            - name: HUGGING_FACE_HUB_TOKEN
-              valueFrom: { secretKeyRef: { name: hf-token, key: token } }
-          ports: [{ containerPort: 8000, name: http }]
+            - -hf
+            - ${MODEL_ID}
+            - --alias
+            - ${SERVED_NAME}
+            - --host
+            - 0.0.0.0
+            - --port
+            - "8080"
+            - -c
+            - "4096"
+            - --jinja
+          ports: [{ containerPort: 8080, name: http }]
           readinessProbe:
-            httpGet: { path: /health, port: 8000 }
-            initialDelaySeconds: 120
+            httpGet: { path: /health, port: 8080 }
+            initialDelaySeconds: 60
             periodSeconds: 10
-            failureThreshold: 60
+            failureThreshold: 90
           resources:
-            ${RESOURCES}
+            requests:
+              cpu: "2"
+              memory: 6Gi
+              ephemeral-storage: 9Gi
+            limits:
+              cpu: "3"
+              memory: 8Gi
+              ephemeral-storage: 9Gi
 ---
 apiVersion: v1
 kind: Service
 metadata:
-  name: vllm
+  name: llm
+  namespace: ${NS}
+  labels: { app: llm }
 spec:
-  selector: { app: vllm }
-  ports: [{ name: http, port: 8000, targetPort: 8000 }]
+  selector: { app: llm }
+  ports: [{ name: http, port: 8080, targetPort: 8080, appProtocol: http }]
 YAML
-ok "vLLM applied"
-
-step "waiting for the model to load (this takes a while — weights download)"
-kc -n "$NS" rollout status deploy/vllm --timeout=1800s || {
-  warn "vLLM did not become ready. Check:"
-  warn "  kubectl --context $(kube_context) -n $NS logs deploy/vllm --tail=60"
-  warn "  kubectl --context $(kube_context) -n $NS get events --sort-by=.lastTimestamp | tail"
-  warn "If it is Pending on GPU, that is probe 0.10 answering no — record it."
-  die "model not ready"
-}
-ok "model serving on vllm.${NS}.svc.cluster.local:8000"
-
-# ── put agentgateway in front of it. This is the whole point. ──────────────
-step "agentgateway LLM backend + route"
-kc -n "$NS" apply -f - >/dev/null <<YAML
-apiVersion: agentgateway.dev/v1alpha1
-kind: AgentgatewayBackend
+else
+  step "vLLM serving $SERVED_NAME on A3/H100"
+  [[ -n "${HF_TOKEN:-}" ]] || die "MODEL_PROFILE=gpu needs HF_TOKEN: Gemma is gated."
+  kubectl -n "$NS" create secret generic hf-token \
+    --from-literal=token="$HF_TOKEN" --dry-run=client -o yaml | kubectl apply -f - >/dev/null 2>&1
+  kubectl apply -f - >/dev/null 2>&1 <<YAML
+apiVersion: apps/v1
+kind: Deployment
 metadata:
-  name: gemma
+  name: llm
+  namespace: ${NS}
+  labels: { app: llm }
 spec:
-  ai:
-    llm:
-      openai:
-        model: ${MODEL_ID##*/}
-    host:
-      host: vllm.${NS}.svc.cluster.local
-      port: 8000
+  replicas: 1
+  selector: { matchLabels: { app: llm } }
+  template:
+    metadata: { labels: { app: llm } }
+    spec:
+      nodeSelector:
+        cloud.google.com/compute-class: Accelerator
+        cloud.google.com/gke-accelerator: nvidia-h100-80gb
+      containers:
+        - name: server
+          image: ${IMAGE}
+          args:
+            - --model=${MODEL_ID}
+            - --served-model-name=${SERVED_NAME}
+          ports: [{ containerPort: 8000, name: http }]
+          env:
+            - name: HUGGING_FACE_HUB_TOKEN
+              valueFrom: { secretKeyRef: { name: hf-token, key: token } }
+          resources:
+            limits:
+              nvidia.com/gpu: 8
+              cpu: "8"
+              memory: 32Gi
 ---
-apiVersion: gateway.networking.k8s.io/v1
-kind: HTTPRoute
+apiVersion: v1
+kind: Service
 metadata:
-  name: gemma
+  name: llm
+  namespace: ${NS}
+  labels: { app: llm }
 spec:
-  parentRefs: [{ name: agentgateway-proxy, namespace: agentgateway-system }]
-  rules:
-    - matches: [{ path: { type: PathPrefix, value: /v1 } }]
-      backendRefs:
-        - group: agentgateway.dev
-          kind: AgentgatewayBackend
-          name: gemma
+  selector: { app: llm }
+  ports: [{ name: http, port: 8080, targetPort: 8000, appProtocol: http }]
 YAML
-ok "agentgateway fronting the model"
+fi
+
+step "Waiting for the model to serve"
+# A cold start downloads the weights, so this is minutes not seconds.
+if kubectl -n "$NS" rollout status deploy/llm --timeout=900s >/dev/null 2>&1; then
+  ok "llm is ready"
+else
+  warn "llm did not become ready. Recent events:"
+  kubectl -n "$NS" describe deploy llm 2>/dev/null | sed -n '/Events:/,$p' | tail -5 | sed 's/^/    /' >&2
+  kubectl -n "$NS" logs deploy/llm --tail=15 2>/dev/null | sed 's/^/    /' >&2
+  die "model not serving"
+fi
+
+step "Confirming the OpenAI-compatible API"
+kubectl -n "$NS" run model-probe --rm -i --restart=Never --quiet \
+  --image=curlimages/curl:8.11.0 --command -- \
+  curl -sS -m 30 "http://llm.${NS}.svc.cluster.local:8080/v1/models" 2>/dev/null \
+  | head -c 300 | sed 's/^/    /' >&2 || warn "could not query /v1/models"
+echo >&2
 
 cat >&2 <<EOF
 
-  In-universe inference, no egress, no managed model service, and every request
-  through a policy point:
+  Model:  ${SERVED_NAME}  (profile: ${PROFILE})
+  In-cluster: http://llm.${NS}.svc.cluster.local:8080/v1
 
-    model     ${MODEL_ID}  (profile: ${PROFILE})
-    direct    vllm.${NS}.svc.cluster.local:8000/v1   (do not point agents here)
-    gateway   http://agentgateway-proxy.agentgateway-system:80/v1
+  Nothing leaves the sovereign boundary: the weights are pulled once at start-up
+  and inference is local. agentgateway fronts this at llm.\${BASE_DOMAIN}/v1 once
+  80-ingress.sh has run, which is the URL kagent's ModelConfig points at.
 
-  Point kagent at the gateway:
-    MODEL_PROVIDER=selfhosted ./scripts/40-kagent.sh
-
-  This is the difference between our template and Google's two GCD blueprints:
-  theirs call Gemma directly with nothing in the path — no LLM traffic
-  management, no per-tool authorization, no audit of agent-to-model flows.
+  Next: ./scripts/70-agentgateway.sh, then ./scripts/90-mcp-agent.sh
 EOF

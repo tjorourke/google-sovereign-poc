@@ -27,7 +27,7 @@ each other at all.
 ```
 kagent Agent (sovereign-calc)
       │
-      ├── model traffic ──► agentgateway ──► llama.cpp / Qwen2.5-0.5B-Instruct
+      ├── model traffic ──► agentgateway ──► llama.cpp / Qwen2.5-3B-Instruct
       │                     (LLM policy)     self-hosted on C3 CPU, in-universe
       │
       └── tool traffic  ──► agentgateway ──► everything-server (MCP, 5 tools)
@@ -50,7 +50,7 @@ what Google's own Compute Engine differences page suggests when A3 is too large.
 
 We used **llama.cpp** rather than vLLM: it is CPU-native and serves an OpenAI-compatible `/v1`
 surface, which is what both kagent and agentgateway expect. The model is
-**Qwen2.5-0.5B-Instruct (Q4_K_M GGUF)**, chosen because it is **not gated on Hugging Face** — which
+**Qwen2.5-3B-Instruct (Q4_K_M GGUF)**, chosen because it is **not gated on Hugging Face** — which
 matters in a universe with no Secret Manager to hold an access token.
 
 It downloads its weights at start-up over Cloud NAT, which is itself a useful proof that egress
@@ -74,7 +74,7 @@ spec:
           image: ghcr.io/ggml-org/llama.cpp:server
           args:
             - -hf
-            - Qwen/Qwen2.5-0.5B-Instruct-GGUF:Q4_K_M
+            - Qwen/Qwen2.5-3B-Instruct-GGUF:Q4_K_M
             - --host
             - 0.0.0.0
             - --port
@@ -119,7 +119,7 @@ spec:
       # OpenAI-compatible surface, so a self-hosted model gets the same LLM
       # policy, budget and audit treatment as a SaaS provider would.
       openai:
-        model: Qwen2.5-0.5B-Instruct
+        model: Qwen2.5-3B-Instruct
       host: llm.model.svc.cluster.local
       port: 8080
       pathPrefix: /v1
@@ -267,7 +267,7 @@ metadata:
   namespace: kagent
 spec:
   provider: OpenAI
-  model: Qwen2.5-0.5B-Instruct
+  model: Qwen2.5-3B-Instruct
   apiKeySecret: llm-key          # a dummy value; the local model is keyless
   apiKeySecretKey: OPENAI_API_KEY
   openAI:
@@ -347,7 +347,7 @@ POST /  message/send  "Use your sum tool to add 17 and 25. Reply with just the n
 ## 4. The result that actually proves the control
 
 The `42` answer on its own proves the agent works end to end, but **not** that the tool was invoked
-— a model can add two small numbers unaided, and Qwen2.5-0.5B is small enough that its tool-calling
+— a model can add two small numbers unaided, and Qwen2.5-3B is small enough that its tool-calling
 is unreliable. We are not going to claim more than we measured.
 
 The decisive test is the control plane, not the completion. We changed one line of the gateway
@@ -365,7 +365,7 @@ or any application code.
 
 That is the property a regulated customer is buying, and it held with no mesh in the cluster.
 
-**What we did not prove**, stated plainly: that this particular 0.5B model reliably chooses to call
+**What we did not prove**, stated plainly: that this particular 3B model reliably chooses to call
 the tool. That is a model-capability question, not a platform one, and it would be answered by
 running the same wiring against Gemma 3 27B on A3/H100 once GPU quota exists.
 
@@ -632,7 +632,7 @@ production: `ext-auth-service`, `ext-cache`, `rate-limiter` and `waf-server`.
   waypoint Deployment *will* schedule, and the policy *will* report `Accepted` — but nothing
   redirects traffic to it without ztunnel, so nothing is enforced. Silent failure of a security
   control. Use the standalone path, as we did.
-- **The model is a 0.5B toy.** Adequate to prove the wiring, inadequate to demonstrate agent
+- **The model is a 3B model on CPU.** Adequate to prove the wiring, inadequate to demonstrate agent
   quality. The blocker is GPU quota, not architecture.
 - **HTTP only.** No Certificate Manager, no Private CA, no public DNS zone, so no ACME by either
   challenge type. TLS on the edge is BYO and hand-rotated.
