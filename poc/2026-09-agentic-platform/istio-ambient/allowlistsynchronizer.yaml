@@ -1,12 +1,3 @@
-# Pulls the WorkloadAllowlist files from Cloud Storage into the cluster and keeps
-# them current. The synchroniser reads the bucket as the GKE service agent, not
-# as the caller, which is why infra/tofu/modules/storage grants that agent
-# roles/storage.admin on the allowlist bucket.
-#
-# allowlistPaths are object paths WITHIN bucketName, with no gs:// prefix. The
-# cluster's --autopilot-privileged-admission flag must already authorise the
-# full gs:// URLs, and those in turn must appear in the
-# container.managed.autopilotPrivilegedAdmission managed org policy.
 apiVersion: auto.gke.io/v1
 kind: AllowlistSynchronizer
 metadata:

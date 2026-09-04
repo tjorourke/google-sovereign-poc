@@ -103,9 +103,9 @@ Leave alone deliberately:
 - **The managed org policy.** `container.managed.autopilotPrivilegedAdmission`
   is organisation-scoped, so it survives cluster teardown and a new cluster in
   the same org inherits it. If the allowlist paths change, the policy needs
-  updating; if they are the same, nothing to do. Worth switching to a
-  **directory prefix** (`gs://BUCKET/istio/`) while rebuilding, so future
-  version bumps stop needing a cluster update.
+  updating; if they are the same, nothing to do. A directory prefix would be
+  nicer but is **not honoured** — the synchroniser compares paths exactly, so
+  every object must be named. Tested; see the evidence file.
 - **The allowlist bucket** if the paths are unchanged, since it is cheap and
   re-uploading is trivial. It is a tofu-managed resource, so a full destroy will
   take it; recreating is one apply.
@@ -261,8 +261,14 @@ the keys are kept deliberately. It is a problem if someone assumes
 
 ## What I would change while rebuilding, rather than reproducing faithfully
 
-1. **Org policy on a directory prefix**, not individual files. Removes a
-   20-minute cluster update from every future Istio bump.
+1. ~~**Org policy on a directory prefix**~~ — **tested, and it does not work.**
+   Google's docs say the constraint takes "file or directory paths", but the
+   AllowlistSynchronizer admission check compares paths by exact string
+   membership and refuses objects under an authorised directory. Every allowlist
+   object must be named individually in both the org policy and the cluster
+   flag, so an Istio version bump costs a policy edit and another ~20 minute
+   cluster update, and no bucket layout avoids it. Written up in
+   `feedback/google/evidence/berlin-allowlist-path-prefix-not-honoured-2026-09-04.txt`.
 2. **Namespaces labelled for ambient at creation**, by the script that creates
    them, instead of a retroactive enrolment loop.
 3. **`60-model.sh` rewritten to what actually runs**, with the Gemma and GPU path

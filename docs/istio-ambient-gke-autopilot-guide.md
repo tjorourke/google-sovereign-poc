@@ -370,9 +370,18 @@ updates fail unless every cluster passes a conforming
 `--autopilot-privileged-admission`, across the whole organisation, not just
 Autopilot clusters.
 
-Consider using a **directory prefix** rather than individual files
-(`gs://BUCKET/istio/`), so adding a workload later does not require another
-cluster update.
+**Do not try a directory prefix.** The docs say the constraint takes "file or
+directory paths", but the AllowlistSynchronizer admission check compares paths by
+exact string membership, and objects under an authorised directory are refused:
+
+```
+[denied by autopilot-allowlist-synchronizer-limitation]: Unauthorized allowlist
+path(s) 'gs://.../istio-cni.yaml', 'gs://.../istio-ztunnel.yaml': not found in
+authorized path list 'gke://*', 'gs://.../istio/1.30.4/'
+```
+
+Name every object individually, here and in the cluster flag. An Istio version
+bump therefore costs an org policy edit plus another cluster update.
 
 Checking the policy afterwards is confusing, and this output is normal for a
 constraint that is set but not yet propagated to a resource:
@@ -845,8 +854,9 @@ allowlist is tied to the exact workload:
 
 - **Every Istio version bump** needs regenerated allowlists. Re-run step 2 with
   the new `$ISTIO_VER`, upload to a new path, and add that path to the org
-  policy and the cluster flag. Using a directory prefix in the org policy avoids
-  a cluster update each time.
+  policy and the cluster flag. A directory prefix does not avoid this: the
+  synchroniser compares paths exactly and refuses objects under an authorised
+  directory.
 - **Any change to the Helm values** used at install time needs regeneration too.
   Generation and installation are coupled; keep the flags in one place.
 - **Regenerate, never hand-edit.** A silently non-matching allowlist produces the

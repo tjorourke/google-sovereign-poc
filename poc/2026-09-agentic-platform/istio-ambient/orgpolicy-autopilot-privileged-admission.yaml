@@ -12,4 +12,5 @@ spec:
       parameters:
         allowAnyGKEPath: true
         allowPaths:
-          - gs://agentic-allowlist/istio/1.30.4/
+          - gs://agentic-allowlist/istio/1.30.4/istio-cni.yaml
+          - gs://agentic-allowlist/istio/1.30.4/istio-ztunnel.yaml

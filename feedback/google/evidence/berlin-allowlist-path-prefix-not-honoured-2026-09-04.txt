@@ -1,0 +1,54 @@
+# Autopilot allowlist paths must be EXACT; a directory prefix is not honoured.
+# 2026-09-04T21:54:13Z  Cluster agentic, eu0:soloio-eval.
+
+## What the documentation implies
+
+/kubernetes-engine/docs/concepts/about-autopilot-privileged-workloads, section
+"Organization Policy managed constraint for allowlists":
+
+  "This constraint defines a set of file or directory paths from which
+   GKE clusters can install allowlists."
+
+"or directory paths" reads as a prefix match, and a prefix would be materially
+better: an Istio version bump changes the object paths, and authorising a
+directory once would avoid an org policy edit plus a ~20 minute cluster update
+on every upgrade.
+
+## What actually happens
+
+Org policy and cluster flag both set to the DIRECTORY:
+
+  $ gcloud org-policies describe container.managed.autopilotPrivilegedAdmission \
+      --organization=560780939237871 --effective
+        allowAnyGKEPath: true
+        allowPaths:
+        - gs://agentic-allowlist/istio/1.30.4/
+
+  $ gcloud container clusters describe agentic --location u-germany-northeast1 \
+      --format='value(autopilot.privilegedAdmissionConfig.allowlistPaths)'
+      gke://*;gs://agentic-allowlist/istio/1.30.4/
+
+An AllowlistSynchronizer naming objects UNDER that directory is then refused:
+
+  $ kubectl apply -f allowlistsynchronizer.yaml
+  Error from server (GKE Warden constraints violations): ... denied the request:
+  Violations details: {"[denied by autopilot-allowlist-synchronizer-limitation]":
+  ["Unauthorized allowlist path(s) 'gs://agentic-allowlist/istio/1.30.4/istio-cni.yaml',
+    'gs://agentic-allowlist/istio/1.30.4/istio-ztunnel.yaml': not found in
+    authorized path list 'gke://*', 'gs://agentic-allowlist/istio/1.30.4/'."]}
+
+The comparison is exact string membership, not a prefix test. Note the error is
+clear about what it wants, which is to its credit.
+
+## Consequence
+
+Every allowlist object must be named individually in both the org policy and the
+cluster's --autopilot-privileged-admission. So each Istio version bump costs an
+organisation policy change and another cluster update, and neither can be
+avoided by planning the bucket layout.
+
+## Ask
+
+Either honour a trailing-slash path as a prefix, which is what the wording
+already implies, or correct the documentation to say the paths are exact object
+paths. The first is more useful; the second is at least honest.

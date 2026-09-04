@@ -35,9 +35,20 @@ assert_universe
 
 ISTIO_VERSION="${ISTIO_VERSION:-1.30.4}"
 ALLOWLIST_DIR="$LAB_ROOT/istio-ambient/allowlists"
-# Prefix, not individual files. A directory prefix means a future Istio version
-# bump needs no org policy change and no 20-minute cluster update. Individual
-# file paths were what we used first and it cost an update every time.
+# EXPLICIT FILE PATHS, not a directory prefix.
+#
+# Google's documentation describes the org policy as taking "file or directory
+# paths", which reads as though gs://BUCKET/istio/1.30.4/ would cover everything
+# beneath it. It does not. The AllowlistSynchronizer admission check compares its
+# allowlistPaths against the authorised list EXACTLY:
+#
+#   [denied by autopilot-allowlist-synchronizer-limitation]: Unauthorized
+#   allowlist path(s) 'gs://.../istio-cni.yaml', 'gs://.../istio-ztunnel.yaml':
+#   not found in authorized path list 'gke://*', 'gs://.../istio/1.30.4/'
+#
+# So every object has to be named in both the org policy and the cluster flag.
+# The cost is real and worth planning for: an Istio version bump changes the
+# paths, so it needs an org policy edit AND another ~20 minute cluster update.
 BUCKET="${ALLOWLIST_BUCKET:-}"
 PREFIX="istio/${ISTIO_VERSION}"
 
@@ -83,7 +94,9 @@ done
 step "Managed organization policy"
 ORG="${ORG_NUMBER:?ORG_NUMBER not set in .env.local}"
 POLICY_FILE="$LAB_ROOT/istio-ambient/orgpolicy-autopilot-privileged-admission.yaml"
-DIR_PATH="gs://${BUCKET}/${PREFIX}/"
+# The exact gs:// URL of every allowlist we just uploaded.
+AUTH_PATHS=()
+for rel in "${UPLOADED[@]}"; do AUTH_PATHS+=("gs://${BUCKET}/${rel}"); done
 
 # allowAnyGKEPath MUST stay true. Setting it false makes cluster creation and
 # update fail across the whole organisation unless every cluster passes a
@@ -103,7 +116,7 @@ spec:
       parameters:
         allowAnyGKEPath: true
         allowPaths:
-          - ${DIR_PATH}
+$(for p in "${AUTH_PATHS[@]}"; do echo "          - ${p}"; done)
 YAML
 grep -q 'allowAnyGKEPath: true' "$POLICY_FILE" \
   || die "refusing to apply a policy without allowAnyGKEPath: true"
@@ -117,22 +130,23 @@ POLICY_HAS_PATH="$(gcloud org-policies describe \
   --effective --format=json 2>/dev/null \
   | python3 -c "
 import json, sys
-want = sys.argv[1]
+want = set(sys.argv[1:])
 try:
     d = json.load(sys.stdin)
 except Exception:
     print('no'); raise SystemExit
 for rule in (d.get('spec', {}).get('rules') or []):
-    if want in (rule.get('parameters', {}).get('allowPaths') or []):
+    have = set(rule.get('parameters', {}).get('allowPaths') or [])
+    if want <= have:
         print('yes'); raise SystemExit
 print('no')
-" "$DIR_PATH" 2>/dev/null || echo no)"
+" "${AUTH_PATHS[@]}" 2>/dev/null || echo no)"
 if [[ "$POLICY_HAS_PATH" == "yes" ]]; then
-  ok "org policy already authorises $DIR_PATH"
+  ok "org policy already authorises all ${#AUTH_PATHS[@]} allowlist path(s)"
   POLICY_CHANGED=0
 else
   gcloud org-policies set-policy "$POLICY_FILE" >/dev/null 2>&1 \
-    && ok "org policy set: $DIR_PATH" \
+    && ok "org policy set with ${#AUTH_PATHS[@]} allowlist path(s)" \
     || die "could not set the org policy. This needs orgpolicy.policyAdmin."
   POLICY_CHANGED=1
 fi
@@ -142,13 +156,18 @@ CLUSTER="${CLUSTER_NAME:-agentic}"
 REGION="${UNIVERSE_REGION:?}"
 # gke://* must be listed explicitly. Setting this flag REPLACES the default
 # authorisation of all GKE-managed allowlists rather than adding to it.
-WANT="gke://*,${DIR_PATH}"
+WANT="gke://*"
+for p in "${AUTH_PATHS[@]}"; do WANT="${WANT},${p}"; done
 HAVE="$(gcloud container clusters describe "$CLUSTER" --location "$REGION" \
   --format='value(autopilot.privilegedAdmissionConfig.allowlistPaths)' 2>/dev/null \
   | tr -d "[]'" | tr ';' ',' | tr -d ' ')"
 
-if [[ "$HAVE" == *"$DIR_PATH"* ]]; then
-  ok "cluster already authorises $DIR_PATH (skipping the 20-minute update)"
+CLUSTER_OK=1
+for p in "${AUTH_PATHS[@]}"; do
+  [[ "$HAVE" == *"$p"* ]] || CLUSTER_OK=0
+done
+if [[ "$CLUSTER_OK" -eq 1 ]]; then
+  ok "cluster already authorises every path (skipping the 20-minute update)"
 else
   # A policy written seconds ago has not propagated, and the update is refused
   # with FAILED_PRECONDITION / CUSTOM_ORG_POLICY_DENIED. Identical command
@@ -171,7 +190,7 @@ else
     break
   done
   [[ "$UPDATED" -eq 1 ]] || die "could not authorise the allowlist paths on $CLUSTER"
-  ok "cluster authorises $DIR_PATH"
+  ok "cluster authorises every allowlist path"
 fi
 
 step "Installing the AllowlistSynchronizer"
