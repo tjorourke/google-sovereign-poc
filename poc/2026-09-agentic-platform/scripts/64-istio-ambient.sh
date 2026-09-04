@@ -54,16 +54,30 @@ CTX="$(kubectl config current-context)"
 require helm kubectl
 
 step "Preflight: the allowlists must already be installed"
-N="$(kubectl get workloadallowlists --no-headers 2>/dev/null | wc -l | tr -d ' ')"
-if [[ "$N" -lt 2 ]]; then
-  die "found $N WorkloadAllowlists, expected at least 2.
-    Run 62-istio-allowlists.sh, upload to the bucket, add the paths to the
+# Assert by NAME, not by count. A count admits any two WorkloadAllowlists --
+# including ones another synchroniser installed -- and the cniBinDir assertion
+# below needs these two specifically. 62-istio-allowlists.sh stamps these names
+# on deliberately, replacing GKE's timestamped default.
+# Keep as a string: bash 3.2 (the macOS default, and what env bash resolves to
+# here) errors on ${#arr[@]} for an empty array under set -u.
+MISSING=""
+for want in "istio-cni-$ISTIO_VERSION" "istio-ztunnel-$ISTIO_VERSION"; do
+  kubectl get workloadallowlist "$want" >/dev/null 2>&1 || MISSING="$MISSING $want"
+done
+if [[ -n "$MISSING" ]]; then
+  kubectl get workloadallowlists >&2 2>/dev/null || true
+  die "missing WorkloadAllowlist(s):$MISSING
+    Run 62-istio-allowlists.sh, upload to the bucket, add the EXACT gs:// object
+    paths (a directory prefix is accepted by the org policy and the cluster flag,
+    then refused by the synchroniser) to the
     container.managed.autopilotPrivilegedAdmission org policy and to the
     cluster's --autopilot-privileged-admission, then apply
-    istio-ambient/allowlistsynchronizer.yaml.
+    istio-ambient/allowlistsynchronizer.yaml and allow up to 10 minutes.
+    If they never appear, read the synchroniser's own status:
+      kubectl get allowlistsynchronizer -o yaml | sed -n '/^status:/,\$p'
     See docs/istio-ambient-on-gcd-autopilot.md."
 fi
-ok "$N WorkloadAllowlists installed"
+ok "istio-cni-$ISTIO_VERSION and istio-ztunnel-$ISTIO_VERSION installed"
 
 # Assert the allowlist expects the same CNI directory we are about to install
 # with. A mismatch here is the single most confusing failure mode: admission

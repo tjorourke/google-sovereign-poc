@@ -25,6 +25,11 @@ assert_kube_reachable
 
 ISTIO_VERSION="${ISTIO_VERSION:-1.30.4}"
 
+# BSD sed needs an argument to -i, GNU sed must not have one. Decide once, rather
+# than trying one and falling back on failure: on GNU a failed BSD-form call has
+# already consumed '' as the script, and the fallback can write a file named ''.
+if sed --version >/dev/null 2>&1; then SED_INPLACE=(-i); else SED_INPLACE=(-i ''); fi
+
 # CRITICAL: the allowlist matches the workload spec EXACTLY, including the
 # container image and the set of env var names. `--set profile=ambient` changes
 # ztunnel's image to :TAG-distroless and adds ISTIO_META_ENABLE_HBONE, so an
@@ -95,8 +100,7 @@ for CHART in cni ztunnel; do
 
   # GKE timestamps the allowlist name, so a regeneration would create a SECOND
   # allowlist rather than replacing the first. Give it a stable name.
-  sed -i '' "s|^\\( *\\)name: allowlist-[0-9a-zt.-]*\$|\\1name: istio-$CHART-$ISTIO_VERSION|" "$NEW" \
-    2>/dev/null || sed -i "s|^\\( *\\)name: allowlist-[0-9a-zt.-]*\$|\\1name: istio-$CHART-$ISTIO_VERSION|" "$NEW"
+  sed "${SED_INPLACE[@]}" "s|^\\( *\\)name: allowlist-[0-9a-zt.-]*\$|\\1name: istio-$CHART-$ISTIO_VERSION|" "$NEW"
 
   mv "$NEW" "$OUT/istio-$CHART.yaml"
   ok "wrote $OUT/istio-$CHART.yaml"

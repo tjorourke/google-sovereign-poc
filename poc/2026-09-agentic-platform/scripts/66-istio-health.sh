@@ -37,6 +37,9 @@ WP="${WAYPOINT:-agent-waypoint}"
 SVC="health-server.${NS}.svc.cluster.local:8080"
 YAML_DIR="$LAB_ROOT/istio-ambient/waypoint"
 
+# Match 62/64 so the allowlist assertion below can name the objects.
+ISTIO_VERSION="${ISTIO_VERSION:-1.30.4}"
+
 PASS=0; FAIL=0
 pass() { ok "$*"; PASS=$((PASS+1)); }
 fail() { warn "FAIL: $*"; FAIL=$((FAIL+1)); }
@@ -68,9 +71,15 @@ for d in istio-cni-node ztunnel; do
     fail "$d is ${READY:-0}/${WANT:-0} ready"
   fi
 done
-ALLOW_N="$(kubectl get workloadallowlists --no-headers 2>/dev/null | wc -l | tr -d ' ')"
-[[ "$ALLOW_N" -ge 2 ]] && pass "$ALLOW_N WorkloadAllowlists installed" \
-                       || fail "expected 2 WorkloadAllowlists, found $ALLOW_N"
+# By name, not by count: two unrelated WorkloadAllowlists would satisfy a count
+# while the DaemonSets above were admitted by something else entirely.
+ALLOW_MISSING=""
+for want in "istio-cni-$ISTIO_VERSION" "istio-ztunnel-$ISTIO_VERSION"; do
+  kubectl get workloadallowlist "$want" >/dev/null 2>&1 || ALLOW_MISSING="$ALLOW_MISSING $want"
+done
+[[ -z "$ALLOW_MISSING" ]] \
+  && pass "WorkloadAllowlists istio-cni-$ISTIO_VERSION and istio-ztunnel-$ISTIO_VERSION installed" \
+  || fail "missing WorkloadAllowlist(s):$ALLOW_MISSING"
 
 step "2. Workloads captured by ambient"
 UNCAPTURED="$(kubectl -n "$NS" get pods -o json 2>/dev/null | python3 -c "
