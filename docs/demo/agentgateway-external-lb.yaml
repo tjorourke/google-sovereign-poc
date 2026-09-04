@@ -1,0 +1,26 @@
+# External LoadBalancer for the agentgateway data plane.
+#
+# GCD has no public DNS zone, so a browser or a CLI on a laptop cannot resolve
+# any *.agentic.eu0.internal name and cannot route to the internal LB on
+# 10.20.0.8. This Service selects the same three gateway pods and gives them a
+# second, externally reachable address, so `arctl` and a browser can reach the
+# same HTTPRoutes (host-based) that in-cluster clients use.
+#
+# The internal Service the Gateway created is left untouched: in-cluster traffic
+# keeps using 10.20.0.8 and none of the existing DNS records change.
+apiVersion: v1
+kind: Service
+metadata:
+  name: agentgateway-proxy-external
+  namespace: agentgateway-system
+spec:
+  type: LoadBalancer
+  selector:
+    app.kubernetes.io/instance: agentgateway-proxy
+    app.kubernetes.io/name: agentgateway-proxy
+    gateway.networking.k8s.io/gateway-name: agentgateway-proxy
+  ports:
+    - name: http
+      port: 80
+      targetPort: 80
+      protocol: TCP

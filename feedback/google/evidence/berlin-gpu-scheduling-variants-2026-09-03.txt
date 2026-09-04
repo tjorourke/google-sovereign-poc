@@ -1,0 +1,65 @@
+# Berlin H100: four ways of asking, none provisions a node. 2026-09-03T19:57:41Z
+
+Project: eu0:soloio-eval (project number 560780937444745)
+Cluster: agentic, GKE Autopilot, u-germany-northeast1, release channel regular
+
+## 1. The accelerator and the machine type ARE catalogued
+$ gcloud compute accelerator-types list
+NAME              ZONE
+nvidia-h100-80gb  u-germany-northeast1-a
+nvidia-h100-80gb  u-germany-northeast1-b
+
+$ gcloud compute machine-types list --filter="name~a3"
+NAME                  ZONE                    CPUS
+a3-edgegpu-8g-nolssd  u-germany-northeast1-a  208
+a3-edgegpu-8g-nolssd  u-germany-northeast1-b  208
+
+Note: catalogued in zones -a and -b only. Not -c.
+
+## 2. No quota metric exists for either, so no increase can even be requested
+  NVIDIA_H100_80GB_GPUS present : False
+  A3_CPUS present               : False
+  any metric containing H100    : NONE
+  any metric containing A3       : NONE
+
+## 3. Four scheduling variants
+
+Variant 3 (nvidia.com/gpu with no selector) and variant 4 (machine-family: a3)
+are rejected at admission by GKE Warden, verbatim:
+
+  [denied by autogke-gpu-limitation]:
+    When requesting 'nvidia.com/gpu' resources, you must specify either node selector
+    'cloud.google.com/gke-accelerator' with accelerator type or node selector
+    'cloud.google.com/compute-class' with existing custom compute class which has at
+    least one GPU priority rule.
+
+  [denied by autopilot-machine-family-selection-limitation]:
+    Pods with node selector or affinity for "cloud.google.com/machine-family" must also
+    specify compute class "Performance".
+
+Variants 1 and 2 use exactly the form Warden asks for:
+    cloud.google.com/compute-class: Accelerator
+    cloud.google.com/gke-accelerator: nvidia-h100-80gb
+  variant 1: nvidia.com/gpu: 8   (a full a3-edgegpu-8g-nolssd node)
+  variant 2: nvidia.com/gpu: 1
+
+Both are ADMITTED and then never scheduled:
+
+  $ kubectl describe pod gpu-v1-accelerator-8
+    Type     Reason             Age    From                                   Message
+    ----     ------             ----   ----                                   -------
+    Warning  FailedScheduling   3m24s  gke.io/optimize-utilization-scheduler  0/3 nodes are available: 3 node(s) didn't match Pod's node affinity/selector. no new claims to deallocate, preemption: 0/3 nodes are available: 3 Preemption is not helpful for scheduling.
+    Normal   NotTriggerScaleUp  3m21s  cluster-autoscaler                     Pod didn't trigger scale-up: 6 node(s) didn't match Pod's node affinity/selector
+
+  $ kubectl describe pod gpu-v2-accelerator-1
+    Type     Reason             Age    From                                   Message
+    ----     ------             ----   ----                                   -------
+    Warning  FailedScheduling   3m24s  gke.io/optimize-utilization-scheduler  0/3 nodes are available: 3 node(s) didn't match Pod's node affinity/selector. no new claims to deallocate, preemption: 0/3 nodes are available: 3 Preemption is not helpful for scheduling.
+    Normal   NotTriggerScaleUp  3m19s  cluster-autoscaler                     Pod didn't trigger scale-up: 6 node(s) didn't match Pod's node affinity/selector
+
+## 4. Conclusion
+  The failure is NotTriggerScaleUp with "didn't match Pod's node affinity/selector",
+  not a quota error and not an out-of-capacity error. The cluster autoscaler has no
+  GPU node shape it is willing to consider, so it does not attempt provisioning and
+  nothing in the output points at the cause. A pod requesting an H100 in the exact
+  form GKE Warden demands stays Pending indefinitely.

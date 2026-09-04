@@ -1,0 +1,108 @@
+# Test workloads for the ambient health check, in the agent namespace so they sit
+# behind the same waypoint as the real agent traffic.
+#
+# Two identities on purpose. Policy in ambient keys off the workload's SPIFFE
+# identity, derived from its ServiceAccount, so proving "allowed" and "denied"
+# needs two ServiceAccounts rather than two pods. An IP-based test would prove
+# nothing here, which is exactly the point versus a network policy.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: health-allowed
+  namespace: kagent
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: health-denied
+  namespace: kagent
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: health-server
+  namespace: kagent
+---
+# The server. Answers on 8080 and echoes the request, so an L7 policy decision is
+# observable as a status code rather than a connection reset.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: health-server
+  namespace: kagent
+  labels: { app: health-server }
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: health-server }
+  template:
+    metadata:
+      labels: { app: health-server }
+    spec:
+      serviceAccountName: health-server
+      containers:
+        - name: server
+          image: registry.k8s.io/e2e-test-images/agnhost:2.47
+          args: ["netexec", "--http-port=8080"]
+          ports:
+            - containerPort: 8080
+          resources:
+            requests: { cpu: 100m, memory: 128Mi }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: health-server
+  namespace: kagent
+  labels: { app: health-server }
+spec:
+  selector: { app: health-server }
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080
+      appProtocol: http
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: health-allowed
+  namespace: kagent
+  labels: { app: health-allowed }
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: health-allowed }
+  template:
+    metadata:
+      labels: { app: health-allowed }
+    spec:
+      serviceAccountName: health-allowed
+      containers:
+        - name: client
+          image: curlimages/curl:8.11.0
+          command: ["sh", "-c", "sleep 100000"]
+          resources:
+            requests: { cpu: 50m, memory: 64Mi }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: health-denied
+  namespace: kagent
+  labels: { app: health-denied }
+spec:
+  replicas: 1
+  selector:
+    matchLabels: { app: health-denied }
+  template:
+    metadata:
+      labels: { app: health-denied }
+    spec:
+      serviceAccountName: health-denied
+      containers:
+        - name: client
+          image: curlimages/curl:8.11.0
+          command: ["sh", "-c", "sleep 100000"]
+          resources:
+            requests: { cpu: 50m, memory: 64Mi }

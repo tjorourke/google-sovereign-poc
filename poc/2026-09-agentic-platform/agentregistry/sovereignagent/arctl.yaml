@@ -1,0 +1,4 @@
+framework: adk
+language: python
+modelProvider: openai
+modelName: Qwen2.5-3B-Instruct

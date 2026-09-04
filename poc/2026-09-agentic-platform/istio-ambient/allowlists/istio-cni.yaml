@@ -1,0 +1,76 @@
+apiVersion: auto.gke.io/v1
+kind: WorkloadAllowlist
+metadata:
+    name: istio-cni-1.30.4
+    annotations:
+        autopilot.gke.io/no-connect: "true"
+exemptions:
+    - autogke-default-linux-capabilities
+    - autogke-no-write-mode-hostpath
+matchingCriteria:
+    containers:
+        - name: install-cni
+          image: registry.istio.io/release/install-cni:1.30.4-distroless
+          args:
+            - --log_output_level=info
+          command:
+            - install-cni
+          env:
+            - name: REPAIR_NODE_NAME
+            - name: REPAIR_RUN_AS_DAEMON
+            - name: REPAIR_SIDECAR_ANNOTATION
+            - name: ALLOW_SWITCH_TO_HOST_NS
+            - name: NODE_NAME
+            - name: GOMEMLIMIT
+            - name: GOMAXPROCS
+            - name: POD_NAME
+            - name: POD_NAMESPACE
+          envFrom:
+            - configMapRef:
+                name: istio-cni-config
+          securityContext:
+            appArmorProfile:
+                type: Unconfined
+            capabilities:
+                add:
+                    - NET_ADMIN
+                    - NET_RAW
+                    - SYS_PTRACE
+                    - SYS_ADMIN
+                    - DAC_OVERRIDE
+                drop:
+                    - ALL
+            privileged: false
+          volumeMounts:
+            - mountPath: /host/opt/cni/bin
+              name: cni-bin-dir
+            - mountPath: /host/proc
+              name: cni-host-procfs
+              readOnly: true
+            - mountPath: /host/etc/cni/net.d
+              name: cni-net-dir
+            - mountPath: /var/run/istio-cni
+              name: cni-socket-dir
+            - mountPath: /host/var/run/netns
+              name: cni-netns-dir
+            - mountPath: /var/run/ztunnel
+              name: cni-ztunnel-sock-dir
+    volumes:
+        - hostPath:
+            path: /home/kubernetes/bin
+          name: cni-bin-dir
+        - hostPath:
+            path: /proc
+          name: cni-host-procfs
+        - hostPath:
+            path: /var/run/ztunnel
+          name: cni-ztunnel-sock-dir
+        - hostPath:
+            path: /etc/cni/net.d
+          name: cni-net-dir
+        - hostPath:
+            path: /var/run/istio-cni
+          name: cni-socket-dir
+        - hostPath:
+            path: /var/run/netns
+          name: cni-netns-dir

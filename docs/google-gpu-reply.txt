@@ -1,0 +1,154 @@
+Subject: RE: GCD Berlin preview: GPU access, service mesh, identity
+
+
+Thanks, this is helpful, and the mesh and identity answers both land clearly.
+Taking them in turn, with the GPU one first because that is the one still
+blocking us.
+
+
+ON GPUS
+
+We would like them to be available too, but we cannot schedule one, and I want
+to give you enough detail that you can tell us whether this is a capacity
+allocation on your side or something we are doing wrong.
+
+The hardware is catalogued. Both of these return results in our project:
+
+  gcloud compute accelerator-types list
+    nvidia-h100-80gb   u-germany-northeast1-a
+    nvidia-h100-80gb   u-germany-northeast1-b
+
+  gcloud compute machine-types list --filter="name~a3"
+    a3-edgegpu-8g-nolssd   u-germany-northeast1-a   208 CPUs
+    a3-edgegpu-8g-nolssd   u-germany-northeast1-b   208 CPUs
+
+Note it appears in zones a and b only, not c.
+
+We then tried four ways of asking for one on our Autopilot cluster. Two of them
+GKE Warden rejects at admission, which is useful because it tells us the form
+you expect:
+
+  When requesting 'nvidia.com/gpu' resources, you must specify either node
+  selector 'cloud.google.com/gke-accelerator' with accelerator type or node
+  selector 'cloud.google.com/compute-class' with existing custom compute class
+  which has at least one GPU priority rule.
+
+So we used exactly that form:
+
+  nodeSelector:
+    cloud.google.com/compute-class: Accelerator
+    cloud.google.com/gke-accelerator: nvidia-h100-80gb
+  resources:
+    limits:
+      nvidia.com/gpu: 8        (a full a3-edgegpu-8g-nolssd node)
+
+and separately the same thing with nvidia.com/gpu: 1.
+
+Both are admitted. Neither ever schedules. This is the verbatim result, still
+reproducible today:
+
+  Warning  FailedScheduling    gke.io/optimize-utilization-scheduler
+    0/3 nodes are available: 3 node(s) didn't match Pod's node affinity/selector.
+    no new claims to deallocate, preemption: 0/3 nodes are available:
+    3 Preemption is not helpful for scheduling.
+
+  Normal   NotTriggerScaleUp   cluster-autoscaler
+    Pod didn't trigger scale-up: 6 node(s) didn't match Pod's node
+    affinity/selector
+
+The important detail is that this is not a quota error and not an out of
+capacity error. The autoscaler reports a node affinity mismatch, which means it
+has no GPU node shape it is willing to consider, so it never attempts to
+provision. From our side that is indistinguishable from us having written the
+manifest wrong, and it cost us most of a day before we concluded otherwise.
+
+Separately, there is no quota metric for either the accelerator or the machine
+family in our project:
+
+  NVIDIA_H100_80GB_GPUS present : False
+  A3_CPUS present               : False
+  any metric containing H100    : none
+  any metric containing A3      : none
+
+So even if this is a quota matter, there is no metric for us to request an
+increase against.
+
+Project details for whoever picks this up: eu0:soloio-eval, project number
+560780937444745, cluster "agentic", GKE Autopilot, u-germany-northeast1,
+regular release channel.
+
+What we are asking for:
+
+1. Whether A3 or H100 capacity is actually allocated to this project, and in
+   which zones.
+
+2. Whether the Autopilot Accelerator compute class is enabled for this
+   universe. The autoscaler behaves exactly as it would if the compute class
+   exists but has no backing node configuration.
+
+3. The quota metric name we should be requesting, so we can file for it.
+
+4. Whether GPUs on GCD require a Standard cluster rather than Autopilot. This
+   is the one we most need answered. The documented GKE offering here is
+   Autopilot only, so if GPUs need Standard then this is an architectural
+   question rather than a capacity one, and it also changes the mesh answer
+   below.
+
+Happy to run any probe you want and send the output, or to give someone
+read access and let them look directly.
+
+
+ON SERVICE MESH
+
+Understood, and thank you for the dates. End of 2026 for operators and Q1 2027
+for customers is useful for us to plan against.
+
+It does mean that for the whole of the preview and the first year of general
+availability, a customer running AI agents on GCD has no service mesh, no
+mutual TLS between workloads, and no network policy, because GKE network
+policy is not available here either. We are comfortable with that because our
+gateway supplies tool level authorisation and audit without needing a mesh, and
+we have that running and tested in Berlin now. But it is worth Google and Solo
+saying the same thing to a regulated buyer, so I would rather agree the wording
+with you than have it come up cold in a customer meeting.
+
+One thing follows from the GPU question above. If GPUs turn out to need a
+Standard cluster, then Standard clusters exist in this universe, and Istio
+ambient becomes possible well before your Cloud Service Mesh date. That would
+be worth knowing.
+
+
+ON IDENTITY
+
+That matches what we found and it is what we built against, so no concern. We
+are running our own Keycloak inside the cluster as the OIDC issuer for our
+control plane, and it works.
+
+The one thing worth flagging is not a technical gap but a compliance one. With
+no identity service in the universe, the credentials that authorise sovereign
+workloads are issued by something the customer stands up themselves, and for a
+software vendor that means shipping an IDP as part of the product. Customer
+compliance teams will ask where the root of trust for workload identity sits.
+Worth a documented reference pattern from Google, because every vendor is going
+to solve it differently otherwise.
+
+Yes please to the additional workspace accounts. Right now
+preview-soloio@id-berlin-build0.goog is a shared org level account, so there is
+no per person attribution in the audit log. That is fine for our evaluation but
+we would rather test the model a real customer would use, and it would let us
+demonstrate per user access control properly.
+
+
+WHERE WE ARE OTHERWISE
+
+The full platform is deployed and working in Berlin, provisioned as code. Agents,
+tool servers, the agent catalogue, the identity layer, the gateway and a self
+hosted model, all inside the sovereign boundary with nothing leaving it. We can
+show an agent being published to a catalogue and deployed into the cluster by
+that catalogue, calling a governed tool, with the tool call visible in a trace.
+
+The only thing we cannot show is that running on a GPU with a model of the size
+a customer would actually use.
+
+We have a written technical record with verbatim output for all of the above and
+can share it with your engineering team whenever useful.

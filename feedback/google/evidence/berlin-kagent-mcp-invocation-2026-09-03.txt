@@ -1,0 +1,24 @@
+# Proof that kagent genuinely invokes an MCP tool through agentgateway
+# 2026-09-03T18:52:10Z
+#
+# Method: ask the agent to reverse a random 20-character hex nonce. A 3B
+# parameter model cannot do this unaided, so an exact match proves the tool
+# was called rather than the model answering from its own capability.
+#
+# nonce    = e3c9990ade051c68964a
+# expected = a46986c150eda0999c3e
+
+state: "state":"completed"
+EXPECTED: a46986c150eda0999c3e
+"text":"a46986c150eda0999c3e"
+"text":"The reversed text is: a46986c150eda0999c3e"
+RESULT: MATCH - the MCP tool was genuinely invoked
+
+## Path
+  kagent Agent sovereign-calc
+    -> agentgateway (MCP tool authorization)
+      -> everything-server (5 tools; policy permitted sum + reverse_text)
+
+## No mesh present
+  ztunnel pods:      0
+  istio namespaces:  0

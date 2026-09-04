@@ -1,0 +1,143 @@
+#!/usr/bin/env bash
+# 30-keycloak.sh — the single OIDC issuer for the whole platform.
+#
+# Everything downstream validates against this: kagent, the Enterprise UI and
+# AgentRegistry all point at the same realm. It therefore has to be first, and
+# its two confidential client secrets have to be scraped before any of the
+# charts that consume them.
+#
+# The GCD difference from the kind lab: the issuer hostname resolves through a
+# Cloud DNS PRIVATE zone in-cluster and through the regional external ALB from
+# outside, so there is no hostAlias bridge. One string, both sides.
+set -euo pipefail
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=lib.sh
+source "$SCRIPT_DIR/lib.sh"
+
+require gcloud kubectl jq
+load_env
+assert_universe
+
+NS=keycloak
+REALM=agentregistry
+BASE_DOMAIN="${BASE_DOMAIN:-agentic.eu0.internal}"
+# http until 85-edge.sh installs a cert. Keycloak stamps this into every token's
+# iss claim, so changing it later means re-issuing every client config.
+ISSUER_SCHEME="${ISSUER_SCHEME:-http}"
+ISSUER_URL="${ISSUER_SCHEME}://keycloak.${BASE_DOMAIN}"
+ISSUER="${ISSUER_URL}/realms/${REALM}"
+
+# Mirror-aware image reference. If probe 0.3 said direct pulls work we can use
+# quay.io; otherwise this must be the mirrored copy. Never hardcode either.
+KEYCLOAK_IMAGE="${KEYCLOAK_IMAGE:-quay.io/keycloak/keycloak:26.3}"
+KEYCLOAK_ADMIN_PASSWORD="${KEYCLOAK_ADMIN_PASSWORD:-admin}"
+
+step "namespace + realm import ConfigMap"
+kc create ns "$NS" --dry-run=client -o yaml | kc apply -f - >/dev/null
+kc -n "$NS" create configmap keycloak-realm-import \
+  --from-file="${REALM}-realm.json=$LAB_ROOT/yaml/keycloak/agentregistry-realm.json" \
+  --dry-run=client -o yaml | kc apply -f - >/dev/null
+ok "realm JSON staged"
+
+step "Keycloak (issuer $ISSUER)"
+export KEYCLOAK_IMAGE KEYCLOAK_ADMIN_PASSWORD ISSUER_URL
+# envsubst is not always installed; use a bounded python substitution instead so
+# only our three placeholders are touched.
+python3 - "$LAB_ROOT/yaml/keycloak/keycloak.yaml" <<'PY' | kc apply -f - >/dev/null
+import os, sys, re
+src = open(sys.argv[1]).read()
+for k in ("KEYCLOAK_IMAGE", "KEYCLOAK_ADMIN_PASSWORD", "ISSUER_URL"):
+    src = src.replace("${%s}" % k, os.environ[k])
+leftover = re.findall(r"\$\{[A-Z_]+\}", src)
+assert not leftover, f"unsubstituted placeholders: {leftover}"
+sys.stdout.write(src)
+PY
+ok "applied"
+
+step "waiting for Keycloak to be ready"
+kc -n "$NS" rollout status statefulset/keycloak --timeout=300s
+ok "Keycloak running"
+
+# ── point the private DNS record at Keycloak, so in-cluster OIDC discovery
+# works BEFORE the ingress gateway exists. 80-ingress.sh re-points it later.
+step "private DNS: keycloak.${BASE_DOMAIN} -> Keycloak ClusterIP"
+KC_CLUSTER_IP="$(kc -n "$NS" get svc keycloak -o jsonpath='{.spec.clusterIP}')"
+[[ -n "$KC_CLUSTER_IP" ]] || die "no ClusterIP on svc/keycloak"
+dns_upsert "keycloak.${BASE_DOMAIN}" "$KC_CLUSTER_IP"
+log "pods can route to a ClusterIP, so discovery resolves now; the gateway takes"
+log "over this record in 80-ingress.sh, and the issuer string never changes."
+
+# ── scrape the two confidential client secrets ───────────────────────────────
+# Keycloak generates these at realm import. The kagent, management and
+# AgentRegistry charts all consume them, so they have to be read out now.
+# There is no Secret Manager in GCD, so they are envelope-encrypted with Cloud
+# KMS before anything is written to disk.
+step "scraping confidential client secrets from the admin API"
+PF_PORT="${PF_PORT:-18099}"
+kc -n "$NS" port-forward svc/keycloak "${PF_PORT}:8080" >/dev/null 2>&1 &
+PF_PID=$!
+trap 'kill $PF_PID 2>/dev/null || true' EXIT
+for i in $(seq 1 30); do
+  curl -sf "http://localhost:${PF_PORT}/realms/master" >/dev/null 2>&1 && break
+  sleep 2
+done
+
+ADM="$(curl -s -X POST "http://localhost:${PF_PORT}/realms/master/protocol/openid-connect/token" \
+  -d "grant_type=password&client_id=admin-cli&username=admin&password=${KEYCLOAK_ADMIN_PASSWORD}" \
+  | jq -r .access_token)"
+[[ -n "$ADM" && "$ADM" != "null" ]] || die "could not get a Keycloak admin token"
+
+get_secret() {
+  local client="$1" cid
+  cid="$(curl -s -H "Authorization: Bearer $ADM" \
+    "http://localhost:${PF_PORT}/admin/realms/${REALM}/clients?clientId=${client}" | jq -r '.[0].id')"
+  [[ -n "$cid" && "$cid" != "null" ]] || die "client '$client' not found in realm '$REALM'"
+  curl -s -H "Authorization: Bearer $ADM" \
+    "http://localhost:${PF_PORT}/admin/realms/${REALM}/clients/${cid}/client-secret" | jq -r .value
+}
+
+AR_BACKEND_SECRET="$(get_secret ar-backend)"
+KAGENT_BACKEND_SECRET="$(get_secret kagent-backend)"
+[[ -n "$AR_BACKEND_SECRET" && -n "$KAGENT_BACKEND_SECRET" ]] || die "empty client secret"
+ok "scraped ar-backend and kagent-backend"
+
+# ── persist, encrypted ───────────────────────────────────────────────────────
+mkdir -p "$LAB_ROOT/deploy"
+ENVF="$LAB_ROOT/deploy/.env.oidc"
+if [[ -n "${KMS_ENVELOPE_KEY:-}" ]]; then
+  {
+    echo "# Generated by 30-keycloak.sh on $(date -u '+%Y-%m-%dT%H:%M:%SZ'). Never commit."
+    echo "# Client secrets are ENVELOPE-ENCRYPTED with Cloud KMS ($KMS_ENVELOPE_KEY),"
+    echo "# because GCD has no Secret Manager. Decrypt with lib.sh kms_decrypt."
+    echo "OIDC_ISSUER=${ISSUER}"
+    echo "OIDC_REALM=${REALM}"
+    echo "AR_BACKEND_SECRET_ENC=$(kms_encrypt "$AR_BACKEND_SECRET")"
+    echo "KAGENT_BACKEND_SECRET_ENC=$(kms_encrypt "$KAGENT_BACKEND_SECRET")"
+  } >"$ENVF"
+  ok "secrets envelope-encrypted into $ENVF"
+else
+  warn "KMS_ENVELOPE_KEY unset — writing PLAINTEXT secrets to $ENVF (gitignored)"
+  {
+    echo "# PLAINTEXT because KMS_ENVELOPE_KEY was unset. Never commit."
+    echo "OIDC_ISSUER=${ISSUER}"
+    echo "OIDC_REALM=${REALM}"
+    echo "AR_BACKEND_SECRET=${AR_BACKEND_SECRET}"
+    echo "KAGENT_BACKEND_SECRET=${KAGENT_BACKEND_SECRET}"
+  } >"$ENVF"
+fi
+chmod 600 "$ENVF"
+
+cat >&2 <<EOF
+
+  Issuer: ${ISSUER}
+  Realm:  ${REALM}  (admin-user / password, group 'admins')
+  Clients: ar-backend ar-ui ar-cli-password kagent-backend kagent-ui
+
+  Two realm details that run through everything downstream:
+    - the group-membership mapper emits 'Groups' with a CAPITAL G, and every
+      role-mapper CEL reads claims.Groups. Keep them aligned.
+    - audience mappers are split on purpose: ar-* stamp aud: ar-backend,
+      kagent-* stamp aud: kagent-backend, so each product validates its own.
+
+  Next: ./scripts/40-kagent.sh
+EOF

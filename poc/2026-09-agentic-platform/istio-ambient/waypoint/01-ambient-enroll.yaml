@@ -1,0 +1,13 @@
+# Enrol the agent namespace in ambient. This is the whole opt-in: one label, no
+# sidecars, no pod restarts. ztunnel picks the workloads up and starts carrying
+# their traffic over HBONE with mTLS.
+#
+# kagent is the namespace that matters here: it holds sovereign-calc, the model
+# client and the tool clients, so it is where workload identity and L4 policy
+# actually buy something.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: kagent
+  labels:
+    istio.io/dataplane-mode: ambient

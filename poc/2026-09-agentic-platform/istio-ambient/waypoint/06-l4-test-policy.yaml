@@ -1,0 +1,21 @@
+# L4 policy, enforced by ztunnel. No waypoint involved.
+#
+# The selector is the SERVER workload; the rule names the CLIENT's SPIFFE
+# identity, derived from its ServiceAccount. Two clients on the same node with
+# adjacent pod IPs get different answers, which is the thing a network policy
+# cannot express and the thing GCD otherwise has no mechanism for at all.
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: health-l4-allow-one-identity
+  namespace: kagent
+spec:
+  selector:
+    matchLabels:
+      app: health-server
+  action: ALLOW
+  rules:
+    - from:
+        - source:
+            principals:
+              - cluster.local/ns/kagent/sa/health-allowed

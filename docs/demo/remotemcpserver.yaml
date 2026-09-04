@@ -1,0 +1,15 @@
+# Re-applied during the demo to force kagent to re-discover its tools after a
+# gateway policy change. The URL points at the GATEWAY, by hostname: pointing it
+# at everything-server.mcp.svc.cluster.local would reach the same tool server
+# and bypass every control, which is the failure mode worth naming out loud.
+apiVersion: kagent.dev/v1alpha2
+kind: RemoteMCPServer
+metadata:
+  name: everything-server
+  namespace: kagent
+spec:
+  description: Approved org tool server, reached through agentgateway
+  url: http://mcp.agentic.eu0.internal/mcp
+  protocol: STREAMABLE_HTTP
+  timeout: 30s
+  terminateOnClose: true

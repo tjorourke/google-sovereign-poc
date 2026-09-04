@@ -1,0 +1,17 @@
+# Minimal privileged workload, to answer one question: does customer-owned
+# allowlisting work at all in this universe? One container, one capability, no
+# hostPath, no host namespaces.
+apiVersion: v1
+kind: Pod
+metadata:
+  name: allowlist-probe
+  namespace: default
+spec:
+  restartPolicy: Never
+  containers:
+    - name: probe
+      image: curlimages/curl:8.11.0
+      command: ["sh","-c","sleep 300"]
+      securityContext:
+        capabilities:
+          add: ["NET_ADMIN"]

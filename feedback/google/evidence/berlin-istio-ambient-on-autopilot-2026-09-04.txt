@@ -1,0 +1,82 @@
+# Istio ambient running on GKE Autopilot in GCD Berlin. 2026-09-04T17:16:03Z
+# Project eu0:soloio-eval, cluster agentic, Istio 1.30.4.
+
+## The privileged DaemonSets Autopilot previously rejected
+NAME             DESIRED   CURRENT   READY   UP-TO-DATE   AVAILABLE   NODE SELECTOR            AGE
+istio-cni-node   5         5         5       5            5           kubernetes.io/os=linux   43m
+ztunnel          5         5         5       5            5           kubernetes.io/os=linux   43m
+
+## The WorkloadAllowlists that permit them
+NAME                   AGE
+istio-cni-1.30.4       46m
+istio-ztunnel-1.30.4   28m
+
+## AllowlistSynchronizer status
+SyncSuccessful: Synchronization completed successfully; allowlists up to date
+
+## Cluster admission configuration
+autopilot:
+  privilegedAdmissionConfig:
+    allowlistPaths:
+    - gke://*
+    - gs://agentic-allowlist/istio/1.30.4/istio-cni.yaml
+    - gs://agentic-allowlist/istio/1.30.4/istio-ztunnel.yaml
+
+## Managed org policy authorising the paths
+name: organizations/560780939237871/policies/container.managed.autopilotPrivilegedAdmission
+spec:
+  rules:
+  - enforce: true
+    parameters:
+      allowAnyGKEPath: true
+      allowPaths:
+      - gs://agentic-allowlist/istio/1.30.4/istio-cni.yaml
+      - gs://agentic-allowlist/istio/1.30.4/istio-ztunnel.yaml
+
+## Ambient capture: istio-cni stamps this on every enrolled pod
+POD                                                   REDIRECTION
+agent-waypoint-76cd876f76-n5p6q                       <none>
+health-allowed-64c78f49dc-46x5h                       enabled
+health-denied-5555bdbdb8-vkrc6                        enabled
+health-server-c6dfb745f-wlpd7                         enabled
+kagent-controller-59ddb7b8c9-mbbn4                    enabled
+kagent-tools-747659c467-gbvqw                         enabled
+kagent-tools-747659c467-jddtz                         enabled
+kmcp-enterprise-controller-manager-5d988dd996-5rfx5   enabled
+sovereign-calc-68b868b84c-9pqhp                       enabled
+
+## Waypoint
+NAME             CLASS            ADDRESS       PROGRAMMED   AGE
+agent-waypoint   istio-waypoint   10.36.10.51   True         8m3s
+
+[1;34m▸ 1. Privileged DaemonSets admitted and healthy[0m
+  [32m✓[0m istio-cni-node is 5/5 ready
+  [32m✓[0m ztunnel is 5/5 ready
+  [32m✓[0m 2 WorkloadAllowlists installed
+
+[1;34m▸ 2. Workloads captured by ambient[0m
+  [32m✓[0m every running pod in kagent is captured
+
+[1;34m▸ 3. mTLS: ztunnel reports peer SPIFFE identities[0m
+  [32m✓[0m ztunnel reports mTLS peer identities (2 source, 5 destination)
+      source_principal="spiffe://cluster.local/ns/kagent/sa/health-allowed"
+      source_principal="spiffe://cluster.local/ns/kagent/sa/kagent-controller"
+      destination_principal="spiffe://cluster.local/ns/istio-system/sa/ztunnel"
+      destination_principal="spiffe://cluster.local/ns/kagent/sa/agent-waypoint"
+      destination_principal="spiffe://cluster.local/ns/kagent/sa/health-server"
+      destination_principal="spiffe://cluster.local/ns/kagent/sa/kagent-tools"
+
+[1;34m▸ 4. L4 policy, enforced by ztunnel on identity[0m
+  [32m✓[0m baseline: both identities reach the server (allowed=200 denied=200)
+  [32m✓[0m L4 ALLOW policy: health-allowed=200, health-denied=000 (denied at L4)
+
+[1;34m▸ 5. L7 policy, enforced by the waypoint on HTTP method[0m
+  [32m✓[0m waypoint agent-waypoint is Programmed
+  [32m✓[0m L7 method policy: GET=200, DELETE=403 (403 from the waypoint)
+
+[1;34m▸ 6. Removing the policy restores traffic[0m
+  [32m✓[0m DELETE=200 once the policy is removed
+
+[1;34m▸ Result[0m
+    passed: 10   failed: 0
+  [32m✓[0m Istio ambient L4 and L7 enforcement verified on GKE Autopilot in GCD

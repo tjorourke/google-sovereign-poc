@@ -1,0 +1,169 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1180 1000" width="1180" height="1000" font-family="Helvetica, Arial, sans-serif">
+  <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#5f6368"/>
+    </marker>
+  </defs>
+
+  <rect width="1180" height="1000" fill="#ffffff"/>
+  <text x="30" y="38" font-size="19" font-weight="700" fill="#202124">Solo.io agentic platform on Google Cloud Dedicated, Berlin</text>
+  <text x="30" y="58" font-size="12" fill="#5f6368">Project eu0:soloio-eval · region u-germany-northeast1 · 62 resources · built with OpenTofu · 2026-09-03</text>
+  <text x="30" y="76" font-size="10" fill="#5f6368" font-family="SF Mono, Menlo, monospace">CMEK = customer-managed encryption key (Cloud KMS, SOFTWARE protection level — GCD offers no HSM)</text>
+
+  <!-- ============ IDENTITY AND GOVERNANCE ============ -->
+  <rect x="30" y="96" width="1120" height="104" fill="#f8f9fa" stroke="#e0e2e5" stroke-width="1" rx="8"/>
+  <text x="44" y="116" font-size="11" font-weight="700" fill="#5f6368" letter-spacing="1.1">IDENTITY AND GOVERNANCE</text>
+
+  <rect x="44" y="126" width="250" height="60" fill="#ffffff" stroke="#dadce0" stroke-width="1.2" rx="6"/>
+  <text x="56" y="145" font-size="13" font-weight="700" fill="#202124">Workforce Identity Federation</text>
+  <text x="56" y="161" font-size="11" fill="#3c4043">the only human identity path in GCD</text>
+  <text x="56" y="176" font-size="10" fill="#5f6368" font-family="SF Mono, Menlo, monospace">preview-soloio-p / -pp</text>
+
+  <rect x="306" y="126" width="270" height="60" fill="#ffffff" stroke="#dadce0" stroke-width="1.2" rx="6"/>
+  <text x="318" y="145" font-size="13" font-weight="700" fill="#202124">5 service accounts + 8 role bindings</text>
+  <text x="318" y="161" font-size="11" fill="#3c4043">one per component, Workload Identity bound</text>
+  <text x="318" y="176" font-size="10" fill="#5f6368" font-family="SF Mono, Menlo, monospace">*@soloio-eval.eu0.iam.gserviceaccount.com</text>
+
+  <rect x="588" y="126" width="270" height="60" fill="#ffffff" stroke="#dadce0" stroke-width="1.2" rx="6"/>
+  <text x="600" y="145" font-size="13" font-weight="700" fill="#202124">Organization Policy · 3 enforced</text>
+  <text x="600" y="161" font-size="11" fill="#3c4043">shieldedVm · uniformBucket · no external IP</text>
+  <text x="600" y="176" font-size="10" fill="#5f6368" font-family="SF Mono, Menlo, monospace">gcp.resourceLocations: does not exist here</text>
+
+  <rect x="870" y="126" width="266" height="60" fill="#ffffff" stroke="#dadce0" stroke-width="1.2" rx="6"/>
+  <text x="882" y="145" font-size="13" font-weight="700" fill="#202124">Essential Contacts</text>
+  <text x="882" y="161" font-size="11" fill="#3c4043">security + technical notifications</text>
+  <text x="882" y="176" font-size="10" fill="#5f6368" font-family="SF Mono, Menlo, monospace">the only per-person channel today</text>
+
+  <!-- ============ COMPUTE ============ -->
+  <rect x="30" y="216" width="1120" height="176" fill="#f8f9fa" stroke="#e0e2e5" stroke-width="1" rx="8"/>
+  <text x="44" y="236" font-size="11" font-weight="700" fill="#5f6368" letter-spacing="1.1">COMPUTE</text>
+
+  <rect x="44" y="246" width="530" height="132" fill="#fff8e6" stroke="#c8a415" stroke-width="1.4" rx="6"/>
+  <text x="58" y="266" font-size="13" font-weight="700" fill="#202124">GKE Autopilot — cluster "agentic"</text>
+  <text x="58" y="284" font-size="10" fill="#5f6368" font-family="SF Mono, Menlo, monospace">v1.35.6-gke.1049000 · REGULAR channel · VPC-native</text>
+  <text x="58" y="300" font-size="11" fill="#3c4043">Autopilot is the only mode GCD offers. No Standard clusters.</text>
+  <text x="58" y="316" font-size="10" fill="#5f6368" font-family="SF Mono, Menlo, monospace">workload identity pool: soloio-eval.eu0.svc.id.goog</text>
+  <text x="58" y="334" font-size="11" fill="#3c4043">PRIVATE NODES: no external IP, egress via Cloud NAT. That is</text>
+  <text x="58" y="349" font-size="11" fill="#3c4043">what makes the deny-all external-IP org policy compatible</text>
+  <text x="58" y="364" font-size="11" fill="#3c4043">with a working cluster — verified end to end.</text>
+
+  <rect x="592" y="246" width="544" height="60" fill="#fff8e6" stroke="#c8a415" stroke-width="1.4" rx="6"/>
+  <text x="606" y="266" font-size="13" font-weight="700" fill="#202124">Solo platform, running in the cluster</text>
+  <text x="606" y="284" font-size="11" fill="#3c4043">Keycloak · kagent + KMCP · agentregistry · agentgateway</text>
+  <text x="606" y="299" font-size="10" fill="#5f6368" font-family="SF Mono, Menlo, monospace">4 namespaces · 8 pods · both databases on Cloud SQL</text>
+
+  <rect x="592" y="316" width="544" height="62" fill="#fdeeee" stroke="#c5221f" stroke-width="1.2" rx="6" stroke-dasharray="5 3"/>
+  <text x="606" y="336" font-size="13" font-weight="700" fill="#202124">Service mesh — NOT DEPLOYABLE</text>
+  <text x="606" y="354" font-size="11" font-weight="700" fill="#c5221f">Istio ambient · sidecar · Cloud Service Mesh · GKE NetworkPolicy</text>
+  <text x="606" y="370" font-size="11" fill="#3c4043">agentgateway is therefore the only L7 policy point available.</text>
+
+  <!-- ============ PLATFORM DATA ============ -->
+  <rect x="30" y="408" width="1120" height="140" fill="#f8f9fa" stroke="#e0e2e5" stroke-width="1" rx="8"/>
+  <text x="44" y="428" font-size="11" font-weight="700" fill="#5f6368" letter-spacing="1.1">PLATFORM DATA AND ARTEFACTS</text>
+
+  <rect x="44" y="438" width="256" height="96" fill="#ffffff" stroke="#dadce0" stroke-width="1.2" rx="6"/>
+  <text x="56" y="457" font-size="13" font-weight="700" fill="#202124">Artifact Registry</text>
+  <text x="56" y="473" font-size="11" fill="#3c4043">Docker format, standard mode</text>
+  <text x="56" y="488" font-size="10" fill="#5f6368" font-family="SF Mono, Menlo, monospace">docker.pkg-berlin-build0.goog</text>
+  <text x="56" y="502" font-size="10" fill="#5f6368" font-family="SF Mono, Menlo, monospace">  /eu0/soloio-eval/solo</text>
+  <text x="56" y="521" font-size="9.5" font-weight="700" fill="#0b7a5a">CMEK</text>
+  <text x="92" y="521" font-size="11" fill="#3c4043">no remote/virtual repos → no mirror</text>
+
+  <rect x="312" y="438" width="256" height="96" fill="#ffffff" stroke="#dadce0" stroke-width="1.2" rx="6"/>
+  <text x="324" y="457" font-size="13" font-weight="700" fill="#202124">Cloud SQL for PostgreSQL 16</text>
+  <text x="324" y="473" font-size="11" fill="#3c4043">Enterprise Plus (the only edition)</text>
+  <text x="324" y="488" font-size="10" fill="#5f6368" font-family="SF Mono, Menlo, monospace">db-perf-optimized-C-4</text>
+  <text x="324" y="502" font-size="10" fill="#5f6368" font-family="SF Mono, Menlo, monospace">Hyperdisk Balanced · PSC</text>
+  <text x="324" y="521" font-size="9.5" font-weight="700" fill="#0b7a5a">CMEK</text>
+  <text x="360" y="521" font-size="11" fill="#3c4043">2 databases: kagent, agentregistry</text>
+
+  <rect x="580" y="438" width="256" height="96" fill="#ffffff" stroke="#dadce0" stroke-width="1.2" rx="6"/>
+  <text x="592" y="457" font-size="13" font-weight="700" fill="#202124">Cloud Storage — 3 buckets</text>
+  <text x="592" y="473" font-size="10" fill="#5f6368" font-family="SF Mono, Menlo, monospace">agentic-weights</text>
+  <text x="592" y="487" font-size="10" fill="#5f6368" font-family="SF Mono, Menlo, monospace">agentic-artefact</text>
+  <text x="592" y="501" font-size="10" fill="#5f6368" font-family="SF Mono, Menlo, monospace">agentic-archive</text>
+  <text x="592" y="521" font-size="9.5" font-weight="700" fill="#0b7a5a">CMEK</text>
+  <text x="628" y="521" font-size="11" fill="#3c4043">single-region, location mandatory</text>
+
+  <rect x="848" y="438" width="288" height="96" fill="#ffffff" stroke="#dadce0" stroke-width="1.2" rx="6"/>
+  <text x="860" y="457" font-size="13" font-weight="700" fill="#202124">Service Directory</text>
+  <text x="860" y="473" font-size="11" fill="#3c4043">namespace + 5 registered services</text>
+  <text x="860" y="488" font-size="10" fill="#5f6368" font-family="SF Mono, Menlo, monospace">agentgateway · agentregistry · kagent</text>
+  <text x="860" y="502" font-size="10" fill="#5f6368" font-family="SF Mono, Menlo, monospace">keycloak · model</text>
+  <text x="860" y="521" font-size="11" fill="#3c4043">the network catalogue, beside agentregistry</text>
+
+  <!-- ============ NETWORK ============ -->
+  <rect x="30" y="564" width="1120" height="140" fill="#f8f9fa" stroke="#e0e2e5" stroke-width="1" rx="8"/>
+  <text x="44" y="584" font-size="11" font-weight="700" fill="#5f6368" letter-spacing="1.1">NETWORK — no default network exists in a GCD project</text>
+
+  <rect x="44" y="594" width="256" height="96" fill="#eef3fd" stroke="#3367d6" stroke-width="1.2" rx="6"/>
+  <text x="56" y="613" font-size="13" font-weight="700" fill="#202124">VPC "agentic" + subnet</text>
+  <text x="56" y="630" font-size="10" fill="#5f6368" font-family="SF Mono, Menlo, monospace">nodes    10.20.0.0/20</text>
+  <text x="56" y="644" font-size="10" fill="#5f6368" font-family="SF Mono, Menlo, monospace">pods     10.32.0.0/14</text>
+  <text x="56" y="658" font-size="10" fill="#5f6368" font-family="SF Mono, Menlo, monospace">services 10.36.0.0/20</text>
+  <text x="56" y="678" font-size="11" fill="#3c4043">Private Google Access enabled</text>
+
+  <rect x="312" y="594" width="256" height="96" fill="#eef3fd" stroke="#3367d6" stroke-width="1.2" rx="6"/>
+  <text x="324" y="613" font-size="13" font-weight="700" fill="#202124">Cloud Router + Cloud NAT</text>
+  <text x="324" y="630" font-size="11" fill="#3c4043">Public NAT only (no Private NAT)</text>
+  <text x="324" y="645" font-size="11" fill="#3c4043">IPv4 to IPv4 · Premium Tier</text>
+  <text x="324" y="666" font-size="9.5" font-weight="700" fill="#0b7a5a">VERIFIED</text>
+  <text x="382" y="666" font-size="11" fill="#3c4043">pods reach the internet</text>
+  <text x="324" y="682" font-size="11" fill="#3c4043">resolved ghcr.io, fetched over TLS</text>
+
+  <rect x="580" y="594" width="256" height="96" fill="#eef3fd" stroke="#3367d6" stroke-width="1.2" rx="6"/>
+  <text x="592" y="613" font-size="13" font-weight="700" fill="#202124">Cloud NGFW rules</text>
+  <text x="592" y="630" font-size="11" fill="#3c4043">allow-internal (subnet, pods, svcs)</text>
+  <text x="592" y="645" font-size="11" fill="#3c4043">allow GKE control plane ranges</text>
+  <text x="592" y="660" font-size="10" fill="#5f6368" font-family="SF Mono, Menlo, monospace">34.3.144.0/23 · 34.3.151.0/26</text>
+  <text x="592" y="680" font-size="11" fill="#3c4043">Essentials/Standard only, no Enterprise</text>
+
+  <rect x="848" y="594" width="288" height="96" fill="#eef3fd" stroke="#3367d6" stroke-width="1.2" rx="6"/>
+  <text x="860" y="613" font-size="13" font-weight="700" fill="#202124">Cloud DNS — private zone</text>
+  <text x="860" y="630" font-size="10" fill="#5f6368" font-family="SF Mono, Menlo, monospace">agentic.eu0.internal</text>
+  <text x="860" y="648" font-size="11" fill="#3c4043">Public zones do not exist in GCD, so</text>
+  <text x="860" y="663" font-size="11" fill="#3c4043">there is no ACME path by either</text>
+  <text x="860" y="678" font-size="11" fill="#3c4043">challenge type. Certificates are BYO.</text>
+
+  <!-- ============ KEYS ============ -->
+  <rect x="30" y="720" width="548" height="128" fill="#f8f9fa" stroke="#e0e2e5" stroke-width="1" rx="8"/>
+  <text x="44" y="740" font-size="11" font-weight="700" fill="#5f6368" letter-spacing="1.1">KEYS — Cloud KMS key ring "agentic-kr"</text>
+  <rect x="44" y="750" width="520" height="84" fill="#e8f5ee" stroke="#0b7a5a" stroke-width="1.2" rx="6"/>
+  <text x="56" y="770" font-size="13" font-weight="700" fill="#202124">5 customer-managed keys, 90-day rotation</text>
+  <text x="56" y="788" font-size="10" fill="#5f6368" font-family="SF Mono, Menlo, monospace">sql · storage · registry · logging</text>
+  <text x="56" y="806" font-size="10" fill="#5f6368" font-family="SF Mono, Menlo, monospace">envelope</text>
+  <text x="130" y="806" font-size="11" fill="#3c4043">— stands in for Secret Manager, which GCD has not got</text>
+  <text x="56" y="826" font-size="11" fill="#3c4043">SOFTWARE protection only: no Cloud HSM, no EKM, no Autokey.</text>
+
+  <!-- ============ AUDIT ============ -->
+  <rect x="602" y="720" width="548" height="128" fill="#f8f9fa" stroke="#e0e2e5" stroke-width="1" rx="8"/>
+  <text x="616" y="740" font-size="11" font-weight="700" fill="#5f6368" letter-spacing="1.1">AUDIT AND EVIDENCE</text>
+  <rect x="616" y="750" width="164" height="84" fill="#f4eefd" stroke="#7b3fbf" stroke-width="1.2" rx="6"/>
+  <text x="628" y="770" font-size="13" font-weight="700" fill="#202124">Log bucket</text>
+  <text x="628" y="787" font-size="11" fill="#3c4043">400-day retention</text>
+  <text x="628" y="803" font-size="9.5" font-weight="700" fill="#0b7a5a">CMEK</text>
+  <text x="628" y="822" font-size="11" fill="#3c4043">Cloud Audit Logs</text>
+
+  <rect x="800" y="750" width="150" height="84" fill="#f4eefd" stroke="#7b3fbf" stroke-width="1.2" rx="6"/>
+  <text x="812" y="770" font-size="13" font-weight="700" fill="#202124">Pub/Sub</text>
+  <text x="812" y="787" font-size="11" fill="#3c4043">topic + pull sub</text>
+  <text x="812" y="806" font-size="11" fill="#3c4043">push subs cannot</text>
+  <text x="812" y="821" font-size="11" fill="#3c4043">be authenticated</text>
+
+  <rect x="970" y="750" width="166" height="84" fill="#f4eefd" stroke="#7b3fbf" stroke-width="1.2" rx="6"/>
+  <text x="982" y="770" font-size="13" font-weight="700" fill="#202124">BigQuery</text>
+  <text x="982" y="787" font-size="11" fill="#3c4043">audit dataset</text>
+  <text x="982" y="803" font-size="9.5" font-weight="700" fill="#0b7a5a">CMEK</text>
+  <text x="982" y="822" font-size="11" fill="#3c4043">analytics + RAG later</text>
+
+  <line x1="780" y1="792" x2="798" y2="792" stroke="#5f6368" stroke-width="1.4" marker-end="url(#a)"/>
+  <line x1="950" y1="792" x2="968" y2="792" stroke="#5f6368" stroke-width="1.4" marker-end="url(#a)"/>
+  <text x="616" y="862" font-size="11" fill="#3c4043">Cloud Logging cannot sink to BigQuery or Cloud Storage directly — Pub/Sub is the only route out.</text>
+
+  <!-- ============ FOOTER ============ -->
+  <rect x="30" y="884" width="1120" height="88" fill="#f8f9fa" stroke="#e0e2e5" stroke-width="1" rx="8"/>
+  <text x="44" y="904" font-size="11" font-weight="700" fill="#5f6368" letter-spacing="1.1">SELF-HOSTED BECAUSE THE MANAGED SERVICE DOES NOT EXIST IN BERLIN</text>
+  <text x="44" y="926" font-size="11" fill="#3c4043">Prometheus + Grafana — Cloud Monitoring cannot ingest custom, Prometheus or OpenTelemetry metrics at all</text>
+  <text x="44" y="944" font-size="11" fill="#3c4043">cert-manager (internal CA) — no Certificate Manager, no Private CA, no Google-managed certificates, no public DNS zone</text>
+  <text x="44" y="962" font-size="11" fill="#3c4043">External Secrets + KMS envelope encryption — no Secret Manager, and GKE here has no application-layer Secret encryption</text>
+</svg>

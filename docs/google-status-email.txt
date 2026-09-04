@@ -1,0 +1,75 @@
+SOLO.IO ON GOOGLE CLOUD DEDICATED (GERMANY) - STATUS
+
+
+WHERE WE ARE
+
+Solo's full agentic platform is now running end to end in Google's German
+sovereign cloud preview. Agents, tool servers, the agent catalogue, the identity
+layer and our gateway are all live, and a self hosted model is running inside the
+sovereign boundary with no traffic leaving it. As far as we know this is the first
+agentic platform to run in this environment.
+
+
+WHAT WE FOUND, AND WHY IT MATTERS COMMERCIALLY
+
+The environment has no service mesh and no in cluster network security controls of
+any kind. Google's own published reference designs for this cloud call the model
+directly, with nothing in between. The practical consequence is that a bank or
+insurer running AI agents there today has no way to control which tools an agent
+may use, and no record of what it did.
+
+We demonstrated that our gateway supplies exactly that control. Our tool server
+offered five tools and policy permitted one. The agent could see and use only the
+permitted tool, and the others were invisible to it rather than merely blocked.
+Changing a single line of policy changed what the agent was capable of, with no
+change to the agent or the tool server.
+
+This is not a case of us being a better option than the alternative. In this
+environment we are currently the only option, because the alternatives are absent
+from the platform. That is a strong position for the ISV conversation with Google
+and a clear message for regulated customers in Germany.
+
+
+WHAT IS BLOCKING US
+
+We cannot get a GPU. The hardware is listed as available but there is no capacity
+allocated to our project, and requests for it are silently ignored rather than
+refused, so nothing indicates quota as the cause. Without a GPU we can only run a
+small model on general purpose compute, which is enough to prove the architecture
+but not enough to show a customer.
+
+This matters because Google's own reference designs for this cloud depend on
+self hosting a large open model on exactly that GPU hardware. Until we have
+access, neither we nor Google can demonstrate the AI story the platform is being
+positioned on.
+
+
+WHAT WE NEED FROM GOOGLE
+
+1. GPU access, and an explanation of why the request fails without an error. This
+   is the one item preventing a customer ready demonstration.
+
+2. A position on service mesh. Today the platform supports none, which removes
+   encryption and policy between workloads. We would like to know whether that
+   changes before general availability, because it affects what we and Google can
+   both claim to regulated buyers.
+
+3. An identity service for applications. There is none in the environment, so
+   every software vendor has to run their own, or accept that the credentials
+   authorising sovereign workloads are issued outside the sovereign boundary.
+   Customer compliance teams will ask about this.
+
+4. Three onboarding items that cost us time and will cost every other vendor the
+   same: the default compute allowance is too small for a real platform, the
+   standard tooling for uploading container images does not work against this
+   environment, and login sessions expire roughly every 45 minutes with no
+   alternative for automation, which makes unattended deployment impossible.
+
+5. Faster support onboarding for preview participants. Raising a case currently
+   requires setting up separate infrastructure in ordinary Google Cloud first and
+   waiting up to 48 business hours. Quota requests go through the same route, so it
+   sits directly in front of item 1.
+
+
+We have a full technical record with evidence for each of the above and can share
+it with Google's engineering team on request.

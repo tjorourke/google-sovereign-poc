@@ -1,0 +1,15 @@
+# Managed org policy that decides which allowlist paths a cluster may install.
+#
+# A cluster's --autopilot-privileged-admission value MUST be drawn from this
+# constraint's parameters, so our gs:// paths have to appear here before the
+# cluster will accept them. allowAnyGKEPath stays true, or we lose the default
+# authorisation of every GKE partner and approved open-source allowlist.
+name: organizations/560780939237871/policies/container.managed.autopilotPrivilegedAdmission
+spec:
+  rules:
+    - enforce: true
+      parameters:
+        allowAnyGKEPath: true
+        allowPaths:
+          - gs://agentic-allowlist/istio/1.30.4/istio-cni.yaml
+          - gs://agentic-allowlist/istio/1.30.4/istio-ztunnel.yaml

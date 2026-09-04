@@ -1,0 +1,24 @@
+# The tool server as a CATALOGUE entry, not a Kubernetes object.
+#
+# This record lives in AgentRegistry's Postgres, not in etcd, and is applied
+# with arctl rather than kubectl. It is the governance half of the story: the
+# catalogue is what an auditor reads to answer "which tool servers are approved
+# for use, and where do they live".
+#
+# The url is agentgateway's MCP listener, never the tool server's own Service.
+# Every agent that consumes this entry therefore reaches the tools through the
+# gateway, which is the only place tool-level authorization can be enforced on
+# Google Cloud Dedicated.
+apiVersion: ar.dev/v1alpha1
+kind: MCPServer
+metadata:
+  name: sovereign-tools
+spec:
+  title: Governed tool server
+  description: >-
+    Approved arithmetic and text tools, reached only through agentgateway so
+    that per-tool authorization and audit apply. The backing server offers five
+    tools; gateway policy decides which of them an agent can discover.
+  remote:
+    type: http
+    url: http://mcp.agentic.eu0.internal/mcp

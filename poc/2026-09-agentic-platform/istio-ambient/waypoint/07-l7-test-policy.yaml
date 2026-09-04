@@ -1,0 +1,22 @@
+# L7 policy, enforced by the waypoint.
+#
+# ztunnel cannot do this: it terminates HBONE and sees TCP, so it can allow or
+# deny a connection by identity but cannot read the HTTP method. Attaching the
+# service to a waypoint puts a full proxy in the path, which can. The observable
+# difference is the response: an L4 deny kills the connection (curl reports 000),
+# an L7 deny returns 403 with the connection intact.
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: health-l7-deny-methods
+  namespace: kagent
+spec:
+  targetRefs:
+    - kind: Service
+      group: ""
+      name: health-server
+  action: DENY
+  rules:
+    - to:
+        - operation:
+            methods: ["DELETE", "PUT"]

@@ -1,0 +1,22 @@
+# L7 policy, enforced by the waypoint.
+#
+# The distinction worth showing a customer: ztunnel can say "this identity may
+# open a connection to this port". Only the waypoint can say "this identity may
+# POST to /v1/chat/completions but may not GET /v1/models". For an agent
+# platform that is the difference between allowing a workload to talk to the
+# model at all and constraining what it may ask the model to do.
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: agent-l7-methods
+  namespace: kagent
+spec:
+  targetRefs:
+    - kind: Gateway
+      group: gateway.networking.k8s.io
+      name: agent-waypoint
+  action: DENY
+  rules:
+    - to:
+        - operation:
+            methods: ["DELETE", "PUT"]

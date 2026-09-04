@@ -1,0 +1,25 @@
+# L4 policy, enforced by ztunnel, no waypoint needed.
+#
+# This is the control this environment has never had: GKE network policies are
+# unavailable on GCD and there is no service mesh, so until now nothing could
+# express "only these identities may reach this workload". The principal is a
+# SPIFFE identity derived from the Kubernetes ServiceAccount, not an IP, so it
+# survives pod rescheduling and cannot be spoofed by anything that merely lands
+# in the right subnet.
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: model-l4-allow-agent-only
+  namespace: model
+spec:
+  targetRefs:
+    - kind: Service
+      group: ""
+      name: llm
+  action: ALLOW
+  rules:
+    - from:
+        - source:
+            principals:
+              # only the agent's ServiceAccount may reach the model
+              - cluster.local/ns/kagent/sa/sovereign-calc

@@ -1,0 +1,372 @@
+# Berlin GCD preflight — 2026-09-03T13:53:10Z
+# project=eu0:soloio-eval region=u-germany-northeast1 universe=apis-berlin-build0.goog
+# gcloud Google Cloud SDK 568.0.0
+
+===============================================================
+## active gcloud configuration
+## $ gcloud config list
+===============================================================
+[auth]
+login_config_file = /Users/thomasorourke/.config/gcloud/wif-login-config-berlin.json
+[compute]
+region = u-germany-northeast1
+[core]
+account = principal://iam.googleapis.com/locations/global/workforcePools/preview-soloio-p/subject/preview-soloio@id-berlin-build0.goog
+disable_usage_reporting = True
+project = eu0:soloio-eval
+universe_domain = apis-berlin-build0.goog
+
+Your active configuration is: [berlin]
+
+===============================================================
+## enabled services
+## $ gcloud services list --enabled --project eu0:soloio-eval
+===============================================================
+NAME                                TITLE
+bigquery.googleapis.com             BigQuery API
+bigqueryreservation.googleapis.com  BigQuery Reservation API
+bigquerystorage.googleapis.com      BigQuery Storage API
+cloudapis.googleapis.com            Google Cloud APIs
+logging.googleapis.com              Cloud Logging API
+monitoring.googleapis.com           Cloud Monitoring API
+serviceusage.googleapis.com         Service Usage API
+storage-component.googleapis.com    Cloud Storage
+storage.googleapis.com              Cloud Storage API
+
+===============================================================
+## available services (re-verify the 31)
+## $ gcloud services list --available --project eu0:soloio-eval
+===============================================================
+NAME                                 TITLE
+accesscontextmanager.googleapis.com  Access Context Manager API
+apikeys.googleapis.com               API Keys API
+artifactregistry.googleapis.com      Artifact Registry API
+autoscaling.googleapis.com           Cloud Autoscaling API
+bigquery.googleapis.com              BigQuery API
+bigqueryreservation.googleapis.com   BigQuery Reservation API
+bigquerystorage.googleapis.com       BigQuery Storage API
+cloud.googleapis.com                 Service Metadata API
+cloudapis.googleapis.com             Google Cloud APIs
+cloudbilling.googleapis.com          Cloud Billing API
+cloudkms.googleapis.com              Cloud Key Management Service (KMS) API
+cloudresourcemanager.googleapis.com  Cloud Resource Manager API
+compute.googleapis.com               Compute Engine API
+container.googleapis.com             Kubernetes Engine API
+discovery.googleapis.com             API Discovery Service
+dns.googleapis.com                   Cloud DNS API
+essentialcontacts.googleapis.com     Essential Contacts API
+iam.googleapis.com                   Identity and Access Management (IAM) API
+iamcredentials.googleapis.com        IAM Service Account Credentials API
+logging.googleapis.com               Cloud Logging API
+monitoring.googleapis.com            Cloud Monitoring API
+networkconnectivity.googleapis.com   Network Connectivity API
+networksecurity.googleapis.com       Network Security API
+orgpolicy.googleapis.com             Organization Policy API
+pubsub.googleapis.com                Cloud Pub/Sub API
+servicedirectory.googleapis.com      Service Directory API
+serviceusage.googleapis.com          Service Usage API
+sqladmin.googleapis.com              Cloud SQL Admin API
+storage-component.googleapis.com     Cloud Storage
+storage.googleapis.com               Cloud Storage API
+sts.googleapis.com                   Security Token Service API
+
+===============================================================
+## 0.10 region quotas (look for GPUS / NVIDIA_H100 / CPUS)
+## $ gcloud compute regions describe u-germany-northeast1 --project eu0:soloio-eval --format=table(quotas.metric,quotas.limit,quotas.usage)
+===============================================================
+ERROR: (gcloud.compute.regions.describe) Could not fetch resource:
+ - Compute Engine API has not been used in project eu0:soloio-eval before or it is disabled. Enable it by visiting https://console.cloud.berlin-build0.goog/apis/api/compute.googleapis.com/overview?project=eu0:soloio-eval then retry. If you enabled this API recently, wait a few minutes for the action to propagate to our systems and retry.
+
+
+===============================================================
+## 0.10 zones in region
+## $ gcloud compute zones list --project eu0:soloio-eval --filter=region:u-germany-northeast1
+===============================================================
+ERROR: (gcloud.compute.zones.list) Some requests did not succeed:
+ - Compute Engine API has not been used in project eu0:soloio-eval before or it is disabled. Enable it by visiting https://console.cloud.berlin-build0.goog/apis/api/compute.googleapis.com/overview?project=eu0:soloio-eval then retry. If you enabled this API recently, wait a few minutes for the action to propagate to our systems and retry.
+
+
+===============================================================
+## machine types (expect C3, M3, A3 only)
+## $ gcloud compute machine-types list --project eu0:soloio-eval --filter=zone:u-germany-northeast1-a --format=value(name)
+===============================================================
+WARNING: Some requests did not succeed.
+ - Compute Engine API has not been used in project eu0:soloio-eval before or it is disabled. Enable it by visiting https://console.cloud.berlin-build0.goog/apis/api/compute.googleapis.com/overview?project=eu0:soloio-eval then retry. If you enabled this API recently, wait a few minutes for the action to propagate to our systems and retry.
+
+WARNING: The following filter keys were not present in any resource : zone
+
+===============================================================
+## accelerator types (expect nvidia-h100-80gb or nothing)
+## $ gcloud compute accelerator-types list --project eu0:soloio-eval --filter=zone:u-germany-northeast1-a
+===============================================================
+WARNING: Some requests did not succeed.
+ - Compute Engine API has not been used in project eu0:soloio-eval before or it is disabled. Enable it by visiting https://console.cloud.berlin-build0.goog/apis/api/compute.googleapis.com/overview?project=eu0:soloio-eval then retry. If you enabled this API recently, wait a few minutes for the action to propagate to our systems and retry.
+
+WARNING: The following filter keys were not present in any resource : zone
+Listed 0 items.
+
+===============================================================
+## GKE server config (channels + versions; docs say 1.36.x, Stable/Regular)
+## $ gcloud container get-server-config --project eu0:soloio-eval --location u-germany-northeast1
+===============================================================
+Fetching server config for u-germany-northeast1
+ERROR: (gcloud.container.get-server-config) PERMISSION_DENIED: Kubernetes Engine API has not been used in project eu0:soloio-eval before or it is disabled. Enable it by visiting https://console.cloud.berlin-build0.goog/apis/api/container.googleapis.com/overview?project=eu0:soloio-eval then retry. If you enabled this API recently, wait a few minutes for the action to propagate to our systems and retry. This command is authenticated as principal://iam.googleapis.com/locations/global/workforcePools/preview-soloio-p/subject/preview-soloio@id-berlin-build0.goog which is the active account specified by the [core/account] property.
+Kubernetes Engine API has not been used in project eu0:soloio-eval before or it is disabled. Enable it by visiting https://console.cloud.berlin-build0.goog/apis/api/container.googleapis.com/overview?project=eu0:soloio-eval then retry. If you enabled this API recently, wait a few minutes for the action to propagate to our systems and retry.
+Google developers console API activation
+https://console.cloud.berlin-build0.goog/apis/api/container.googleapis.com/overview?project=eu0:soloio-eval
+- '@type': type.googleapis.com/google.rpc.ErrorInfo
+  domain: googleapis.com
+  metadata:
+    activationUrl: https://console.cloud.berlin-build0.goog/apis/api/container.googleapis.com/overview?project=eu0:soloio-eval
+    consumer: projects/eu0:soloio-eval
+    containerInfo: eu0:soloio-eval
+    service: container.googleapis.com
+    serviceTitle: Kubernetes Engine API
+  reason: SERVICE_DISABLED
+
+===============================================================
+## 0.4 artifact registry repositories
+## $ gcloud artifacts repositories list --project eu0:soloio-eval --location u-germany-northeast1
+===============================================================
+Listing items under project eu0:soloio-eval, location u-germany-northeast1.
+
+ERROR: (gcloud.artifacts.repositories.list) {
+  "error": {
+    "code": 403,
+    "message": "Artifact Registry API has not been used in project eu0:soloio-eval before or it is disabled. Enable it by visiting https://console.cloud.berlin-build0.goog/apis/api/artifactregistry.googleapis.com/overview?project=eu0:soloio-eval then retry. If you enabled this API recently, wait a few minutes for the action to propagate to our systems and retry.",
+    "status": "PERMISSION_DENIED",
+    "details": [
+      {
+        "@type": "type.googleapis.com/google.rpc.ErrorInfo",
+        "reason": "SERVICE_DISABLED",
+        "domain": "googleapis.com",
+        "metadata": {
+          "service": "artifactregistry.googleapis.com",
+          "activationUrl": "https://console.cloud.berlin-build0.goog/apis/api/artifactregistry.googleapis.com/overview?project=eu0:soloio-eval",
+          "serviceTitle": "Artifact Registry API",
+          "containerInfo": "eu0:soloio-eval",
+          "consumer": "projects/eu0:soloio-eval"
+        }
+      },
+      {
+        "@type": "type.googleapis.com/google.rpc.LocalizedMessage",
+        "locale": "en-US",
+        "message": "Artifact Registry API has not been used in project eu0:soloio-eval before or it is disabled. Enable it by visiting https://console.cloud.berlin-build0.goog/apis/api/artifactregistry.googleapis.com/overview?project=eu0:soloio-eval then retry. If you enabled this API recently, wait a few minutes for the action to propagate to our systems and retry."
+      },
+      {
+        "@type": "type.googleapis.com/google.rpc.Help",
+        "links": [
+          {
+            "description": "Google developers console API activation",
+            "url": "https://console.cloud.berlin-build0.goog/apis/api/artifactregistry.googleapis.com/overview?project=eu0:soloio-eval"
+          }
+        ]
+      }
+    ]
+  }
+}
+
+You do not currently have this command group installed.  Using it 
+requires the installation of components: [beta]
+
+
+Your current Google Cloud CLI version is: 568.0.0
+Installing components from version: 568.0.0
+
+┌─────────────────────────────────────────────┐
+│     These components will be installed.     │
+├──────────────────────┬────────────┬─────────┤
+│         Name         │  Version   │   Size  │
+├──────────────────────┼────────────┼─────────┤
+│ gcloud Beta Commands │ 2026.05.08 │ < 1 MiB │
+└──────────────────────┴────────────┴─────────┘
+
+For the latest full release notes, please visit:
+  https://cloud.google.com/sdk/release_notes
+
+Once started, canceling this operation may leave your SDK installation in an 
+inconsistent state.
+
+Do you want to continue (Y/n)?  
+ERROR: (gcloud) This prompt could not be answered because you are not in an interactive session.  You can re-run the command with the --quiet flag to accept default answers for all prompts.
+0.15 sqladmin.googleapis.com -> FAILED
+You do not currently have this command group installed.  Using it 
+requires the installation of components: [beta]
+
+
+Your current Google Cloud CLI version is: 568.0.0
+Installing components from version: 568.0.0
+
+┌─────────────────────────────────────────────┐
+│     These components will be installed.     │
+├──────────────────────┬────────────┬─────────┤
+│         Name         │  Version   │   Size  │
+├──────────────────────┼────────────┼─────────┤
+│ gcloud Beta Commands │ 2026.05.08 │ < 1 MiB │
+└──────────────────────┴────────────┴─────────┘
+
+For the latest full release notes, please visit:
+  https://cloud.google.com/sdk/release_notes
+
+Once started, canceling this operation may leave your SDK installation in an 
+inconsistent state.
+
+Do you want to continue (Y/n)?  
+ERROR: (gcloud) This prompt could not be answered because you are not in an interactive session.  You can re-run the command with the --quiet flag to accept default answers for all prompts.
+0.15 artifactregistry.googleapis.com -> FAILED
+You do not currently have this command group installed.  Using it 
+requires the installation of components: [beta]
+
+
+Your current Google Cloud CLI version is: 568.0.0
+Installing components from version: 568.0.0
+
+┌─────────────────────────────────────────────┐
+│     These components will be installed.     │
+├──────────────────────┬────────────┬─────────┤
+│         Name         │  Version   │   Size  │
+├──────────────────────┼────────────┼─────────┤
+│ gcloud Beta Commands │ 2026.05.08 │ < 1 MiB │
+└──────────────────────┴────────────┴─────────┘
+
+For the latest full release notes, please visit:
+  https://cloud.google.com/sdk/release_notes
+
+Once started, canceling this operation may leave your SDK installation in an 
+inconsistent state.
+
+Do you want to continue (Y/n)?  
+ERROR: (gcloud) This prompt could not be answered because you are not in an interactive session.  You can re-run the command with the --quiet flag to accept default answers for all prompts.
+0.15 storage.googleapis.com -> FAILED
+You do not currently have this command group installed.  Using it 
+requires the installation of components: [beta]
+
+
+Your current Google Cloud CLI version is: 568.0.0
+Installing components from version: 568.0.0
+
+┌─────────────────────────────────────────────┐
+│     These components will be installed.     │
+├──────────────────────┬────────────┬─────────┤
+│         Name         │  Version   │   Size  │
+├──────────────────────┼────────────┼─────────┤
+│ gcloud Beta Commands │ 2026.05.08 │ < 1 MiB │
+└──────────────────────┴────────────┴─────────┘
+
+For the latest full release notes, please visit:
+  https://cloud.google.com/sdk/release_notes
+
+Once started, canceling this operation may leave your SDK installation in an 
+inconsistent state.
+
+Do you want to continue (Y/n)?  
+ERROR: (gcloud) This prompt could not be answered because you are not in an interactive session.  You can re-run the command with the --quiet flag to accept default answers for all prompts.
+0.15 logging.googleapis.com -> FAILED
+You do not currently have this command group installed.  Using it 
+requires the installation of components: [beta]
+
+
+Your current Google Cloud CLI version is: 568.0.0
+Installing components from version: 568.0.0
+
+┌─────────────────────────────────────────────┐
+│     These components will be installed.     │
+├──────────────────────┬────────────┬─────────┤
+│         Name         │  Version   │   Size  │
+├──────────────────────┼────────────┼─────────┤
+│ gcloud Beta Commands │ 2026.05.08 │ < 1 MiB │
+└──────────────────────┴────────────┴─────────┘
+
+For the latest full release notes, please visit:
+  https://cloud.google.com/sdk/release_notes
+
+Once started, canceling this operation may leave your SDK installation in an 
+inconsistent state.
+
+Do you want to continue (Y/n)?  
+ERROR: (gcloud) This prompt could not be answered because you are not in an interactive session.  You can re-run the command with the --quiet flag to accept default answers for all prompts.
+0.15 bigquery.googleapis.com -> FAILED
+You do not currently have this command group installed.  Using it 
+requires the installation of components: [beta]
+
+
+Your current Google Cloud CLI version is: 568.0.0
+Installing components from version: 568.0.0
+
+┌─────────────────────────────────────────────┐
+│     These components will be installed.     │
+├──────────────────────┬────────────┬─────────┤
+│         Name         │  Version   │   Size  │
+├──────────────────────┼────────────┼─────────┤
+│ gcloud Beta Commands │ 2026.05.08 │ < 1 MiB │
+└──────────────────────┴────────────┴─────────┘
+
+For the latest full release notes, please visit:
+  https://cloud.google.com/sdk/release_notes
+
+Once started, canceling this operation may leave your SDK installation in an 
+inconsistent state.
+
+Do you want to continue (Y/n)?  
+ERROR: (gcloud) This prompt could not be answered because you are not in an interactive session.  You can re-run the command with the --quiet flag to accept default answers for all prompts.
+0.15 container.googleapis.com -> FAILED
+
+===============================================================
+## 0.14 existing regional security policies (Cloud Armor)
+## $ gcloud compute security-policies list --project eu0:soloio-eval --filter=region:u-germany-northeast1
+===============================================================
+WARNING: Some requests did not succeed.
+ - Compute Engine API has not been used in project eu0:soloio-eval before or it is disabled. Enable it by visiting https://console.cloud.berlin-build0.goog/apis/api/compute.googleapis.com/overview?project=eu0:soloio-eval then retry. If you enabled this API recently, wait a few minutes for the action to propagate to our systems and retry.
+
+WARNING: The following filter keys were not present in any resource : region
+Listed 0 items.
+
+===============================================================
+## 0.14 existing regional ssl certificates
+## $ gcloud compute ssl-certificates list --project eu0:soloio-eval --filter=region:u-germany-northeast1
+===============================================================
+WARNING: Some requests did not succeed.
+ - Compute Engine API has not been used in project eu0:soloio-eval before or it is disabled. Enable it by visiting https://console.cloud.berlin-build0.goog/apis/api/compute.googleapis.com/overview?project=eu0:soloio-eval then retry. If you enabled this API recently, wait a few minutes for the action to propagate to our systems and retry.
+
+WARNING: The following filter keys were not present in any resource : region
+Listed 0 items.
+
+===============================================================
+## 0.16 access approval settings
+## $ gcloud access-approval settings get --project eu0:soloio-eval
+===============================================================
+ERROR: (gcloud.access-approval.settings.get) Invalid value for [project]: eu0:soloio-eval
+
+===============================================================
+## 0.17 existing workforce pool providers
+## $ gcloud iam workforce-pools providers list --workforce-pool preview-soloio-p --location global
+===============================================================
+ERROR: (gcloud.iam.workforce-pools.providers.list) PERMISSION_DENIED: Permission 'iam.workforcePoolProviders.list' denied on resource '//iam.googleapis.com/locations/global/workforcePools/preview-soloio-p' (or it may not exist). This command is authenticated as principal://iam.googleapis.com/locations/global/workforcePools/preview-soloio-p/subject/preview-soloio@id-berlin-build0.goog which is the active account specified by the [core/account] property.
+- '@type': type.googleapis.com/google.rpc.ErrorInfo
+  domain: iam.googleapis.com
+  metadata:
+    permission: iam.workforcePoolProviders.list
+    resource: locations/global/workforcePools/preview-soloio-p
+  reason: IAM_PERMISSION_DENIED
+
+===============================================================
+## org policy constraints available (no custom constraints in GCD)
+## $ gcloud resource-manager org-policies list --project eu0:soloio-eval
+===============================================================
+Listed 0 items.
+
+===============================================================
+## project describe (note the eu0: prefix)
+## $ gcloud projects describe eu0:soloio-eval --format=json
+===============================================================
+{
+  "createTime": "2026-09-03T10:10:41.302Z",
+  "lifecycleState": "ACTIVE",
+  "name": "soloio-eval",
+  "parent": {
+    "id": "560780939237871",
+    "type": "organization"
+  },
+  "projectId": "eu0:soloio-eval",
+  "projectNumber": "560780937444745"
+}

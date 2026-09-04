@@ -1,0 +1,22 @@
+# The push. This is the object that moves an agent from the catalogue into the
+# cluster: AgentRegistry reads it, resolves targetRef to the catalogued Agent
+# and runtimeRef to a registered runtime, and then creates the kagent Agent CR
+# itself using its own in-cluster ServiceAccount. kagent's controller takes it
+# from there and produces the Deployment and Service.
+#
+# Nobody runs kubectl. The registry is the only writer, which is the point: the
+# catalogue is not a document describing what is deployed, it is the thing that
+# deploys it.
+apiVersion: ar.dev/v1alpha1
+kind: Deployment
+metadata:
+  name: sovereignagent-kagent
+spec:
+  targetRef:  { kind: Agent,   name: sovereignagent }
+  runtimeRef: { kind: Runtime, name: kubernetes-default }
+  # No model key and no tool URL are baked into the image. Both arrive here, at
+  # deploy time, so the same image is portable to any runtime the registry knows.
+  env:
+    OPENAI_BASE_URL: http://llm.agentic.eu0.internal/v1
+    OPENAI_API_KEY: sovereign-local-noauth
+    MCP_SERVERS_CONFIG: '[{"name":"sovereign-tools","type":"remote","url":"http://mcp.agentic.eu0.internal/mcp"}]'

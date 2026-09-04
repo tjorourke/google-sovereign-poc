@@ -1,0 +1,58 @@
+# Chart manifest. One line per chart: <oci-or-repo-ref> <version> [namespace]
+#
+# Versions verified against solo-demos/lab-tested-versions.json for
+# agentic-enterprise-platform-kind (validated 2026-06-21), with agentgateway
+# bumped to the current Enterprise line per CLAUDE.md. Re-verify before pinning
+# anything customer-facing.
+#
+# NOTE the two version LINES. The Enterprise products (kagent-enterprise,
+# solo-enterprise management, agentregistry-enterprise) are numbered separately
+# from the OSS products in CLAUDE.md's table. 0.4.3 kagent-enterprise is not
+# comparable to 0.9.12 kagent OSS.
+#
+# scripts/derive-images.sh renders every chart here and regenerates
+# infra/helm/images.txt from the result, so the image list is never guessed.
+# That matters: the hand-written list had `enterprise-agentgateway:v2026.8.2`
+# when the chart actually deploys `enterprise-agentgateway-controller:2026.8.2`
+# -- wrong repository name AND a tag without the `v`. Rendering caught it.
+#
+# Format: <ref> <version> <namespace> [| <extra helm args>]
+# The Solo Enterprise charts refuse to render without their required values, so
+# several carry render-only placeholders after the pipe. These affect RENDERING
+# ONLY -- the real values are passed by the install scripts.
+
+# The *-crds charts contain only CustomResourceDefinitions, so they correctly
+# render zero images. derive-images.sh reports that as expected, not a failure.
+#
+# ── Solo Enterprise ───────────────────────────────────────────────────────────
+oci://us-docker.pkg.dev/solo-public/enterprise-agentgateway/charts/enterprise-agentgateway-crds  v2026.8.2  agentgateway-system
+oci://us-docker.pkg.dev/solo-public/enterprise-agentgateway/charts/enterprise-agentgateway       v2026.8.2  agentgateway-system | --set-string licensing.licenseKey=render-only
+oci://us-docker.pkg.dev/solo-public/kagent-enterprise-helm/charts/kagent-enterprise-crds         0.4.3      kagent
+oci://us-docker.pkg.dev/solo-public/kagent-enterprise-helm/charts/kagent-enterprise              0.4.3      kagent | --set global.licensing.licenseKey=render-only
+oci://us-docker.pkg.dev/solo-public/solo-enterprise-helm/charts/management                       0.4.3      solo-enterprise | --set licensing.licenseKey=render-only --set products.kagent.enabled=true --set products.kagent.namespace=kagent
+oci://us-docker.pkg.dev/solo-public/agentregistry-enterprise/helm/agentregistry-enterprise       2026.6.1   agentregistry-system | --set oidc.issuer=http://render-only/realms/x --set oidc.clientId=render-only --set oidc.publicClientId=render-only
+
+# ── Solo OSS equivalents, for the OSS variant of the lab ─────────────────────
+# oci://ghcr.io/agentgateway/charts/agentgateway-crds   v1.5.0   agentgateway-system
+# oci://ghcr.io/agentgateway/charts/agentgateway        v1.5.0   agentgateway-system
+# oci://ghcr.io/kagent-dev/kagent/helm/kagent-crds      v0.9.12  kagent
+# oci://ghcr.io/kagent-dev/kagent/helm/kagent           v0.9.12  kagent
+
+# ── Solo Istio: NOT INSTALLABLE ON GCD ───────────────────────────────────────
+# Gloo Operator + ServiceMeshController are listed for completeness only.
+# Ambient needs istio-cni (hostNetwork, SYS_ADMIN) and ztunnel (SYS_ADMIN,
+# NET_ADMIN, runAsUser 0). GKE on GCD is Autopilot-only, Autopilot rejects
+# both, and GCD does not support the WorkloadAllowlist mechanism that would be
+# the only way to grant them. Cloud Service Mesh is also unavailable.
+# See feedback/google/01-autopilot-ambient-blocker.md.
+# oci://us-docker.pkg.dev/solo-public/gloo-operator-helm/gloo-operator  0.5.2  gloo-system
+
+# ── Cluster baseline: mandatory on GCD, optional on public GCP ───────────────
+# Each replaces a Google service that does not exist in Berlin.
+cert-manager|https://charts.jetstack.io                                   v1.16.2  cert-manager
+external-secrets|https://charts.external-secrets.io                       0.10.5   external-secrets
+kube-prometheus-stack|https://prometheus-community.github.io/helm-charts   65.5.1   observability
+
+# ── Third-party images pinned directly (no chart) ────────────────────────────
+# Keycloak runs from a plain manifest in the lab, not a chart.
+image quay.io/keycloak/keycloak:26.3

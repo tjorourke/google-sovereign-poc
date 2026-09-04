@@ -1,0 +1,22 @@
+# Template. 90-mcp-agent.sh substitutes docker.pkg-berlin-build0.goog/eu0/soloio-eval/solo/everything-server:latest with the image in the
+# in-universe Artifact Registry. The kind lab hardcoded localhost:5001 (a
+# host-side registry reachable over the kind docker network); GCD has no such
+# thing, and the repo rule is that nothing in-universe hardcodes a registry.
+apiVersion: ar.dev/v1alpha1
+kind: MCPServer
+metadata:
+  name: everything-server
+spec:
+  description: 'Approved org tool server: sum, echo, uppercase, reverse.'
+  title: everything-server
+  source:
+    package:
+      origin:
+        identifier: docker.pkg-berlin-build0.goog/eu0/soloio-eval/solo/everything-server:latest
+        type: oci
+        oci:
+          serverName: everything-server
+      transport:
+        path: /mcp
+        port: 3000
+        type: http

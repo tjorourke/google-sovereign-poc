@@ -1,0 +1,66 @@
+# Upstream Keycloak (dev mode, in-memory H2, --import-realm).
+# Realm `agentregistry` (admin-user/admins; clients ar-* + kagent-*) is imported
+# from the keycloak-realm-import ConfigMap that 02-keycloak.sh renders from
+# yaml/keycloak/agentregistry-realm.json. Dev posture only — not for production.
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: keycloak
+  namespace: keycloak
+spec:
+  selector: { app: keycloak }
+  ports:
+    # Issuer is now http://keycloak.localtest.me (port 80): the browser reaches it
+    # via the agentgateway ingress (HTTPRoute keycloak.localtest.me), and in-cluster
+    # pods reach it via a hostAlias pointing keycloak.localtest.me at this ClusterIP.
+    - { name: http, port: 80, targetPort: 8080 }
+    # 8080: in-cluster mint URL (ask.sh) hits this svc port directly.
+    - { name: http-8080, port: 8080, targetPort: 8080 }
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: keycloak
+  namespace: keycloak
+spec:
+  serviceName: keycloak
+  replicas: 1
+  selector: { matchLabels: { app: keycloak } }
+  template:
+    metadata: { labels: { app: keycloak } }
+    spec:
+      containers:
+        - name: keycloak
+          image: quay.io/keycloak/keycloak:26.3
+          args: [start-dev, --import-realm]
+          env:
+            - { name: KC_BOOTSTRAP_ADMIN_USERNAME, value: admin }
+            - { name: KC_BOOTSTRAP_ADMIN_PASSWORD, value: admin }
+            - { name: KC_HTTP_RELATIVE_PATH, value: / }
+            # Issuer = http://keycloak.localtest.me (port 80). The SAME iss works in
+            # the browser (keycloak.localtest.me -> 127.0.0.1 via public DNS -> host
+            # :80 -> agentgateway -> this svc) and in-cluster (consumers add a
+            # hostAlias keycloak.localtest.me -> this ClusterIP:80). Keycloak sits
+            # behind the gateway proxy, so trust the X-Forwarded headers.
+            # Backchannel-dynamic lets ask.sh still mint via the in-cluster svc.
+            - { name: KC_HOSTNAME, value: "http://keycloak.localtest.me" }
+            - { name: KC_HOSTNAME_STRICT, value: "false" }
+            - { name: KC_HOSTNAME_BACKCHANNEL_DYNAMIC, value: "true" }
+            - { name: KC_PROXY_HEADERS, value: "xforwarded" }
+            - { name: KC_HEALTH_ENABLED, value: "true" }
+          ports:
+            - { containerPort: 8080, name: http }
+          readinessProbe:
+            httpGet: { path: /realms/master, port: 8080 }
+            initialDelaySeconds: 20
+            periodSeconds: 5
+            failureThreshold: 60
+          resources:
+            requests: { cpu: 200m, memory: 512Mi }
+            limits:   { cpu: 1,    memory: 1Gi }
+          volumeMounts:
+            - { name: realm-import, mountPath: /opt/keycloak/data/import, readOnly: true }
+      volumes:
+        - name: realm-import
+          configMap: { name: keycloak-realm-import }

@@ -1,0 +1,24 @@
+# The L7 waypoint for the agent namespace.
+#
+# ztunnel alone gives L4: mutual TLS and identity-based allow/deny on ports.
+# Anything L7 (HTTP methods, paths, headers) needs a waypoint proxy, which is an
+# ordinary Gateway with the istio-waypoint class. Enrolled workloads in the
+# namespace have their traffic routed through it once the namespace is labelled
+# with istio.io/use-waypoint.
+#
+# Note the GatewayClass: istio-waypoint, NOT istio-agentgateway-waypoint. The
+# latter is registered in this cluster by the agentgateway install and is a
+# different, experimental controller. Mixing them fails silently.
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: agent-waypoint
+  namespace: kagent
+  labels:
+    istio.io/waypoint-for: service
+spec:
+  gatewayClassName: istio-waypoint
+  listeners:
+    - name: mesh
+      port: 15008
+      protocol: HBONE

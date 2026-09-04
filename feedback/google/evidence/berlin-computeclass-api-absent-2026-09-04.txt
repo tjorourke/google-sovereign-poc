@@ -1,0 +1,31 @@
+
+==============================================================
+Custom ComputeClass availability (captured 2026-09-04T14:52:13Z)
+==============================================================
+# GKE Warden's rejection offers two routes: the gke-accelerator node
+# selector, or a CUSTOM ComputeClass carrying a GPU priority rule.
+# This checks whether the second route exists at all in this universe.
+
+$ kubectl api-resources | grep -i -E "computeclass|cloud.google.com"
+backendconfigs                          bc                  cloud.google.com/v1                         true         BackendConfig
+gkeclustertrustbundles                                      security.cloud.google.com/v1                false        GKEClusterTrustBundle
+trustconfigs                                                security.cloud.google.com/v1                false        TrustConfig
+workloadcertificateconfigs                                  security.cloud.google.com/v1                false        WorkloadCertificateConfig
+
+$ kubectl api-versions | grep -i cloud.google.com
+cloud.google.com/v1
+cloud.google.com/v1beta1
+security.cloud.google.com/v1
+security.cloud.google.com/v1alpha1
+
+$ kubectl get crd | grep -i computeclass
+  (no ComputeClass CRD installed)
+
+$ kubectl explain computeclass
+the server doesn't have a resource type "computeclass"
+
+  CONCLUSION: the ComputeClass API is not served in this cluster, so the
+  custom-ComputeClass route that the autogke-gpu-limitation message offers as an
+  alternative is not available to us. That leaves only the
+  cloud.google.com/gke-accelerator node selector, which is the form used by
+  probe variants 1 and 2 -- and which never provisions a node.

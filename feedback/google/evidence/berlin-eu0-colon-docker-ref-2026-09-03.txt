@@ -1,0 +1,26 @@
+# Probe 0.8 — does the eu0: project prefix survive a container image reference?
+# Retrieved 2026-09-03T13:23:05Z
+# Reproduced entirely locally: no GCD access needed, the failure is in the
+# client-side reference parser.
+
+## Environment
+docker client 29.4.0 / server 29.4.0
+
+## A. Reference containing the universe-prefixed project id
+$ docker tag gcd-mcp-test:local u-germany-northeast1-docker.pkg-berlin-build0.goog/eu0:soloio-eval/solo/everything-server:latest
+error parsing reference: "u-germany-northeast1-docker.pkg-berlin-build0.goog/eu0:soloio-eval/solo/everything-server:latest" is not a valid repository/tag: invalid reference format
+
+## B. Control — same reference with the prefix removed
+$ docker tag gcd-mcp-test:local u-germany-northeast1-docker.pkg-berlin-build0.goog/soloio-eval/solo/everything-server:latest
+(no output: succeeded)
+
+## C. Resulting local tags
+u-germany-northeast1-docker.pkg-berlin-build0.goog/soloio-eval/solo/everything-server:latest
+
+## Why
+The OCI/docker distribution reference grammar permits a colon in exactly two
+positions: in the registry host, where it delimits a port, and after the final
+path component, where it delimits the tag. A path component itself is
+[a-z0-9]+((\.|_|__|-+)[a-z0-9]+)* with no colon permitted. 'eu0:soloio-eval'
+is therefore not a legal path component, and the parser rejects the whole
+reference before any network call is attempted.

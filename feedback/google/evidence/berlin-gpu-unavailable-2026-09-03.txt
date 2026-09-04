@@ -1,0 +1,40 @@
+# Is GPU inference available in Berlin preview? Definitive test, 2026-09-03T17:56:09Z
+
+## The accelerator IS catalogued
+$ gcloud compute accelerator-types list
+nvidia-h100-80gb	u-germany-northeast1-a
+nvidia-h100-80gb	u-germany-northeast1-b
+
+$ gcloud compute machine-types list --filter="name~a3"
+a3-edgegpu-8g-nolssd	208	1872.00
+
+## But no H100 quota metric exists, and no A3 CPU family metric either
+  H100 metrics present: NONE
+  A3_CPUS: METRIC DOES NOT EXIST
+  GPU metrics that do exist (none are offered by GCD):
+    NVIDIA_A100_80GB_GPUS = 0
+    NVIDIA_A100_GPUS = 1
+    NVIDIA_K80_GPUS = 1
+    NVIDIA_L4_GPUS = 8
+    NVIDIA_P100_GPUS = 1
+    NVIDIA_P100_VWS_GPUS = 1
+    NVIDIA_P4_GPUS = 1
+    NVIDIA_P4_VWS_GPUS = 1
+    NVIDIA_T4_GPUS = 1
+    NVIDIA_T4_VWS_GPUS = 1
+    NVIDIA_V100_GPUS = 1
+
+## Scheduling test: a pod requesting 8x nvidia-h100-80gb via the Accelerator compute class
+   nodeSelector: cloud.google.com/gke-accelerator=nvidia-h100-80gb
+                 cloud.google.com/compute-class=Accelerator
+   resources:    nvidia.com/gpu: 8
+
+   Result: Pending indefinitely. Autopilot did not attempt to provision a node.
+   84s         Normal    NotTriggerScaleUp   pod/gpuprobe   Pod didn't trigger scale-up: 3 node(s) didn't match Pod's node affinity/selector
+   63s         Warning   FailedScheduling    pod/gpuprobe   0/3 nodes are available: 3 node(s) didn't match Pod's node affinity/selector. no new claims to deallocate, preemption: 0/3 nodes are available: 3 Preemption is not helpful for scheduling.
+
+## Conclusion
+   The H100 and the a3-edgegpu-8g-nolssd machine type are both advertised, but there is
+   no quota bucket for them, so the cluster autoscaler will not even try. GPU inference
+   is not available to this project. Note the failure mode is NotTriggerScaleUp rather
+   than a quota error, so nothing points at quota as the cause.

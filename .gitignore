@@ -1,0 +1,33 @@
+# Credentials and anything credential-shaped
+.env.local
+*wif-login-config*.json
+*-license*
+*.key
+*.pem
+credentials.json
+service-account*.json
+
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.*
+*.tfvars
+!*.tfvars.example
+# Profile tfvars hold identifiers, not secrets (project ids, CIDRs, region), and
+# the stack is not reproducible without them. See the header in each file and the
+# environment table in CLAUDE.md.
+!infra/tofu/profiles/*.tfvars
+.terraform.lock.hcl
+
+# Helm / kube
+kubeconfig*
+*.kubeconfig
+charts/
+*.tgz
+
+.DS_Store
+
+# OpenTofu-emitted environment files: contain the AgentRegistry DB password.
+poc/**/deploy/.env.tofu
+poc/**/deploy/.env.oidc
+poc/**/deploy/tls/

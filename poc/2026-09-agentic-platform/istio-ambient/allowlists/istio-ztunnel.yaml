@@ -1,0 +1,59 @@
+apiVersion: auto.gke.io/v1
+kind: WorkloadAllowlist
+metadata:
+    name: istio-ztunnel-1.30.4
+    annotations:
+        autopilot.gke.io/no-connect: "true"
+exemptions:
+    - autogke-default-linux-capabilities
+    - autogke-no-write-mode-hostpath
+matchingCriteria:
+    containers:
+        - name: istio-proxy
+          image: registry.istio.io/release/ztunnel:1.30.4-distroless
+          args:
+            - proxy
+            - ztunnel
+          env:
+            - name: CA_ADDRESS
+            - name: XDS_ADDRESS
+            - name: RUST_LOG
+            - name: RUST_BACKTRACE
+            - name: ISTIO_META_CLUSTER_ID
+            - name: INPOD_ENABLED
+            - name: TERMINATION_GRACE_PERIOD_SECONDS
+            - name: POD_NAME
+            - name: POD_NAMESPACE
+            - name: NODE_NAME
+            - name: INSTANCE_IP
+            - name: SERVICE_ACCOUNT
+            - name: ISTIO_META_ENABLE_HBONE
+            - name: ZTUNNEL_CPU_LIMIT
+          securityContext:
+            capabilities:
+                add:
+                    - NET_ADMIN
+                    - SYS_ADMIN
+                    - NET_RAW
+                drop:
+                    - ALL
+            privileged: false
+          volumeMounts:
+            - mountPath: /var/run/secrets/istio
+              name: istiod-ca-cert
+            - mountPath: /var/run/secrets/tokens
+              name: istio-token
+            - mountPath: /var/run/ztunnel
+              name: cni-ztunnel-sock-dir
+            - mountPath: /tmp
+              name: tmp
+    volumes:
+        - name: istio-token
+        - configMap:
+            defaultMode: 420
+            name: istio-ca-root-cert
+          name: istiod-ca-cert
+        - hostPath:
+            path: /var/run/ztunnel
+          name: cni-ztunnel-sock-dir
+        - name: tmp

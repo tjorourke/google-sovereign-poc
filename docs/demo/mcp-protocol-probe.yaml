@@ -1,0 +1,42 @@
+# Act 4. A full MCP handshake through the gateway, showing the denied tool is
+# both filtered from discovery and rejected on call.
+#
+# Two things that are easy to get wrong here:
+#   the HTTPRoute matches on hostname, so the Host header is required;
+#   MCP is session based, so initialize must come first and its Mcp-Session-Id
+#   must be echoed on every later call.
+apiVersion: v1
+kind: Pod
+metadata:
+  name: mcpdemo
+  namespace: mcp
+spec:
+  restartPolicy: Never
+  containers:
+    - name: probe
+      image: curlimages/curl:8.11.0
+      resources:
+        requests: { cpu: 250m, memory: 512Mi }
+      args:
+        - sh
+        - -c
+        - |
+          U="http://agentgateway-proxy.agentgateway-system.svc.cluster.local:80/mcp"
+          H="Host: mcp.agentic.eu0.internal"
+          CT='Content-Type: application/json'
+          AC='Accept: application/json, text/event-stream'
+          SID=$(curl -sS -m 20 -D - -o /tmp/i -X POST "$U" -H "$H" -H "$CT" -H "$AC" \
+            -d '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"demo","version":"1"}}}' \
+            | tr -d '\r' | awk -F': ' '/^[Mm]cp-[Ss]ession-[Ii]d/{print $2}')
+          [ -z "$SID" ] && { echo "NO SESSION"; head -c 300 /tmp/i; exit 1; }
+          curl -sS -m 20 -o /dev/null -X POST "$U" -H "$H" -H "$CT" -H "$AC" -H "Mcp-Session-Id: $SID" \
+            -d '{"jsonrpc":"2.0","method":"notifications/initialized"}'
+          echo "=== tools/list  (five exist on the server; expect one)"
+          curl -sS -m 20 -X POST "$U" -H "$H" -H "$CT" -H "$AC" -H "Mcp-Session-Id: $SID" \
+            -d '{"jsonrpc":"2.0","id":2,"method":"tools/list","params":{}}' | tr -d '\r'; echo
+          echo "=== tools/call sum  (permitted)"
+          curl -sS -m 20 -X POST "$U" -H "$H" -H "$CT" -H "$AC" -H "Mcp-Session-Id: $SID" \
+            -d '{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"sum","arguments":{"a":17,"b":25}}}'; echo
+          echo "=== tools/call printenv  (denied: expect -32602)"
+          curl -sS -m 20 -X POST "$U" -H "$H" -H "$CT" -H "$AC" -H "Mcp-Session-Id: $SID" \
+            -d '{"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"printenv","arguments":{}}}'; echo

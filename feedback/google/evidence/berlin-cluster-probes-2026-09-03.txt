@@ -1,0 +1,162 @@
+# Berlin GCD in-cluster probes — 2026-09-03T14:32:42Z
+# cluster=agentic project=eu0:soloio-eval
+
+
+----- $ kc get storageclass -o wide
+NAME                           PROVISIONER                        RECLAIMPOLICY   VOLUMEBINDINGMODE      ALLOWVOLUMEEXPANSION   AGE
+dynamic-rwo                    pd.csi.storage.gke.io              Delete          WaitForFirstConsumer   true                   12m
+gcsfusecsi-checkpointing       gcsfuse.csi.storage.gke.io         Delete          Immediate              false                  13m
+gcsfusecsi-serving             gcsfuse.csi.storage.gke.io         Delete          Immediate              false                  13m
+gcsfusecsi-training            gcsfuse.csi.storage.gke.io         Delete          Immediate              false                  13m
+hyperdisk-balanced (default)   pd.csi.storage.gke.io              Delete          WaitForFirstConsumer   true                   12m
+parallelstore-rwx              parallelstore.csi.storage.gke.io   Delete          WaitForFirstConsumer   false                  12m
+standard                       kubernetes.io/gce-pd               Delete          Immediate              true                   12m
+standard-rwo-regional          pd.csi.storage.gke.io              Delete          WaitForFirstConsumer   true                   13m
+0.5 storageclasses=[dynamic-rwo gcsfusecsi-checkpointing gcsfusecsi-serving gcsfusecsi-training hyperdisk-balanced parallelstore-rwx standard standard-rwo-regional ] default=hyperdisk-balanced
+
+----- $ kc get gatewayclass -o wide
+NAME                                            CONTROLLER                                   ACCEPTED   AGE   DESCRIPTION
+gke-l7-regional-external-managed                networking.gke.io/gateway                    True       11m   Single cluster regional for new L7 External Load Balancers
+gke-l7-rilb                                     networking.gke.io/gateway                    True       11m   Single cluster regional internal load balancer.
+gke-passthrough-lb-external-managed             networking.gke.io/persistent-ip-controller   True       12m   
+gke-passthrough-lb-internal-managed             networking.gke.io/persistent-ip-controller   True       12m   
+gke-persistent-fast-regional-external-managed   networking.gke.io/persistent-ip-controller   True       12m   
+gke-persistent-fast-regional-internal-managed   networking.gke.io/persistent-ip-controller   True       12m   
+gke-persistent-regional-external-managed        networking.gke.io/persistent-ip-controller   True       12m   
+gke-persistent-regional-internal-managed        networking.gke.io/persistent-ip-controller   True       12m   
+0.13 GKE Gateway present: gke-l7-regional-external-managed gke-l7-rilb gke-passthrough-lb-external-managed gke-passthrough-lb-internal-managed gke-persistent-fast-regional-external-managed gke-persistent-fast-regional-internal-managed gke-persistent-regional-external-managed gke-persistent-regional-internal-managed  -> can front agentgateway with a GKE-managed ALB
+pod/probe-hostalias created
+0.9 hostAliases ACCEPTED by admission
+pod/probe-pull-ghcr created
+pod/probe-egress created
+service/probe-lb created
+statefulset.apps/probe-pg created (server dry run)
+0.6 StatefulSet+PVC admitted (server dry-run)
+
+----- $ kc -n gcd-probe get pods -o wide
+NAME              READY   STATUS    RESTARTS   AGE   IP       NODE     NOMINATED NODE   READINESS GATES
+probe-egress      0/1     Pending   0          92s   <none>   <none>   <none>           <none>
+probe-hostalias   0/1     Pending   0          93s   <none>   <none>   <none>           <none>
+probe-pull-ghcr   0/1     Pending   0          92s   <none>   <none>   <none>           <none>
+
+----- $ kc -n gcd-probe get svc probe-lb -o yaml
+apiVersion: v1
+kind: Service
+metadata:
+  annotations:
+    cloud.google.com/neg: '{"exposed_ports": {"80":{}}}'
+    cloud.google.com/neg-status: '{"network_endpoint_groups":{"80":"k8s1-365e123e-gcd-probe-probe-lb-80-dc2dee2c"}}'
+    kubectl.kubernetes.io/last-applied-configuration: |
+      {"apiVersion":"v1","kind":"Service","metadata":{"annotations":{"cloud.google.com/neg":"{\"exposed_ports\": {\"80\":{}}}"},"name":"probe-lb","namespace":"gcd-probe"},"spec":{"ports":[{"port":80,"targetPort":8080}],"selector":{"app":"probe-nothing"},"type":"LoadBalancer"}}
+  creationTimestamp: "2026-09-03T14:32:47Z"
+  finalizers:
+  - service.kubernetes.io/load-balancer-cleanup
+  name: probe-lb
+  namespace: gcd-probe
+  resourceVersion: "12373"
+  uid: 7c470132-ba0e-4a1e-9591-42b61dfabfe7
+spec:
+  allocateLoadBalancerNodePorts: true
+  clusterIP: 10.36.10.247
+  clusterIPs:
+  - 10.36.10.247
+  externalTrafficPolicy: Cluster
+  internalTrafficPolicy: Cluster
+  ipFamilies:
+  - IPv4
+  ipFamilyPolicy: SingleStack
+  ports:
+  - nodePort: 31538
+    port: 80
+    protocol: TCP
+    targetPort: 8080
+  selector:
+    app: probe-nothing
+  sessionAffinity: None
+  type: LoadBalancer
+status:
+  loadBalancer: {}
+
+----- $ kc -n gcd-probe describe pod probe-pull-ghcr
+Name:             probe-pull-ghcr
+Namespace:        gcd-probe
+Priority:         0
+Service Account:  default
+Node:             <none>
+Labels:           <none>
+Annotations:      autopilot.gke.io/resource-adjustment:
+                    {"input":{"containers":[{"requests":{"cpu":"250m","memory":"512Mi"},"name":"c"}]},"output":{"containers":[{"limits":{"ephemeral-storage":"...
+                  autopilot.gke.io/warden-version: 35.26.5-gke.0
+Status:           Pending
+SeccompProfile:   RuntimeDefault
+IP:               
+IPs:              <none>
+Containers:
+  c:
+    Image:      ghcr.io/agentgateway/agentgateway:v1.5.0
+    Port:       <none>
+    Host Port:  <none>
+    Command:
+      sh
+      -c
+      echo pulled; sleep 2
+    Limits:
+      ephemeral-storage:  1Gi
+    Requests:
+      cpu:                250m
+      ephemeral-storage:  1Gi
+      memory:             512Mi
+    Environment:          <none>
+    Mounts:
+      /var/run/secrets/kubernetes.io/serviceaccount from kube-api-access-tns8d (ro)
+Conditions:
+  Type           Status
+  PodScheduled   False 
+Volumes:
+  kube-api-access-tns8d:
+    Type:                    Projected (a volume that contains injected data from multiple sources)
+    TokenExpirationSeconds:  3607
+    ConfigMapName:           kube-root-ca.crt
+    Optional:                false
+    DownwardAPI:             true
+QoS Class:                   Burstable
+Node-Selectors:              <none>
+Tolerations:                 kubernetes.io/arch=amd64:NoSchedule
+                             node.kubernetes.io/not-ready:NoExecute op=Exists for 300s
+                             node.kubernetes.io/unreachable:NoExecute op=Exists for 300s
+Events:
+  Type     Reason            Age                From                                   Message
+  ----     ------            ----               ----                                   -------
+  Normal   TriggeredScaleUp  71s                cluster-autoscaler                     Pod triggered scale-up: [{https://compute.apis-berlin-build0.goog/compute/v1/projects/eu0:soloio-eval/zones/u-germany-northeast1-c/instanceGroups/gk3-agentic-nap-1bb30p38-23e360de-grp 0->1 (max: 1000)}]
+  Warning  FailedScaleUp     59s                cluster-autoscaler                     Node scale up in zones u-germany-northeast1-c associated with this pod failed: Internal error. Pod is at risk of not being scheduled.
+  Warning  FailedScheduling  8s (x11 over 93s)  gke.io/optimize-utilization-scheduler  no nodes available to schedule pods
+
+----- $ kc -n gcd-probe logs probe-egress
+
+----- $ kc -n gcd-probe logs probe-hostalias
+
+----- $ kc -n gcd-probe get events --sort-by=.lastTimestamp
+LAST SEEN   TYPE      REASON                           OBJECT                MESSAGE
+94s         Normal    TriggeredScaleUp                 pod/probe-hostalias   Pod triggered scale-up: [{https://compute.apis-berlin-build0.goog/compute/v1//projects/eu0:soloio-eval/zones/u-germany-northeast1-b/instanceGroups/nap-1bb30p38-temporary-mig-15feihdi-async-0 0->1 (max: 1000)}]
+93s         Normal    UPDATE                           service/probe-lb      gcd-probe/probe-lb
+93s         Normal    ADD                              service/probe-lb      gcd-probe/probe-lb
+93s         Warning   SyncNetworkEndpointGroupFailed   service/probe-lb      Failed to sync NEG "k8s1-365e123e-gcd-probe-probe-lb-80-dc2dee2c" (will retry): endpoint count from endpointPodMap cannot be zero: Detect endpoint count goes to zero
+93s         Normal    DNSRecordProvisioningSucceeded   service/probe-lb      DNS records updated
+93s         Warning   EnterDegradedMode                service/probe-lb      Entering degraded mode for NEG gcd-probe/probe-lb-k8s1-365e123e-gcd-probe-probe-lb-80-dc2dee2c-/80-8080-GCE_VM_IP_PORT-L7 due to sync err: endpoint count from endpointPodMap cannot be zero
+88s         Normal    ExitDegradedMode                 service/probe-lb      NEG gcd-probe/probe-lb-k8s1-365e123e-gcd-probe-probe-lb-80-dc2dee2c-/80-8080-GCE_VM_IP_PORT-L7 is no longer in degraded mode
+72s         Warning   FailedScaleUp                    pod/probe-hostalias   Node scale up in zones u-germany-northeast1-b associated with this pod failed: Internal error. Pod is at risk of not being scheduled.
+72s         Normal    TriggeredScaleUp                 pod/probe-egress      Pod triggered scale-up: [{https://compute.apis-berlin-build0.goog/compute/v1/projects/eu0:soloio-eval/zones/u-germany-northeast1-c/instanceGroups/gk3-agentic-nap-1bb30p38-23e360de-grp 0->1 (max: 1000)}]
+72s         Normal    TriggeredScaleUp                 pod/probe-pull-ghcr   Pod triggered scale-up: [{https://compute.apis-berlin-build0.goog/compute/v1/projects/eu0:soloio-eval/zones/u-germany-northeast1-c/instanceGroups/gk3-agentic-nap-1bb30p38-23e360de-grp 0->1 (max: 1000)}]
+60s         Warning   FailedScaleUp                    pod/probe-egress      Node scale up in zones u-germany-northeast1-c associated with this pod failed: Internal error. Pod is at risk of not being scheduled.
+60s         Warning   FailedScaleUp                    pod/probe-pull-ghcr   Node scale up in zones u-germany-northeast1-c associated with this pod failed: Internal error. Pod is at risk of not being scheduled.
+28s         Normal    EnsuringLoadBalancer             service/probe-lb      Ensuring load balancer
+28s         Warning   UnAvailableLoadBalancer          service/probe-lb      There are no available nodes for LoadBalancer
+28s         Warning   SyncLoadBalancerFailed           service/probe-lb      Error syncing load balancer: failed to ensure load balancer: cannot EnsureLoadBalancer() with no hosts
+10s         Warning   FailedScheduling                 pod/probe-hostalias   no nodes available to schedule pods
+9s          Warning   FailedScheduling                 pod/probe-egress      no nodes available to schedule pods
+9s          Warning   FailedScheduling                 pod/probe-pull-ghcr   no nodes available to schedule pods
+0.3 direct pull from ghcr.io FAILED (phase=Pending reason=?) -> mirror everything into Artifact Registry first
+0.2 INCONCLUSIVE — probe-egress produced no logs
+0.11 public DNS from a pod resolves
+0.12 Service type=LoadBalancer got NO external IP after 90s -> Tier 1 may be blocked; check events, then fall back to internal ALB + port-forward
+0.12b NEG annotation honoured: {"network_endpoint_groups":{"80":"k8s1-365e123e-gcd-probe-probe-lb-80-dc2dee2c"}} (this is how 85-edge.sh finds the NEGs)
