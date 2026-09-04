@@ -185,6 +185,15 @@ else
       sleep 120
       continue
     fi
+    # A GCD token lasts under an hour and the cluster update takes ~20 minutes,
+    # so expiry mid-update is common. It surfaces as a gcloud re-auth prompt,
+    # which reads like a permissions problem. Name it for what it is.
+    if grep -qE 'Refresh token has expired|gcloud auth login|invalid_grant' /tmp/allowlist-update.err; then
+      die "the GCD session expired during the cluster update.
+    Re-authenticate and re-run; the org policy and uploads are already done:
+      ./scripts/gcd-auth.sh
+      ./scripts/63-allowlist-install.sh"
+    fi
     warn "cluster update failed for a reason other than propagation:"
     sed 's/^/    /' /tmp/allowlist-update.err >&2
     break
