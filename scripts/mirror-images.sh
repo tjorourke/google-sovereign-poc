@@ -85,18 +85,29 @@ PYTOK
     return 0
   fi
 
+  # The universe host needs an INLINE token too. Delegating it to the gcloud
+  # credential helper fails outright, because the helper does not recognise the
+  # GCD registry domain at all (feedback/google/05):
+  #   ERROR: (gcloud.auth.docker-helper) Repository url
+  #          [docker.pkg-berlin-build0.goog] is not supported
+  #   error getting credentials - err: exit status 1
+  # So mint a token from the ACTIVE (berlin) account and use basic auth.
+  local dst_token
+  dst_token="$(gcloud auth print-access-token 2>/dev/null || true)"
+  [[ -n "$dst_token" ]] || { warn "no universe access token; is the GCD session alive?"; return 1; }
+
   DOCKER_CONFIG="$(mktemp -d)"
   export DOCKER_CONFIG
-  python3 - "$DOCKER_CONFIG" "$token" "$pub_registry" "$dst_registry" <<'PYCFG'
+  python3 - "$DOCKER_CONFIG" "$token" "$pub_registry" "$dst_registry" "$dst_token" <<'PYCFG'
 import base64, json, os, sys
-cfgdir, tok, pub, dst = sys.argv[1:5]
-auth = base64.b64encode(f"oauth2accesstoken:{tok}".encode()).decode()
+cfgdir, tok, pub, dst, dst_tok = sys.argv[1:6]
+def basic(t):
+    return base64.b64encode(f"oauth2accesstoken:{t}".encode()).decode()
 cfg = {
-    "auths": {pub: {"auth": auth}},
-    # Only the universe host goes through the gcloud helper, which resolves
-    # against the active (berlin) configuration -- which is what we want for
-    # the push.
-    "credHelpers": {dst: "gcloud"},
+    # Two identities, two inline tokens, no credential helper anywhere: the
+    # public source registry uses the public-GCP account, the universe registry
+    # uses the active berlin principal.
+    "auths": {pub: {"auth": basic(tok)}, dst: {"auth": basic(dst_tok)}},
 }
 json.dump(cfg, open(os.path.join(cfgdir, "config.json"), "w"))
 PYCFG

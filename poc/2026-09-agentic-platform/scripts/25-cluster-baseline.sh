@@ -30,12 +30,18 @@ KPS_VERSION="${KPS_VERSION:-65.5.1}"
 
 # ── 1. cert-manager + a self-signed internal CA ──────────────────────────────
 step "cert-manager $CERT_MANAGER_VERSION"
+# 5m is not enough on Autopilot. cert-manager's startupapicheck Job waits for the
+# webhook to serve, and on a cold cluster Autopilot is still provisioning nodes,
+# so the Job sits Pending and helm gives up:
+#   Error: failed post-install: resource Job/cert-manager/cert-manager-startupapicheck
+#          not ready. status: InProgress
+# The install itself is fine; only the post-install gate times out.
 helm --kube-context "$(kube_context)" upgrade --install cert-manager cert-manager \
   --repo https://charts.jetstack.io \
   --version "$CERT_MANAGER_VERSION" \
   -n cert-manager --create-namespace \
   --set crds.enabled=true \
-  --wait --timeout 5m
+  --wait --timeout 15m
 ok "cert-manager installed"
 
 step "internal CA (there is no ACME path in GCD, so this is the east-west root)"

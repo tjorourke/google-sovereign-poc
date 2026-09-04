@@ -97,6 +97,8 @@ PROJECT_NUMBER="${PROJECT_NUMBER:-560780937444745}"
 # Emitted into this file by create_service_agents so grant_kms_to_agents can
 # reuse them without a second round of API calls.
 declare -a AGENT_EMAILS=()
+# Log buckets tofu manages; used by undelete_log_buckets above.
+declare -a LOG_BUCKETS=("agentic-audit")
 
 create_service_agents() {
   echo "==> creating JIT service agents (GCD provisions these on first use, not on API enable)"
@@ -118,8 +120,34 @@ create_service_agents() {
     fi
   done
   # BigQuery has no generateServiceIdentity and a different naming pattern.
-  AGENT_EMAILS+=("bq-${PROJECT_NUMBER}@bigquery-encryption.${UNIVERSE_PREFIX}-system.iam.gserviceaccount.com")
-  printf '  %-40s %s\n' "bigquery (derived)" "${AGENT_EMAILS[-1]}"
+  # macOS ships bash 3.2, which has no negative array subscripts, so ${a[-1]}
+  # fails with "bad array subscript" under set -u. Name the value instead.
+  local bq_agent="bq-${PROJECT_NUMBER}@bigquery-encryption.${UNIVERSE_PREFIX}-system.iam.gserviceaccount.com"
+  AGENT_EMAILS+=("$bq_agent")
+  printf '  %-40s %s\n' "bigquery (derived)" "$bq_agent"
+}
+
+# Cloud Logging buckets are SOFT-deleted: a destroy leaves them in
+# DELETE_REQUESTED for 7 days, and tofu then cannot recreate or modify one:
+#   Error 400: Buckets must be in an ACTIVE state to be modified
+# The name is deterministic, so a rebuild inside that window always collides.
+# Undelete rather than wait, and treat "not found" as fine (first-ever apply).
+undelete_log_buckets() {
+  local b
+  for b in "${LOG_BUCKETS[@]:-}"; do
+    [[ -n "$b" ]] || continue
+    local state
+    state="$(gcloud logging buckets describe "$b" \
+      --location="$UNIVERSE_REGION" --project="$PROJECT_ID" \
+      --format='value(lifecycleState)' 2>/dev/null || true)"
+    if [[ "$state" == "DELETE_REQUESTED" ]]; then
+      echo "==> undeleting soft-deleted log bucket $b"
+      gcloud logging buckets undelete "$b" \
+        --location="$UNIVERSE_REGION" --project="$PROJECT_ID" >/dev/null 2>&1 \
+        && echo "  ok, now ACTIVE" \
+        || echo "  FAILED — the platform stage will 400 on this bucket"
+    fi
+  done
 }
 
 # The GKE service agent is created without its default roles, so the cluster
@@ -192,6 +220,9 @@ case "$ACTION" in
     create_service_agents
     grant_kms_to_agents
     grant_gke_service_agent
+    # Must run before the platform stage: a soft-deleted log bucket from a
+    # previous teardown blocks it with a 400 that mentions only ACTIVE state.
+    undelete_log_buckets
     grant_org_policy_admin
     apply_stage platform
     # Second pass: the Workload Identity bindings need the cluster's identity
