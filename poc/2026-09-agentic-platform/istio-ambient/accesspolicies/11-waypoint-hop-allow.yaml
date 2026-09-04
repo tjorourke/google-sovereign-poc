@@ -1,0 +1,59 @@
+# Companion policy that makes AccessPolicy's L4 half correct.
+#
+# THE PROBLEM
+#
+# AccessPolicy compiles into an Istio AuthorizationPolicy that allows only the
+# SUBJECT's identity to reach the tool server:
+#
+#   rules: [{from: [{source: {principals:
+#     ["cluster.local/ns/agents/sa/waypoint-calc"]}}]}]
+#   selector: {matchLabels: {app.kubernetes.io/name: everything-server}}
+#
+# But when the tool server is fronted by a waypoint, the agent does not connect
+# to it. The WAYPOINT does. So the client identity arriving at the server is
+# cluster.local/ns/agents/sa/mcpserver-everything-server-waypoint, which that
+# ALLOW policy does not name, and the hop is refused.
+#
+# The symptom is misleading. The waypoint reports:
+#   error="mcp: failed to send message: http upstream error: http request
+#          failed: upstream call failed: Connect: unexpected status:
+#          401 Unauthorized"
+# which reads as an auth failure at the tool server. It is not: the tool server
+# logs no request at all, because the connection never reaches it. Tool
+# discovery then returns nothing and the agent silently has no tools, falling
+# back to asking the user to do the arithmetic.
+#
+# THE FIX
+#
+# Allow the waypoint's own identity to reach the server. Istio ALLOW policies on
+# the same workload are additive, so this widens the L4 rule without weakening
+# it: only the waypoint and the named agent may connect.
+#
+# This does not loosen tool authorization. The per-tool decision is made at the
+# waypoint by the EnterpriseAgentgatewayPolicy the same AccessPolicy generates,
+# on the agent's proven identity:
+#   (source.identity.namespace == "agents" &&
+#    source.identity.serviceAccount == "waypoint-calc") &&
+#   (mcp.tool.name == "sum")
+#
+# Worth raising with Solo: the translator should emit the waypoint identity
+# itself when the target MCPServer carries kagent.solo.io/waypoint=true, since
+# it provisioned that waypoint and knows its ServiceAccount.
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: allow-waypoint-to-toolserver
+  namespace: agents
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: everything-server
+  action: ALLOW
+  rules:
+    - from:
+        - source:
+            principals:
+              - cluster.local/ns/agents/sa/mcpserver-everything-server-waypoint
+              # kagent's controller performs tool discovery itself, so it needs
+              # the same path. Without it discoveredTools stays empty.
+              - cluster.local/ns/kagent/sa/kagent-controller

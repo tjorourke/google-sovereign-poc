@@ -1,0 +1,79 @@
+# Access policy for the real agent flows.
+#
+# THE POINT OF THIS FILE
+#
+# agentgateway decides which tools an agent may call and which models it may
+# reach. What it cannot do is stop an agent going around it. Every agent in this
+# cluster is configured to reach the model at llm.agentic.eu0.internal and the
+# tool server at mcp.agentic.eu0.internal, both of which resolve to agentgateway
+# — but nothing prevented a workload from resolving the backing Service directly
+# and skipping every policy the gateway enforces.
+#
+# Ambient closes that. These policies say: the model and the tool server accept
+# connections from the gateway's identity and from nothing else. Tool-level
+# authorization stops being advisory and becomes structural.
+#
+# Layering, stated plainly for a customer:
+#   agentgateway  — WHICH tools and models an agent may use   (L7, MCP-aware)
+#   ambient/L4    — that an agent CANNOT go around the gateway (identity)
+#   waypoint/L7   — HTTP-level constraints on what remains     (methods, paths)
+#
+# PREREQUISITE
+#
+# An ALLOW policy denies everything it does not name, and a source only has an
+# identity if its namespace is enrolled in ambient. So agentgateway-system must
+# be enrolled BEFORE these apply, or the gateway's own traffic arrives without a
+# SPIFFE identity and gets denied — which takes the whole platform down.
+# 68-agent-mesh-policies.sh enrols first, verifies, then applies.
+---
+# The self-hosted model accepts traffic only from agentgateway.
+#
+# Without this, any pod in the cluster could POST to llm.model.svc and use the
+# model with no LLM policy, no rate limiting and no audit. That is the gap
+# Google's own reference architectures for this platform leave open: they call
+# the model directly with nothing in between.
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: model-only-via-agentgateway
+  namespace: model
+  annotations:
+    solo.io/rationale: >-
+      Forces every model call through agentgateway, so LLM traffic policy cannot
+      be bypassed by talking to the Service directly.
+spec:
+  selector:
+    matchLabels:
+      app: llm
+  action: ALLOW
+  rules:
+    - from:
+        - source:
+            principals:
+              - cluster.local/ns/agentgateway-system/sa/AGENTGATEWAY_SA
+---
+# The MCP tool server accepts traffic only from agentgateway.
+#
+# This is the one that matters most. The gateway's AgentgatewayPolicy filters
+# tools/list and rejects tools/call for anything not permitted, so an agent sees
+# two of the five tools the server offers. Reaching the tool server directly
+# would return all five and enforce nothing.
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: mcp-only-via-agentgateway
+  namespace: mcp
+  annotations:
+    solo.io/rationale: >-
+      Makes per-tool authorization structural. Without it an agent can list and
+      call every tool by addressing the tool server directly.
+spec:
+  selector:
+    matchLabels:
+      app: everything-server
+  action: ALLOW
+  rules:
+    - from:
+        - source:
+            principals:
+              - cluster.local/ns/agentgateway-system/sa/AGENTGATEWAY_SA

@@ -213,6 +213,71 @@ which looks nothing like a priority class problem. `global.platform=gke` ships
 `istio-ambient/critical-pods-quota.yaml` so the dependency is explicit rather
 than an accident of a platform flag.
 
+## AccessPolicy: the agent layer on top
+
+With ambient running, Solo's `AccessPolicy` (`policy.kagent-enterprise.solo.io/v1alpha1`)
+becomes usable, and it is the object a governance buyer actually wants. It is the authored
+source of truth for "which agent may call which tool", and the kagent controller compiles it
+into both enforcement layers at once.
+
+Enable it with `controller.istioAuthzTranslation.enabled=true` on the kagent chart. It defaults
+to false, which is correct for a cluster with no mesh and is why ours was off.
+
+One authored object:
+
+```yaml
+apiVersion: policy.kagent-enterprise.solo.io/v1alpha1
+kind: AccessPolicy
+metadata: { name: allow-sum-only, namespace: agents }
+spec:
+  action: ALLOW
+  from:
+    subjects: [{ kind: Agent, name: waypoint-calc, namespace: agents }]
+  targetRef:
+    kind: MCPServer
+    name: everything-server
+    tools: [sum]
+```
+
+compiles into two:
+
+```
+L7, at the waypoint   (source.identity.namespace == "agents" &&
+                       source.identity.serviceAccount == "waypoint-calc") &&
+                      (mcp.tool.name == "sum")
+
+L4, at the mesh       principals: [cluster.local/ns/agents/sa/waypoint-calc]
+                      selector:   app.kubernetes.io/name: everything-server
+```
+
+Verified enforcing: the agent requests three tools, the policy grants one, and it can call
+`sum` while `echo` never appears in its tool list at all.
+
+**This also corrects a claim in this repo.** The `enterprise-agentgateway-waypoint`
+GatewayClass was recorded as unable to work here and as failing silently. With ambient running
+it provisions properly and is `PROGRAMMED`, and its logs show it is MCP-aware and
+identity-aware:
+
+```
+gateway=agents/mcpserver-everything-server-waypoint
+src.identity=spiffe://cluster.local/ns/agents/sa/waypoint-calc
+protocol=mcp mcp.method.name=tools/list http.status=200
+```
+
+Three constraints to design around, none of them documented:
+
+- **`AccessPolicy` tool-scoping needs a kagent `MCPServer`,** not a `RemoteMCPServer`. A
+  `RemoteMCPServer` is only a URL, so there is nothing for the translator to attach to.
+- **The `kagent` namespace is reserved** for policies. Agents and tool servers that are to be
+  governed live elsewhere. Every Solo lab does this and none says why.
+- **The generated L4 policy omits the waypoint's own identity,** which silently breaks tool
+  discovery and is reported as a `401` from the tool server. Written up in
+  `feedback/solo/01-accesspolicy-waypoint-hop.md`, with the one-object workaround.
+
+The three paths now coexist, and all three are checked by
+`scripts/69-accesspolicy-health.sh`: the hand-written agent and the registry-deployed agent on
+the standalone gateway, and the waypoint agent under `AccessPolicy`.
+
 ## One real operational cost
 
 **You cannot exec into or port-forward to an allowlisted pod.** GKE stamps

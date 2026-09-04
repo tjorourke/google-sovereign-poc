@@ -1,0 +1,91 @@
+# The tool server and an agent, deployed the WAYPOINT way in a dedicated
+# namespace, so AccessPolicy can govern them.
+#
+# TWO CONSTRAINTS DISCOVERED HERE, both worth knowing before you design this:
+#
+# 1. AccessPolicy tool-scoping resolves a kagent MCPServer, which kmcp deploys
+#    and owns. A RemoteMCPServer is only a URL, so there is nothing to attach a
+#    policy to:
+#      failed to get MCPServer kagent/everything-server: ... not found
+#
+# 2. The kagent namespace is RESERVED. An AccessPolicy there is refused:
+#      policies cannot be applied to namespace kagent because it is a
+#      reserved namespace
+#    So agents and tool servers that are to be governed live in their own
+#    namespace. kagent holds the control plane only.
+#
+# The kagent.solo.io/waypoint label is what puts the enterprise agentgateway
+# waypoint in front of the workload.
+apiVersion: kagent.dev/v1alpha1
+kind: MCPServer
+metadata:
+  name: everything-server
+  namespace: agents
+  labels:
+    kagent.solo.io/waypoint: "true"
+spec:
+  transportType: http
+  httpTransport:
+    path: /mcp
+    targetPort: 3000
+  deployment:
+    # Same image as the RemoteMCPServer path, mirrored into the in-universe
+    # Artifact Registry. The pull secret is explicit because GCD's node
+    # credential provider does not cover this registry host.
+    image: docker.pkg-berlin-build0.goog/eu0/soloio-eval/solo/everything-server:latest
+    port: 3000
+    replicas: 1
+    imagePullSecrets:
+      - name: ar-pull
+    # The image needs these or it does not serve streamable-HTTP MCP and the
+    # waypoint reports "upstream call failed: unexpected status: 401
+    # Unauthorized" on initialize, which reads like an authorization problem at
+    # the gateway rather than a misconfigured server.
+    env:
+      MCP_TRANSPORT_MODE: http
+      HOST: 0.0.0.0
+      PORT: "3000"
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+---
+# A declarative agent in the same namespace, referencing the waypoint-fronted
+# MCPServer directly. No RemoteMCPServer indirection: this path exists to test
+# the waypoint, so the waypoint must be the only thing in front of the tools.
+#
+# The agent asks for three tools. AccessPolicy will permit one. The difference
+# between what the agent requests and what it actually gets is the whole point.
+---
+apiVersion: kagent.dev/v1alpha2
+kind: Agent
+metadata:
+  name: waypoint-calc
+  namespace: agents
+  labels:
+    kagent.solo.io/waypoint: "true"
+spec:
+  type: Declarative
+  description: >-
+    Tests AccessPolicy enforcement at the enterprise agentgateway waypoint. Same
+    model and tools as sovereign-calc, but reached through the waypoint rather
+    than the standalone gateway.
+  declarative:
+    modelConfig: selfhosted
+    runtime: python
+    systemMessage: |
+      You are a careful arithmetic assistant.
+      When asked to add numbers, you MUST use the `sum` tool rather than
+      calculating yourself. If a tool you need is not available to you, say so
+      plainly and name the tool. Never guess.
+    tools:
+      - type: McpServer
+        mcpServer:
+          apiGroup: kagent.dev
+          kind: MCPServer
+          name: everything-server
+          namespace: agents
+          toolNames:
+            - sum
+            - reverse_text
+            - echo

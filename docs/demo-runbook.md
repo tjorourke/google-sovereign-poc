@@ -350,11 +350,15 @@ would normally reach for exist.*
 
 # WHAT NOT TO SHOW
 
-**The `enterprise-agentgateway-waypoint` GatewayClass.** It is registered but
-still fails silently: resources apply, policy reports `Accepted`, nothing is
-enforced. Note this is a different thing from the Istio waypoint, which does
-work: `agent-waypoint` in the `kagent` namespace uses the `istio-waypoint`
-class and enforces L7 policy correctly. Mixing the two classes is what fails.
+**Nothing on this list any more.** The `enterprise-agentgateway-waypoint`
+GatewayClass was here because it failed silently. As of 2026-09-04 it works:
+with ambient running it provisions properly, and `AccessPolicy` compiles into
+enforced L7 per-tool policy on it. See `istio-ambient-on-gcd-autopilot.md`.
+
+If you want to show it, `scripts/69-accesspolicy-health.sh` proves all three
+agent paths at once: the hand-written agent and the registry-deployed agent on
+the standalone gateway, and the waypoint agent under `AccessPolicy`, where the
+agent requests three tools and can use only the one it was granted.
 
 **A second `arctl build`.** The image is already built and pushed. Building live
 means a multi-minute Docker push into the universe over your hotel wifi.

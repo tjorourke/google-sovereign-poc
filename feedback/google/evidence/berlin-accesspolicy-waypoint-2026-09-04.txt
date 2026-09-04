@@ -1,0 +1,88 @@
+# AccessPolicy enforced at the enterprise agentgateway waypoint. 2026-09-04T18:49:00Z
+# Cluster agentic, eu0:soloio-eval. kagent-enterprise 0.4.3, Istio 1.30.4 ambient.
+
+## The authored intent (one object)
+spec:
+  action: ALLOW
+  from:
+    subjects:
+    - kind: Agent
+      name: waypoint-calc
+      namespace: agents
+  targetRef:
+    kind: MCPServer
+    name: everything-server
+    tools:
+    - sum
+status:
+## Its state
+Applied
+
+## Compiled to L7, at the waypoint (per MCP tool, on proven identity)
+{
+ "targetRefs": [
+  {
+   "group": "agentgateway.dev",
+   "kind": "AgentgatewayBackend",
+   "name": "everything-server"
+  }
+ ],
+ "authorization": {
+  "action": "Allow",
+  "policy": {
+   "matchExpressions": [
+    "(source.identity.namespace == \"agents\" && source.identity.serviceAccount == \"waypoint-calc\") && (mcp.tool.name == \"sum\")"
+   ]
+  }
+ }
+}
+
+## Compiled to L4, at the mesh (per workload identity)
+{
+ "rules": [
+  {
+   "from": [
+    {
+     "source": {
+      "principals": [
+       "cluster.local/ns/agents/sa/waypoint-calc"
+      ]
+     }
+    }
+   ]
+  }
+ ],
+ "selector": {
+  "matchLabels": {
+   "app.kubernetes.io/instance": "everything-server",
+   "app.kubernetes.io/name": "everything-server"
+  }
+ }
+}
+
+## The waypoint kmcp provisioned
+NAME                                   CLASS                              ADDRESS        PROGRAMMED   AGE
+agent-waypoint-calc-waypoint           enterprise-agentgateway-waypoint   10.36.3.58     True         13m
+mcpserver-everything-server-waypoint   enterprise-agentgateway-waypoint   10.36.15.221   True         20m
+
+## Enforcement, verified end to end
+
+[1;34m▸ A. sovereign-calc, standalone agentgateway[0m
+  [32m✓[0m called sum through the standalone gateway
+  [32m✓[0m gateway tool filtering intact: reverse_text sum
+
+[1;34m▸ B. sovereignagent, deployed by AgentRegistry[0m
+  [32m✓[0m called sum through the standalone gateway
+
+[1;34m▸ C. waypoint-calc, governed by AccessPolicy at the waypoint[0m
+  [32m✓[0m AccessPolicy state=Applied
+  [32m✓[0m translated to EnterpriseAgentgatewayPolicy (L7, per tool)
+  [32m✓[0m translated to Istio AuthorizationPolicy (L4, per identity)
+  [32m✓[0m companion policy present for the waypoint hop
+  [32m✓[0m permitted tool: called sum through the waypoint
+  [32m✓[0m denied tool: echo was not callable (filtered from discovery)
+    The echo tool is not available to me. I should not use it. I will not attempt this task.
+
+[1;34m▸ Result[0m
+    passed: 9   failed: 0
+  [32m✓[0m all three agent paths healthy; AccessPolicy enforced at the waypoint

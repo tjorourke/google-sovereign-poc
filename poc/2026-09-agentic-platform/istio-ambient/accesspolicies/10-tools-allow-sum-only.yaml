@@ -1,0 +1,36 @@
+# The authored intent: this agent may call ONE tool on the tool server.
+#
+# AccessPolicy is Solo's high-level authorization object for kagent, and it is
+# the human-written source of truth. The kagent controller compiles it into the
+# concrete enforcement objects; you edit here, never the generated policy.
+#
+# With controller.istioAuthzTranslation.enabled=true it compiles into:
+#   - an EnterpriseAgentgatewayPolicy: a CEL rule over the MCP tool name, so
+#     tools/list is filtered and tools/call is rejected at the waypoint
+#   - an Istio AuthorizationPolicy: the same intent at the mesh layer, keyed on
+#     the caller's SPIFFE identity
+#
+# The subject is an Agent identity, not an IP and not a token. For an audit,
+# "which agent may call which tool" is stated once, in one object, and enforced
+# on proven workload identity.
+#
+# Note the asymmetry with the agent definition: waypoint-calc asks for three
+# tools (sum, reverse_text, echo). This grants one. The agent should end up able
+# to see and call only `sum`.
+apiVersion: policy.kagent-enterprise.solo.io/v1alpha1
+kind: AccessPolicy
+metadata:
+  name: allow-sum-only
+  namespace: agents
+spec:
+  action: ALLOW
+  from:
+    subjects:
+      - kind: Agent
+        name: waypoint-calc
+        namespace: agents
+  targetRef:
+    kind: MCPServer
+    name: everything-server
+    tools:
+      - sum
