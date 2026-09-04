@@ -108,10 +108,26 @@ YAML
 grep -q 'allowAnyGKEPath: true' "$POLICY_FILE" \
   || die "refusing to apply a policy without allowAnyGKEPath: true"
 
-CURRENT_POLICY="$(gcloud org-policies describe \
+# Check EXACT list membership, not a substring. An earlier policy holding the
+# individual file paths contains the directory prefix as a substring, so a grep
+# reports success, this step is skipped, and every cluster update is then
+# refused with CUSTOM_ORG_POLICY_DENIED for four attempts with no explanation.
+POLICY_HAS_PATH="$(gcloud org-policies describe \
   container.managed.autopilotPrivilegedAdmission --organization="$ORG" \
-  --effective --format=json 2>/dev/null || true)"
-if echo "$CURRENT_POLICY" | grep -q -- "$DIR_PATH"; then
+  --effective --format=json 2>/dev/null \
+  | python3 -c "
+import json, sys
+want = sys.argv[1]
+try:
+    d = json.load(sys.stdin)
+except Exception:
+    print('no'); raise SystemExit
+for rule in (d.get('spec', {}).get('rules') or []):
+    if want in (rule.get('parameters', {}).get('allowPaths') or []):
+        print('yes'); raise SystemExit
+print('no')
+" "$DIR_PATH" 2>/dev/null || echo no)"
+if [[ "$POLICY_HAS_PATH" == "yes" ]]; then
   ok "org policy already authorises $DIR_PATH"
   POLICY_CHANGED=0
 else

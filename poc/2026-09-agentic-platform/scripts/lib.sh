@@ -166,6 +166,39 @@ assert_kube_reachable() {
     Re-authenticate, then re-run:  ./scripts/gcd-auth.sh"
 }
 
+# helm refuses to upgrade a release whose previous install failed:
+#   Error: UPGRADE FAILED: "<name>" has no deployed releases
+# On a chain that is meant to be re-runnable after a failure, that turns one bad
+# attempt into a permanent block. Clear the wreckage first.
+clear_failed_release() {
+  # NOTE the `|| true` on the assignment below. Callers run with `set -e` and
+  # `pipefail`, and `helm status` exits non-zero when the release does not exist
+  # — the normal first-install case — which would otherwise kill the caller
+  # silently, with no output at all after the step banner.
+  local name="$1" ns="$2" status
+  # `helm status` is stable across helm 3 and 4; the list filter flags are not
+  # (-a became --all became neither). A missing release exits non-zero, which is
+  # the normal first-install case.
+  status="$(helm -n "$ns" status "$name" -o json 2>/dev/null \
+    | python3 -c 'import json,sys
+try:
+    print(json.load(sys.stdin).get("info",{}).get("status",""))
+except Exception:
+    print("")' 2>/dev/null || true)"
+  case "$status" in
+    ""|deployed) return 0 ;;
+    *)
+      warn "helm release $ns/$name is in state '$status'; clearing before reinstall"
+      helm -n "$ns" uninstall "$name" --wait >/dev/null 2>&1 || true
+      # A failed install can leave the release record undeletable. The record is
+      # a Secret, so remove it directly; otherwise every retry hits
+      # "has no deployed releases" forever.
+      kubectl -n "$ns" delete secret -l "owner=helm,name=${name}" \
+        --ignore-not-found >/dev/null 2>&1 || true
+      ;;
+  esac
+}
+
 # ── evidence ──────────────────────────────────────────────────────────────────
 # Findings are the most valuable output of this repo, so record verbatim.
 evidence() {

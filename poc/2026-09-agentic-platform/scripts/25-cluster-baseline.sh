@@ -30,6 +30,20 @@ KPS_VERSION="${KPS_VERSION:-65.5.1}"
 
 # ── 1. cert-manager + a self-signed internal CA ──────────────────────────────
 step "cert-manager $CERT_MANAGER_VERSION"
+clear_failed_release cert-manager cert-manager
+# TWO Autopilot-specific settings here, both mandatory:
+#
+# global.leaderElection.namespace — cert-manager's controller and cainjector
+# default their leader-election lease to kube-system, and Autopilot REFUSES
+# writes to it:
+#   leases.coordination.k8s.io is forbidden: ... GKE Warden authz
+#   [denied by managed-namespaces-limitation]: the namespace "kube-system" is
+#   managed and the request's verb "create" is denied
+# The cainjector then never gains leadership, so it never writes the CA bundle
+# into the ValidatingWebhookConfiguration, and every cert-manager resource is
+# rejected with "x509: certificate signed by unknown authority". All three pods
+# report Running and Ready throughout, so nothing points at leader election.
+#
 # 5m is not enough on Autopilot. cert-manager's startupapicheck Job waits for the
 # webhook to serve, and on a cold cluster Autopilot is still provisioning nodes,
 # so the Job sits Pending and helm gives up:
@@ -41,8 +55,35 @@ helm --kube-context "$(kube_context)" upgrade --install cert-manager cert-manage
   --version "$CERT_MANAGER_VERSION" \
   -n cert-manager --create-namespace \
   --set crds.enabled=true \
+  --set global.leaderElection.namespace=cert-manager \
   --wait --timeout 15m
 ok "cert-manager installed"
+
+# helm --wait returning does NOT mean cert-manager's validating webhook will
+# accept resources yet. The cainjector still has to write the CA bundle into the
+# ValidatingWebhookConfiguration, and until it does every apply is rejected:
+#   failed calling webhook "webhook.cert-manager.io": tls: failed to verify
+#   certificate: x509: certificate signed by unknown authority
+# Nothing in cert-manager's own readiness reflects this, so probe the webhook
+# with a server-side dry run until it actually answers.
+step "waiting for cert-manager's webhook to accept resources"
+CM_READY=0
+for _ in $(seq 1 60); do
+  if kc apply --dry-run=server -f - >/dev/null 2>&1 <<'PROBE'
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: webhook-readiness-probe
+spec:
+  selfSigned: {}
+PROBE
+  then CM_READY=1; break; fi
+  sleep 5
+done
+[[ "$CM_READY" -eq 1 ]] && ok "webhook is serving" \
+  || die "cert-manager's webhook never became ready. Check:
+    kubectl -n cert-manager logs deploy/cert-manager-cainjector
+    kubectl get validatingwebhookconfiguration cert-manager-webhook -o yaml"
 
 step "internal CA (there is no ACME path in GCD, so this is the east-west root)"
 kc apply -f - <<'YAML'
@@ -111,8 +152,41 @@ else
 fi
 
 # ── 3. Prometheus + Grafana. Not optional here. ──────────────────────────────
+# kube-prometheus-stack needs REAL de-scoping on Autopilot. Two groups of its
+# defaults are impossible here, and both fail the whole release:
+#
+# 1. Control-plane scrapers. The chart creates or patches Services in
+#    kube-system for coredns, etcd, kube-controller-manager, kube-scheduler and
+#    kube-proxy. Autopilot refuses every write to that namespace:
+#      services "kube-prometheus-stack-coredns" is forbidden ... GKE Warden authz
+#      [denied by managed-namespaces-limitation]: the namespace "kube-system" is
+#      managed and the request's verb "patch" is denied
+#    No loss: on Autopilot the control plane is Google-managed and its metrics
+#    are not exposed to scrape in the first place.
+#
+# 2. node-exporter. It is a privileged DaemonSet and Autopilot rejects it:
+#      [denied by autogke-disallow-hostnamespaces]: enabling hostPID is not
+#      allowed in Autopilot. enabling hostNetwork is not allowed in Autopilot.
+#      [denied by autogke-no-write-mode-hostpath]: hostPath volume proc ... /proc
+#      ... sys ... /sys ... root ... / ... Allowed path prefixes are [/var/log/]
+#    It COULD be admitted with a WorkloadAllowlist (see 62/63), but node-level
+#    metrics on Autopilot are Google's responsibility, so it is not worth the
+#    privilege. GKE already exports node metrics.
+#
+# What remains is what actually matters here: kube-state-metrics, Prometheus
+# itself, and Grafana, scraping our own workloads' ServiceMonitors. That is the
+# gap Cloud Monitoring leaves, since it cannot ingest custom or OTel metrics.
 step "kube-prometheus-stack $KPS_VERSION (Cloud Monitoring cannot ingest our metrics)"
+clear_failed_release kube-prometheus-stack observability
 helm --kube-context "$(kube_context)" upgrade --install kube-prometheus-stack kube-prometheus-stack \
+  --set kubeEtcd.enabled=false \
+  --set kubeControllerManager.enabled=false \
+  --set kubeScheduler.enabled=false \
+  --set kubeProxy.enabled=false \
+  --set coreDns.enabled=false \
+  --set kubeDns.enabled=false \
+  --set nodeExporter.enabled=false \
+  --set prometheus-node-exporter.enabled=false \
   --repo https://prometheus-community.github.io/helm-charts \
   --version "$KPS_VERSION" \
   -n observability --create-namespace \
