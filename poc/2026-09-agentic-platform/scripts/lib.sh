@@ -281,7 +281,31 @@ ar_docker_login() {
 # Call this before any "not found" diagnosis so the real cause is named.
 assert_kube_reachable() {
   kubectl version --request-timeout=10s >/dev/null 2>&1 && return 0
-  die "cannot reach the cluster. The GCD session has most likely expired (~45 min).
+
+  # Do NOT assume this is an expired session. After the cluster is recreated the
+  # kubeconfig still holds the OLD endpoint and CA, so kubectl fails while the
+  # credential is perfectly good -- and calling that "session expired" sends you
+  # to re-authenticate, which fixes nothing. run-all.sh then exits 75 and any
+  # wrapper retries forever on a credential that was never the problem.
+  # Distinguish the two, and repair the recoverable one.
+  if gcloud auth print-access-token >/dev/null 2>&1; then
+    local name region
+    name="${CLUSTER_NAME:-$(tofu_out cluster_name)}"
+    region="${UNIVERSE_REGION:-$(tofu_out region)}"
+    if [[ -n "$name" && -n "$region" ]]; then
+      warn "kubectl cannot reach the cluster but the GCD session is valid."
+      warn "refreshing the kubeconfig for $name (stale after a cluster rebuild)"
+      gcloud container clusters get-credentials "$name" \
+        --location "$region" --project "$PROJECT_ID" >/dev/null 2>&1 || true
+      kubectl version --request-timeout=15s >/dev/null 2>&1 && {
+        ok "kubeconfig refreshed"; return 0; }
+    fi
+    die "cannot reach the cluster, and the GCD session is VALID, so this is not
+    an authentication problem. Check the cluster exists and is RUNNING:
+      gcloud container clusters list"
+  fi
+
+  die "cannot reach the cluster, and the GCD session has expired.
     Re-authenticate, then re-run:  ./scripts/gcd-auth.sh"
 }
 

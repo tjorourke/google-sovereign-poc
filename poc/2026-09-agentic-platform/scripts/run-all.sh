@@ -132,12 +132,30 @@ for entry in "${PHASES[@]}"; do
   session_alive || stop_for_auth
 
   # A phase that needs the cluster gets a clearer message than a kubectl error.
+  #
+  # Repair the recoverable case rather than reporting it as an expired session.
+  # After a cluster rebuild the kubeconfig still holds the OLD endpoint and CA,
+  # so kubectl fails while the credential is fine -- and stop_for_auth then
+  # exits 75, which tells a wrapper to re-authenticate a credential that was
+  # never the problem. That is an infinite loop, and it happened.
   if [[ "$needs" == "yes" ]] && ! kubectl version --request-timeout=10s >/dev/null 2>&1; then
-    warn "phase $id needs a reachable cluster and kubectl cannot connect."
-    warn "if the cluster exists, refresh credentials:"
-    warn "  gcloud container clusters get-credentials ${CLUSTER_NAME:-agentic} \\"
-    warn "    --location ${UNIVERSE_REGION} --project '${PROJECT_ID}'"
-    stop_for_auth
+    if session_alive; then
+      warn "kubectl cannot connect but the session is valid — refreshing the"
+      warn "kubeconfig (stale endpoint/CA after a cluster rebuild)"
+      gcloud container clusters get-credentials "${CLUSTER_NAME:-agentic}" \
+        --location "${UNIVERSE_REGION}" --project "${PROJECT_ID}" >/dev/null 2>&1 || true
+    fi
+    if ! kubectl version --request-timeout=15s >/dev/null 2>&1; then
+      if session_alive; then
+        warn "phase $id needs a reachable cluster, the session is VALID, and"
+        warn "refreshing the kubeconfig did not help. This is not an auth"
+        warn "problem — check the cluster exists and is RUNNING:"
+        warn "  gcloud container clusters list"
+        exit 1
+      fi
+      stop_for_auth
+    fi
+    ok "kubeconfig refreshed"
   fi
 
   step "Phase $id — $desc"
