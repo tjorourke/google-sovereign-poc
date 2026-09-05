@@ -1,0 +1,19 @@
+# MCP tool-level authorization at a standalone agentgateway on GKE Autopilot (GCD)
+# 2026-09-05T15:51:46Z
+# Enforced at a STANDALONE agentgateway. Istio ambient is also installed in this
+# cluster (istio-cni + ztunnel), but this path deliberately does not use it:
+# the tools are behind a RemoteMCPServer, which is only a URL, so policy has to
+# live on the gateway. GKE NetworkPolicy remains unavailable in GCD.
+
+=== tools/list
+event: message
+data: {"jsonrpc":"2.0","id":2,"result":{"tools":[{"name":"sum","description":"Add two numbers together. Use this when you need to sum or add two numbers.","inputSchema":{"additionalProperties":false,"properties":{"a":{"anyOf":[{"type":"number"},{"type":"integer"}],"description":"The first number to add"},"b":{"anyOf":[{"type":"number"},{"type":"integer"}],"description":"The second number to add"}},"required":["a","b"],"type":"object"},"outputSchema":{"properties":{"result":{"anyOf":[{"type":"number"},{"type":"integer"}]}},"required":["result"],"type":"object","x-fastmcp-wrap-result":true},"_meta":{"fastmcp":{"tags":[]}}}]}}
+
+
+=== call sum
+event: message
+data: {"jsonrpc":"2.0","id":3,"result":{"content":[{"type":"text","text":"5"}],"structuredContent":{"result":5},"isError":false,"_meta":{"fastmcp":{"wrap_result":true}}}}
+
+
+=== call printenv
+{"jsonrpc":"2.0","id":4,"error":{"code":-32602,"message":"Unknown tool: printenv"}}
