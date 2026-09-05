@@ -21,6 +21,14 @@ assert_universe
 NS=solo-enterprise
 VERSION="${SOLO_MGMT_ENT_VERSION:-0.4.3}"
 CHART="${SOLO_MGMT_CHART:-oci://us-docker.pkg.dev/solo-public/solo-enterprise-helm/charts/management}"
+
+# The Enterprise UI surfaces one product per integration, and each is OFF by
+# default in the chart. agentgateway.namespace was being set without
+# agentgateway.enabled, so that panel never appeared -- the namespace alone does
+# nothing. products.mesh is the Service Mesh panel and is only meaningful with
+# Solo Enterprise for Istio, so it follows ISTIO_EDITION rather than being
+# hardcoded: switching back to upstream must not leave a dead panel behind.
+MGMT_MESH_ENABLED="${MGMT_MESH_ENABLED:-$([[ "${ISTIO_EDITION:-enterprise}" == "enterprise" ]] && echo true || echo false)}"
 CLUSTER="${CLUSTER_NAME:-$(tofu_out cluster_name)}"
 
 ENVF="$LAB_ROOT/deploy/.env.oidc"
@@ -74,7 +82,9 @@ helm --kube-context "$(kube_context)" upgrade --install solo-mgmt "$CHART" \
   --set cluster="$CLUSTER" \
   --set products.kagent.enabled=true \
   --set products.kagent.namespace=kagent \
+  --set products.agentgateway.enabled=true \
   --set products.agentgateway.namespace=agentgateway-system \
+  --set products.mesh.enabled="$MGMT_MESH_ENABLED" \
   --set licensing.licenseKey="$SOLO_LICENSE_KEY" \
   "${CH_ARGS[@]}" \
   --set oidc.issuer="$OIDC_ISSUER" \

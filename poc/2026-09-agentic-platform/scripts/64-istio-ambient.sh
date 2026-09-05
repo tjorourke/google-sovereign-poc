@@ -40,13 +40,10 @@ assert_universe
 kube_context
 assert_kube_reachable
 
-ISTIO_VERSION="${ISTIO_VERSION:-1.30.4}"
-ISTIO_PROFILE="${ISTIO_PROFILE:-ambient}"
-ISTIO_PLATFORM="${ISTIO_PLATFORM:-gke}"
-# Keep in step with 62-istio-allowlists.sh.
-ISTIO_CNI_BIN_DIR="${ISTIO_CNI_BIN_DIR:-/home/kubernetes/bin}"
-# See 62-istio-allowlists.sh for why this must be false, and must match.
-ISTIO_APPARMOR_ANNOTATION="${ISTIO_APPARMOR_ANNOTATION:-false}"
+# Every pod-spec input comes from lib.sh, shared with 62-istio-allowlists.sh.
+# They MUST match: the allowlist pins the image and matches the spec exactly.
+istio_flavour
+solo_registry_login
 AMBIENT_NAMESPACES="${AMBIENT_NAMESPACES:-kagent model}"
 YAML_DIR="$LAB_ROOT/istio-ambient"
 CTX="$(kubectl config current-context)"
@@ -61,7 +58,7 @@ step "Preflight: the allowlists must already be installed"
 # Keep as a string: bash 3.2 (the macOS default, and what env bash resolves to
 # here) errors on ${#arr[@]} for an empty array under set -u.
 MISSING=""
-for want in "istio-cni-$ISTIO_VERSION" "istio-ztunnel-$ISTIO_VERSION"; do
+for want in "istio-cni-$ISTIO_CHART_VERSION" "istio-ztunnel-$ISTIO_CHART_VERSION"; do
   kubectl get workloadallowlist "$want" >/dev/null 2>&1 || MISSING="$MISSING $want"
 done
 if [[ -n "$MISSING" ]]; then
@@ -77,7 +74,7 @@ if [[ -n "$MISSING" ]]; then
       kubectl get allowlistsynchronizer -o yaml | sed -n '/^status:/,\$p'
     See docs/istio-ambient-on-gcd-autopilot.md."
 fi
-ok "istio-cni-$ISTIO_VERSION and istio-ztunnel-$ISTIO_VERSION installed"
+ok "istio-cni-$ISTIO_CHART_VERSION and istio-ztunnel-$ISTIO_CHART_VERSION installed"
 
 # Assert the allowlist expects the same CNI directory we are about to install
 # with. A mismatch here is the single most confusing failure mode: admission
@@ -94,32 +91,61 @@ kubectl apply -f "$YAML_DIR/critical-pods-quota.yaml" >/dev/null 2>&1 \
   && ok "gcp-critical-pods quota present in istio-system" \
   || warn "could not apply the critical-pods quota"
 
-step "Istio $ISTIO_VERSION control plane"
-helm repo add istio https://istio-release.storage.googleapis.com/charts >/dev/null 2>&1 || true
-helm repo update istio >/dev/null 2>&1 || true
+step "Istio control plane — $ISTIO_EDITION $ISTIO_CHART_VERSION"
+log "chart=$ISTIO_CHART_REPO  hub=$ISTIO_HUB  tag=$ISTIO_TAG"
 
-helm --kube-context "$CTX" upgrade -i istio-base istio/base \
-  --version "$ISTIO_VERSION" -n istio-system --create-namespace >/dev/null 2>&1 \
+helm --kube-context "$CTX" upgrade -i istio-base "$(istio_chart base)" \
+  --version "$ISTIO_CHART_VERSION" -n istio-system --create-namespace \
+  --set defaultRevision=default >/dev/null 2>&1 \
   && ok "istio-base" || die "istio-base failed"
 
-helm --kube-context "$CTX" upgrade -i istiod istio/istiod \
-  --version "$ISTIO_VERSION" -n istio-system \
-  --set profile="$ISTIO_PROFILE" --wait --timeout 10m >/dev/null 2>&1 \
-  && ok "istiod (profile=$ISTIO_PROFILE)" || die "istiod failed"
+# The Solo Enterprise licence goes on ISTIOD, as license.value. Without it the
+# build runs but the enterprise gates stay shut -- notably AuthorizationPolicy
+# attachment, which is exactly what 66-istio-health.sh asserts. Upstream ignores
+# the value, so passing it unconditionally is safe.
+ISTIO_LICENSE="${SOLO_ISTIO_LICENSE_KEY:-${ISTIO_LICENSE_KEY:-}}"
+if [[ "$ISTIO_EDITION" == "enterprise" && -z "$ISTIO_LICENSE" ]]; then
+  die "SOLO_ISTIO_LICENSE_KEY not set.
+    source ~/code/solo/secrets/secrets-envs.sh, or run with ISTIO_EDITION=oss"
+fi
+
+helm --kube-context "$CTX" upgrade -i istiod "$(istio_chart istiod)" \
+  --version "$ISTIO_CHART_VERSION" -n istio-system --wait --timeout 10m \
+  -f - >/dev/null 2>&1 <<EOF \
+  && ok "istiod (profile=$ISTIO_PROFILE, $ISTIO_EDITION)" || die "istiod failed"
+profile: ${ISTIO_PROFILE}
+global:
+  hub: ${ISTIO_HUB}
+  tag: ${ISTIO_TAG}
+  platform: ${ISTIO_PLATFORM}
+istio_cni:
+  enabled: true
+license:
+  value: ${ISTIO_LICENSE}
+EOF
 
 step "Privileged data plane: istio-cni and ztunnel"
-helm --kube-context "$CTX" upgrade -i istio-cni istio/cni \
-  --version "$ISTIO_VERSION" -n istio-system \
+# These two are the workloads the WorkloadAllowlists admit. Values here must be
+# identical to what 62-istio-allowlists.sh rendered.
+helm --kube-context "$CTX" upgrade -i istio-cni "$(istio_chart cni)" \
+  --version "$ISTIO_CHART_VERSION" -n istio-system \
   --set profile="$ISTIO_PROFILE" \
   --set global.platform="$ISTIO_PLATFORM" \
+  --set global.hub="$ISTIO_HUB" \
+  --set global.tag="$ISTIO_TAG" \
   --set cni.cniBinDir="$ISTIO_CNI_BIN_DIR" \
   --set cni.useAppArmorAnnotation="$ISTIO_APPARMOR_ANNOTATION" >/dev/null 2>&1 \
   && ok "istio-cni" || die "istio-cni failed"
 
-helm --kube-context "$CTX" upgrade -i ztunnel istio/ztunnel \
-  --version "$ISTIO_VERSION" -n istio-system \
+# ztunnel takes hub/tag at the TOP LEVEL, not under global. Setting only
+# global.hub here silently leaves ztunnel on the chart default image, which
+# then does not match the allowlist that was generated for the Solo image.
+helm --kube-context "$CTX" upgrade -i ztunnel "$(istio_chart ztunnel)" \
+  --version "$ISTIO_CHART_VERSION" -n istio-system \
   --set profile="$ISTIO_PROFILE" \
-  --set global.platform="$ISTIO_PLATFORM" >/dev/null 2>&1 \
+  --set global.platform="$ISTIO_PLATFORM" \
+  --set hub="$ISTIO_HUB" \
+  --set tag="$ISTIO_TAG" >/dev/null 2>&1 \
   && ok "ztunnel" || die "ztunnel failed"
 
 step "Waiting for both DaemonSets"

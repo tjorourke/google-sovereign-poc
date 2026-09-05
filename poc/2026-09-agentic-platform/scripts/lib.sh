@@ -149,6 +149,97 @@ python_pod() {
   return 1
 }
 
+# ── Solo Enterprise for Istio ────────────────────────────────────────────────
+# ONE definition of the Istio flavour, because 62-istio-allowlists.sh and
+# 64-istio-ambient.sh must render byte-identical pod specs. A WorkloadAllowlist
+# pins the container IMAGE and matches args, env names and securityContext
+# exactly, so if these two scripts disagree about hub, tag or chart the
+# allowlist silently stops matching and Warden rejects the DaemonSet citing
+# capabilities and hostPath -- never the image. Keeping the values here is what
+# makes that class of drift impossible.
+#
+# ISTIO_EDITION=oss falls back to upstream, which is what the repo ran before
+# and is still useful for isolating whether a problem is Solo-specific.
+istio_flavour() {
+  ISTIO_EDITION="${ISTIO_EDITION:-enterprise}"
+  case "$ISTIO_EDITION" in
+    enterprise)
+      # Same Istio minor as upstream 1.30.4, so behaviour is unchanged and only
+      # the images differ. Verified pullable from GCD nodes directly, so no
+      # mirroring into the in-universe registry is required.
+      ISTIO_CHART_REPO="${ISTIO_CHART_REPO:-oci://us-docker.pkg.dev/soloio-img/istio-helm}"
+      ISTIO_CHART_VERSION="${ISTIO_CHART_VERSION:-1.30.4-solo}"
+      ISTIO_HUB="${ISTIO_HUB:-us-docker.pkg.dev/soloio-img/istio}"
+      ISTIO_TAG="${ISTIO_TAG:-1.30.4-solo}"
+      ISTIO_VERSION="${ISTIO_VERSION:-1.30.4}"
+      ;;
+    oss)
+      ISTIO_CHART_REPO="${ISTIO_CHART_REPO:-https://istio-release.storage.googleapis.com/charts}"
+      ISTIO_CHART_VERSION="${ISTIO_CHART_VERSION:-1.30.4}"
+      ISTIO_HUB="${ISTIO_HUB:-docker.io/istio}"
+      ISTIO_TAG="${ISTIO_TAG:-1.30.4}"
+      ISTIO_VERSION="${ISTIO_VERSION:-1.30.4}"
+      ;;
+    *) die "ISTIO_EDITION must be enterprise or oss (got '$ISTIO_EDITION')" ;;
+  esac
+  export ISTIO_EDITION ISTIO_CHART_REPO ISTIO_CHART_VERSION ISTIO_HUB ISTIO_TAG ISTIO_VERSION
+
+  # Shared pod-spec inputs. Every one of these changes the rendered spec and
+  # therefore the allowlist, so both scripts take them from here.
+  ISTIO_PROFILE="${ISTIO_PROFILE:-ambient}"
+  ISTIO_PLATFORM="${ISTIO_PLATFORM:-gke}"
+  # COS mounts /opt/cni/bin read-only: the chart default makes istio-cni
+  # crash-loop AFTER passing admission. global.platform=gke does not fix it.
+  ISTIO_CNI_BIN_DIR="${ISTIO_CNI_BIN_DIR:-/home/kubernetes/bin}"
+  # The single most expensive trap in the whole mechanism: the chart's default
+  # AppArmor ANNOTATION is not translated by GKE's allowlist generator, so the
+  # allowlist never matches and admission fails citing the original capability
+  # and hostPath violations with nothing pointing at AppArmor.
+  ISTIO_APPARMOR_ANNOTATION="${ISTIO_APPARMOR_ANNOTATION:-false}"
+  export ISTIO_PROFILE ISTIO_PLATFORM ISTIO_CNI_BIN_DIR ISTIO_APPARMOR_ANNOTATION
+}
+
+# The chart name as helm wants it: OCI repos take a path, classic repos an alias.
+istio_chart() {
+  case "$ISTIO_CHART_REPO" in
+    oci://*) printf '%s/%s' "$ISTIO_CHART_REPO" "$1" ;;
+    *)       helm repo add istio "$ISTIO_CHART_REPO" >/dev/null 2>&1 || true
+             helm repo update istio >/dev/null 2>&1 || true
+             printf 'istio/%s' "$1" ;;
+  esac
+}
+
+# Solo's charts and images live in a PUBLIC GCP Artifact Registry, so this is
+# the one place in the repo where talking to googleapis.com is correct. The
+# universe (WIF) token has no standing there. Public-GCP refresh tokens are long
+# lived, so the on-disk legacy credential usually works even when the universe
+# session is dead.
+solo_registry_login() {
+  case "$ISTIO_CHART_REPO" in oci://us-docker.pkg.dev/*) ;; *) return 0 ;; esac
+  local acct="${SOLO_GCP_ACCOUNT:-tom.orourke@solo.io}" tok legacy
+  tok="$(gcloud auth print-access-token --account="$acct" 2>/dev/null || true)"
+  if [[ -z "$tok" ]]; then
+    legacy="$HOME/.config/gcloud/legacy_credentials/${acct}/adc.json"
+    [[ -f "$legacy" ]] && tok="$(python3 - "$legacy" <<'PYTOK'
+import json,sys,urllib.parse,urllib.request
+d=json.load(open(sys.argv[1]))
+data=urllib.parse.urlencode({"client_id":d["client_id"],"client_secret":d["client_secret"],
+ "refresh_token":d["refresh_token"],"grant_type":"refresh_token"}).encode()
+try:
+    print(json.load(urllib.request.urlopen(
+        urllib.request.Request("https://oauth2.googleapis.com/token",data=data),timeout=20))["access_token"])
+except Exception: pass
+PYTOK
+)"
+  fi
+  [[ -n "$tok" ]] || die "no public-GCP credential for $acct.
+    Solo charts are in a public Artifact Registry and the universe token has no
+    standing there. Run: gcloud auth login --account=$acct"
+  printf '%s' "$tok" | helm registry login -u oauth2accesstoken --password-stdin \
+    us-docker.pkg.dev >/dev/null 2>&1 \
+    || die "helm registry login to us-docker.pkg.dev failed"
+}
+
 dns_upsert() {
   local fqdn="$1" ip="$2" zone="${PRIVATE_DNS_ZONE_NAME:-}"
   [[ -n "$zone" ]] || zone="$(cd "$TOFU_DIR" && tofu output -raw private_dns_zone_name 2>/dev/null || true)"

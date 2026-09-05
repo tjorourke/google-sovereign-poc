@@ -38,7 +38,7 @@ SVC="health-server.${NS}.svc.cluster.local:8080"
 YAML_DIR="$LAB_ROOT/istio-ambient/waypoint"
 
 # Match 62/64 so the allowlist assertion below can name the objects.
-ISTIO_VERSION="${ISTIO_VERSION:-1.30.4}"
+istio_flavour
 
 PASS=0; FAIL=0
 pass() { ok "$*"; PASS=$((PASS+1)); }
@@ -107,11 +107,11 @@ done
 # By name, not by count: two unrelated WorkloadAllowlists would satisfy a count
 # while the DaemonSets above were admitted by something else entirely.
 ALLOW_MISSING=""
-for want in "istio-cni-$ISTIO_VERSION" "istio-ztunnel-$ISTIO_VERSION"; do
+for want in "istio-cni-$ISTIO_CHART_VERSION" "istio-ztunnel-$ISTIO_CHART_VERSION"; do
   kubectl get workloadallowlist "$want" >/dev/null 2>&1 || ALLOW_MISSING="$ALLOW_MISSING $want"
 done
 [[ -z "$ALLOW_MISSING" ]] \
-  && pass "WorkloadAllowlists istio-cni-$ISTIO_VERSION and istio-ztunnel-$ISTIO_VERSION installed" \
+  && pass "WorkloadAllowlists istio-cni-$ISTIO_CHART_VERSION and istio-ztunnel-$ISTIO_CHART_VERSION installed" \
   || fail "missing WorkloadAllowlist(s):$ALLOW_MISSING"
 
 step "2. Workloads captured by ambient"

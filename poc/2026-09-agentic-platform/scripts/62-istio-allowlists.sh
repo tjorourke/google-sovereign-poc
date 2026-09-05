@@ -23,7 +23,12 @@ load_env
 kube_context >/dev/null 2>&1 || true
 assert_kube_reachable
 
-ISTIO_VERSION="${ISTIO_VERSION:-1.30.4}"
+# Solo Enterprise by default; ISTIO_EDITION=oss for upstream. Defined once in
+# lib.sh so this script and 64-istio-ambient.sh cannot drift -- the allowlist
+# pins the image, so a mismatch is silent and misdiagnosed.
+istio_flavour
+solo_registry_login
+log "istio: $ISTIO_EDITION  chart=$ISTIO_CHART_VERSION  hub=$ISTIO_HUB  tag=$ISTIO_TAG"
 
 # BSD sed needs an argument to -i, GNU sed must not have one. Decide once, rather
 # than trying one and falling back on failure: on GNU a failed BSD-form call has
@@ -62,11 +67,9 @@ OUT="$LAB_ROOT/istio-ambient/allowlists"
 mkdir -p "$OUT"
 
 require helm kubectl
-helm repo add istio https://istio-release.storage.googleapis.com/charts >/dev/null 2>&1 || true
-helm repo update istio >/dev/null 2>&1 || true
 
 for CHART in cni ztunnel; do
-  step "Generating the allowlist for istio-$CHART $ISTIO_VERSION"
+  step "Generating the allowlist for istio-$CHART $ISTIO_CHART_VERSION ($ISTIO_EDITION)"
   NEW="$OUT/.istio-$CHART.new"
 
   # Both charts expose podAnnotations, so the generate-allowlist annotation goes
@@ -75,10 +78,14 @@ for CHART in cni ztunnel; do
   #
   # cni.* values are ignored by the ztunnel chart and vice versa, so passing the
   # union to both is harmless and keeps this loop simple.
-  helm template "istio-$CHART" "istio/$CHART" --version "$ISTIO_VERSION" \
+  helm template "istio-$CHART" "$(istio_chart "$CHART")" --version "$ISTIO_CHART_VERSION" \
       -n istio-system \
       --set profile="$ISTIO_PROFILE" \
       --set global.platform="$ISTIO_PLATFORM" \
+      --set global.hub="$ISTIO_HUB" \
+      --set global.tag="$ISTIO_TAG" \
+      --set hub="$ISTIO_HUB" \
+      --set tag="$ISTIO_TAG" \
       --set cni.cniBinDir="$ISTIO_CNI_BIN_DIR" \
       --set cni.useAppArmorAnnotation="$ISTIO_APPARMOR_ANNOTATION" \
       --set-string cni.podAnnotations."cloud\.google\.com/generate-allowlist"=true \
@@ -100,7 +107,7 @@ for CHART in cni ztunnel; do
 
   # GKE timestamps the allowlist name, so a regeneration would create a SECOND
   # allowlist rather than replacing the first. Give it a stable name.
-  sed "${SED_INPLACE[@]}" "s|^\\( *\\)name: allowlist-[0-9a-zt.-]*\$|\\1name: istio-$CHART-$ISTIO_VERSION|" "$NEW"
+  sed "${SED_INPLACE[@]}" "s|^\\( *\\)name: allowlist-[0-9a-zt.-]*\$|\\1name: istio-$CHART-$ISTIO_CHART_VERSION|" "$NEW"
 
   mv "$NEW" "$OUT/istio-$CHART.yaml"
   ok "wrote $OUT/istio-$CHART.yaml"
