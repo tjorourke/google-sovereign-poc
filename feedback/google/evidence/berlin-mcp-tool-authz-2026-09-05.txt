@@ -1,5 +1,5 @@
 # MCP tool-level authorization at a standalone agentgateway on GKE Autopilot (GCD)
-# 2026-09-05T15:51:46Z
+# 2026-09-05T18:28:11Z
 # Enforced at a STANDALONE agentgateway. Istio ambient is also installed in this
 # cluster (istio-cni + ztunnel), but this path deliberately does not use it:
 # the tools are behind a RemoteMCPServer, which is only a URL, so policy has to

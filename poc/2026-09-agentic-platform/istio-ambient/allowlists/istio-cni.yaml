@@ -5,8 +5,8 @@ metadata:
     annotations:
         autopilot.gke.io/no-connect: "true"
 exemptions:
-    - autogke-default-linux-capabilities
     - autogke-no-write-mode-hostpath
+    - autogke-default-linux-capabilities
 matchingCriteria:
     containers:
         - name: install-cni
