@@ -192,6 +192,17 @@ helm --kube-context "$(kube_context)" upgrade --install kube-prometheus-stack ku
   -n observability --create-namespace \
   --set grafana.enabled=true \
   --set grafana.adminPassword="${GRAFANA_ADMIN_PASSWORD:-admin}" \
+  `# Autopilot DEFAULTS any container that does not request cpu/memory, and it` \
+  `# defaults generously: the Grafana pod has three containers and the chart` \
+  `# sets resources on none of them, so it was admitted requesting 1500m CPU` \
+  `# and 6Gi memory. On GCD that is expensive -- GKE here is C3-only and this` \
+  `# project's C3_CPUS quota is 24, so Grafana alone was taking 6% of the` \
+  `# cluster's entire CPU budget and starving later phases of schedulable` \
+  `# capacity. Ask for what it actually needs.` \
+  --set grafana.resources.requests.cpu=100m \
+  --set grafana.resources.requests.memory=256Mi \
+  --set grafana.sidecar.resources.requests.cpu=50m \
+  --set grafana.sidecar.resources.requests.memory=128Mi \
   --set prometheus.prometheusSpec.retention=15d \
   --set prometheus.prometheusSpec.serviceMonitorSelectorNilUsesHelmValues=false \
   --set prometheus.prometheusSpec.podMonitorSelectorNilUsesHelmValues=false \
