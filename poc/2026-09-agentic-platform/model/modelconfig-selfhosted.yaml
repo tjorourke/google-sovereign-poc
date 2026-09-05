@@ -1,0 +1,27 @@
+# The ModelConfig declarative kagent Agents resolve.
+#
+# Two things the kagent-enterprise chart cannot do for us, which is why this is
+# a separate object rather than more --set flags:
+#
+#  1. The chart has NO providers.openAI.baseUrl key. Setting it is silently
+#     ignored, and the ModelConfig it generates therefore carries no endpoint --
+#     so an agent using it calls api.openai.com, which on GCD is both wrong and
+#     unreachable. spec.openAI.baseUrl on the CRD is the real field.
+#  2. The chart's model default is a guess. It must name what llama.cpp is
+#     actually serving or every completion 404s.
+#
+# baseUrl points at agentgateway, not at the model Service, so agent-to-model
+# traffic is a governed hop with an audit trail. That is the whole argument on
+# GCD: the model is in the boundary AND in front of a policy point.
+apiVersion: kagent.dev/v1alpha2
+kind: ModelConfig
+metadata:
+  name: selfhosted
+  namespace: __KAGENT_NS__
+spec:
+  provider: OpenAI
+  model: __SERVED_NAME__
+  apiKeySecret: kagent-openai
+  apiKeySecretKey: OPENAI_API_KEY
+  openAI:
+    baseUrl: http://llm.__BASE_DOMAIN__/v1

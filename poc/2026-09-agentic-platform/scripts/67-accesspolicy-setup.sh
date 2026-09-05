@@ -78,7 +78,19 @@ print(json.dumps(d))" 2>/dev/null \
     && ok "$2 copied from $1" || warn "could not copy secret $2 from $1"
 }
 copy_secret "$MCP_NS" ar-pull
-copy_secret "$KAGENT_NS" llm-key
+
+# Copy the secret the ModelConfig ACTUALLY references, read off the object
+# rather than hardcoded. This used to copy "llm-key", which no phase creates --
+# the chart names it kagent-openai -- so the copy warned and moved on, the
+# ModelConfig landed here referencing a secret that was not here, and the agent
+# pod sat in CreateContainerConfigError with nothing pointing at the cause.
+MC_SECRET="$(kubectl -n "$KAGENT_NS" get modelconfig selfhosted \
+             -o jsonpath='{.spec.apiKeySecret}' 2>/dev/null)"
+if [[ -n "$MC_SECRET" ]]; then
+  copy_secret "$KAGENT_NS" "$MC_SECRET"
+else
+  warn "ModelConfig/selfhosted not found in $KAGENT_NS — run 60-model.sh first"
+fi
 
 # The ModelConfig is namespaced, and a declarative Agent resolves it in its own
 # namespace, so it has to exist here too.

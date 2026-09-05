@@ -210,6 +210,27 @@ else
   warn "Run 70-agentgateway.sh and 80-ingress.sh, then re-run this phase."
 fi
 
+# ── the ModelConfig declarative agents resolve ───────────────────────────────
+# Must come from here, not from 40-kagent.sh: only this phase knows what
+# llama.cpp is actually serving, and the chart cannot express the endpoint at
+# all (see model/modelconfig-selfhosted.yaml).
+step "ModelConfig/selfhosted -> ${SERVED_NAME} via agentgateway"
+sed -e "s|__KAGENT_NS__|${KAGENT_NS:-kagent}|g" \
+    -e "s|__SERVED_NAME__|${SERVED_NAME}|g" \
+    -e "s|__BASE_DOMAIN__|${BASE_DOMAIN}|g" \
+    "$LAB_ROOT/model/modelconfig-selfhosted.yaml" \
+  | kubectl apply -f - >/dev/null \
+  && ok "ModelConfig/selfhosted in ${KAGENT_NS:-kagent}" \
+  || warn "could not apply ModelConfig/selfhosted"
+
+# The chart-generated default carries the chart's guess at a model name and no
+# endpoint. Point it at the same place so nothing silently inherits a model the
+# server does not serve.
+kubectl -n "${KAGENT_NS:-kagent}" patch modelconfig default-model-config --type=merge \
+  -p "{\"spec\":{\"model\":\"${SERVED_NAME}\",\"openAI\":{\"baseUrl\":\"http://llm.${BASE_DOMAIN}/v1\"}}}" >/dev/null 2>&1 \
+  && ok "default-model-config re-pointed at ${SERVED_NAME}" \
+  || warn "could not patch default-model-config (is 40-kagent.sh done?)"
+
 cat >&2 <<EOF
 
   Model:  ${SERVED_NAME}  (profile: ${PROFILE})

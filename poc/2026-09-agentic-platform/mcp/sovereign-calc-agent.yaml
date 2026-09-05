@@ -1,0 +1,57 @@
+# Path A: a DECLARATIVE kagent Agent reaching its tools through the STANDALONE
+# agentgateway. The counterpart to waypoint-calc, and distinct from it in two
+# ways worth keeping separate in a demo:
+#
+#  * waypoint-calc resolves a kagent MCPServer that kmcp owns, so Solo's
+#    AccessPolicy can attach to it and enforce at the waypoint.
+#  * sovereign-calc resolves a RemoteMCPServer, which is only a URL. Nothing can
+#    attach to it, so policy has to live ON THE GATEWAY -- that is what
+#    95-authz-on.sh restricts, and it is the only shape available on a cluster
+#    with no mesh. Both paths matter on GCD: the second is what a customer had
+#    before ambient worked here.
+#
+# It is also distinct from path B (sovereignagent), which AgentRegistry deploys.
+# This one is plain kagent CRDs applied directly.
+apiVersion: kagent.dev/v1alpha2
+kind: RemoteMCPServer
+metadata:
+  name: everything-server
+  namespace: kagent
+spec:
+  # description is REQUIRED by the CRD; omitting it fails admission with
+  # "spec.description: Required value" and no other clue.
+  description: Everything MCP server, reached through the standalone agentgateway
+  # Through agentgateway, never at the tool server's own Service. That single
+  # choice is what gives tool-level policy somewhere to be enforced.
+  url: http://mcp.__BASE_DOMAIN__/mcp
+  protocol: STREAMABLE_HTTP
+---
+apiVersion: kagent.dev/v1alpha2
+kind: Agent
+metadata:
+  name: sovereign-calc
+  namespace: kagent
+spec:
+  type: Declarative
+  description: >-
+    Arithmetic assistant whose tools are reached through the standalone
+    enterprise agentgateway, where tool-level policy is enforced.
+  declarative:
+    modelConfig: selfhosted
+    runtime: python
+    systemMessage: |
+      You are a careful arithmetic assistant.
+      When asked to add numbers, you MUST use the `sum` tool rather than
+      calculating yourself. If a tool you need is not available to you, say so
+      plainly and name the tool. Never guess.
+    tools:
+      - type: McpServer
+        mcpServer:
+          apiGroup: kagent.dev
+          kind: RemoteMCPServer
+          name: everything-server
+          namespace: kagent
+          toolNames:
+            - sum
+            - reverse_text
+            - echo

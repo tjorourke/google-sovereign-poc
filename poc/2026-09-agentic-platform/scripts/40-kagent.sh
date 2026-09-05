@@ -125,8 +125,12 @@ case "$MODEL_PROVIDER" in
     MODEL_BASE_URL="${MODEL_BASE_URL:-http://agentgateway.agentgateway-system.svc.cluster.local:80/v1}"
     PROVIDER_ARGS=(
       --set providers.default=openAI
-      --set providers.openAI.baseUrl="$MODEL_BASE_URL"
-      --set providers.openAI.model="${MODEL_NAME:-gemma-3-27b-it}"
+      # NOTE: providers.openAI.baseUrl is NOT a key in this chart -- setting it
+      # is silently ignored, so the generated ModelConfig carries no endpoint.
+      # 60-model.sh writes ModelConfig/selfhosted with spec.openAI.baseUrl (the
+      # real CRD field) and re-points this one, because only that phase knows
+      # what the model server is actually serving.
+      --set providers.openAI.model="${MODEL_NAME:-Qwen2.5-3B-Instruct}"
       --set-string providers.openAI.apiKey="not-used-selfhosted"
     )
     log "model: self-hosted via agentgateway at $MODEL_BASE_URL"
