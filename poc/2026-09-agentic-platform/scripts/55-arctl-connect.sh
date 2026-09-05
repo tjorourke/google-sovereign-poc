@@ -59,12 +59,20 @@ _arctl_connect() {
   command -v arctl >/dev/null 2>&1 \
     || warn "arctl not on PATH (expected ~/.arctl/bin/arctl)"
 
-  # Any pod with python3 will do; the agent pod always has it.
-  _minter="$(kubectl -n kagent get pod -l app.kubernetes.io/name=sovereign-calc \
-              -o jsonpath='{.items[0].metadata.name}' 2>/dev/null)"
-  [[ -n "$_minter" ]] || { _bail "no sovereign-calc pod to mint a token from"; return 1; }
+  # Any pod with python3 will do -- we only need a process inside the cluster
+  # that can POST to Keycloak over plaintext HTTP, because a laptop cannot
+  # (GCD has no certificatemanager/privateca, so the issuer is HTTP, and
+  # endpoint protection reads the password POST as credential phishing).
+  #
+  # This used to hardcode `-l app.kubernetes.io/name=sovereign-calc` in kagent.
+  # That workload moved: the MCP tool server is now `everything-server` in the
+  # `mcp` namespace, so the lookup returned nothing and the failure read as
+  # "no sovereign-calc pod" rather than "the selector is stale". Probe a list of
+  # candidates and take the first that genuinely has python3.
+  _mp="$(python_pod)" || { _bail "no in-cluster pod with python3 to mint a token from"; return 1; }
+  _minter_ns="${_mp%%/*}"; _minter="${_mp##*/}"
 
-  _tok="$(kubectl -n kagent exec -i "$_minter" -- python3 -c "
+  _tok="$(kubectl -n "$_minter_ns" exec -i "$_minter" -- python3 -c "
 import json,urllib.request,urllib.parse
 d=urllib.parse.urlencode({'grant_type':'password','client_id':'$cli_client',
   'username':'$as_user','password':'$as_password'}).encode()

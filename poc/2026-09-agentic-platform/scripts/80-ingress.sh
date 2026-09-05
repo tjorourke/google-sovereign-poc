@@ -118,18 +118,46 @@ kc -n "$NS" patch svc "$GW_SVC" -p '{"spec":{"type":"LoadBalancer"}}' >/dev/null
 ok "annotated and patched to LoadBalancer"
 
 step "waiting for a load balancer address"
+# Wait for an address that MATCHES THE REQUESTED SCOPE, not merely for any
+# address. A Service annotated load-balancer-type=Internal can publish an
+# EXTERNAL address first and only later be re-ensured as an ILB -- the events
+# read Ensuring/EnsuredLoadBalancer well after .status first populates. Taking
+# the first address wrote a transient external IP (34.3.133.186) into every
+# private DNS record while the real ILB settled on 10.20.0.43, so every
+# hostname resolved to an address nothing served and each downstream caller
+# failed with a bare connection timeout.
+is_private_ip() {
+  case "$1" in
+    10.*|192.168.*) return 0 ;;
+    172.1[6-9].*|172.2[0-9].*|172.3[01].*) return 0 ;;
+    *) return 1 ;;
+  esac
+}
 LB_IP=""
 for i in $(seq 1 60); do
-  LB_IP="$(kc -n "$NS" get svc "$GW_SVC" -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null || true)"
-  [[ -n "$LB_IP" ]] && break
+  CAND="$(kc -n "$NS" get svc "$GW_SVC" -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null || true)"
+  if [[ -n "$CAND" ]]; then
+    if [[ "$LB_SCOPE" != "internal" ]]; then
+      LB_IP="$CAND"; break
+    elif is_private_ip "$CAND"; then
+      LB_IP="$CAND"; break
+    else
+      # Announce it once so the transient value is visible in the log rather
+      # than silently discarded.
+      [[ "${WARNED_EXTERNAL:-0}" == "1" ]] || {
+        log "ignoring transient external address $CAND; waiting for the internal LB"
+        WARNED_EXTERNAL=1
+      }
+    fi
+  fi
   sleep 5
 done
 if [[ -z "$LB_IP" ]]; then
   kc -n "$NS" describe svc "$GW_SVC" >&2
   kc -n "$NS" get events --sort-by=.lastTimestamp | tail -20 >&2
-  die "no load balancer address after 5m — record this verbatim, it is probe 0.12 answering no"
+  die "no $LB_SCOPE load balancer address after 5m — record this verbatim, it is probe 0.12 answering no"
 fi
-ok "load balancer: $LB_IP"
+ok "load balancer: $LB_IP ($LB_SCOPE)"
 
 # ── DNS handover ─────────────────────────────────────────────────────────────
 step "re-pointing private DNS at the gateway (issuer string unchanged)"

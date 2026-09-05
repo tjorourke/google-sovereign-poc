@@ -21,12 +21,13 @@ SVC="$(kubectl -n agentregistry-system get svc -o name 2>/dev/null \
        | grep -m1 sovereignagent | cut -d/ -f2)"
 [[ -n "$SVC" ]] || die "no AgentRegistry-deployed agent Service found — run 56-ar-push-agent.sh"
 
-POD="$(kubectl -n kagent get pod -l app.kubernetes.io/name=sovereign-calc \
-        -o jsonpath='{.items[0].metadata.name}' 2>/dev/null)"
-[[ -n "$POD" ]] || die "no pod available to call from"
+# Any in-cluster pod with python3; see python_pod() in lib.sh for why this is
+# not a fixed selector.
+CALLER="$(python_pod)" || die "no in-cluster pod with python3 to call from"
+POD_NS="${CALLER%%/*}"; POD="${CALLER##*/}"
 
-log "asking ${SVC} — \"${PROMPT}\""
-kubectl -n kagent exec -i "$POD" -- python3 - "$SVC" "$PROMPT" <<'PY'
+log "asking ${SVC} — \"${PROMPT}\"  (from ${POD_NS}/${POD})"
+kubectl -n "$POD_NS" exec -i "$POD" -- python3 - "$SVC" "$PROMPT" <<'PY'
 import json, sys, urllib.request
 svc, prompt = sys.argv[1], sys.argv[2]
 url = "http://%s.agentregistry-system.svc.cluster.local:8080" % svc

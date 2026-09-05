@@ -121,6 +121,34 @@ kms_decrypt() {
 # So 30-keycloak.sh points the record at Keycloak's ClusterIP (pods can route to
 # a ClusterIP), and 80-ingress.sh re-points it at the gateway's internal address
 # once that exists. Same name throughout, so no token ever has a stale iss.
+# A Running pod that actually has python3, printed as "namespace/pod".
+#
+# GCD forces work to happen INSIDE the cluster: there is no public DNS zone and
+# no TLS (no certificatemanager, no privateca), so a laptop can neither resolve
+# nor safely POST to Keycloak. Several scripts therefore exec into some pod to
+# mint a token or call a Service.
+#
+# They each used to hardcode `-l app.kubernetes.io/name=sovereign-calc` in the
+# kagent namespace. That workload moved -- the MCP tool server is now
+# `everything-server` in `mcp` -- and both scripts then died with "no pod
+# available", which reads like the cluster is broken rather than the selector
+# being stale. Probe candidates and verify python3 is really there.
+python_pod() {
+  local cand cns cname cpod
+  for cand in "${MCP_NS:-mcp}/everything-server" \
+              "${AR_NS:-agentregistry-system}/agentregistry-enterprise-server" \
+              "kagent/sovereign-calc"; do
+    cns="${cand%%/*}"; cname="${cand##*/}"
+    cpod="$(kubectl -n "$cns" get pods --no-headers 2>/dev/null \
+            | awk -v d="$cname" '$1 ~ d && $3 == "Running" {print $1; exit}')"
+    [[ -n "$cpod" ]] || continue
+    kubectl -n "$cns" exec "$cpod" -- python3 -c 'pass' >/dev/null 2>&1 || continue
+    printf '%s/%s\n' "$cns" "$cpod"
+    return 0
+  done
+  return 1
+}
+
 dns_upsert() {
   local fqdn="$1" ip="$2" zone="${PRIVATE_DNS_ZONE_NAME:-}"
   [[ -n "$zone" ]] || zone="$(cd "$TOFU_DIR" && tofu output -raw private_dns_zone_name 2>/dev/null || true)"

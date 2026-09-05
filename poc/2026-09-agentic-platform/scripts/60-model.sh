@@ -34,6 +34,8 @@ kube_context >/dev/null 2>&1 || true
 assert_kube_reachable
 
 NS="${MODEL_NS:-model}"
+# Same default as 80-ingress.sh and 90-mcp-agent.sh.
+BASE_DOMAIN="${BASE_DOMAIN:-agentic.eu0.internal}"
 PROFILE="${MODEL_PROFILE:-cpu}"
 require kubectl
 
@@ -187,14 +189,36 @@ kubectl -n "$NS" run model-probe --rm -i --restart=Never --quiet \
   | head -c 300 | sed 's/^/    /' >&2 || warn "could not query /v1/models"
 echo >&2
 
+# ── put agentgateway in front of it ──────────────────────────────────────────
+# This used to be left to 80-ingress.sh, which never did it: its host list is
+# keycloak/agentregistry/kagent, and it runs BEFORE this phase, so the model
+# namespace does not exist yet. The result was that llm.${BASE_DOMAIN} had
+# neither a route nor a DNS record, while kagent's ModelConfig and the
+# AgentRegistry Deployment env both pointed at it -- every agent call died on a
+# connection timeout to an address nothing served.
+step "Fronting the model with agentgateway at llm.${BASE_DOMAIN}"
+GW_LB="$(kubectl -n agentgateway-system get svc agentgateway-proxy \
+          -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null || true)"
+if [[ -n "$GW_LB" ]]; then
+  sed "s|__BASE_DOMAIN__|${BASE_DOMAIN}|g" "$LAB_ROOT/model/llm-route.yaml" \
+    | kubectl apply -f - >/dev/null \
+    && ok "HTTPRoute llm.${BASE_DOMAIN} -> llm:8080" \
+    || warn "could not apply the llm HTTPRoute"
+  dns_upsert "llm.${BASE_DOMAIN}" "$GW_LB"
+else
+  warn "agentgateway has no LB address; skipping the llm route and DNS record."
+  warn "Run 70-agentgateway.sh and 80-ingress.sh, then re-run this phase."
+fi
+
 cat >&2 <<EOF
 
   Model:  ${SERVED_NAME}  (profile: ${PROFILE})
   In-cluster: http://llm.${NS}.svc.cluster.local:8080/v1
+  Via agentgateway: http://llm.${BASE_DOMAIN}/v1
 
   Nothing leaves the sovereign boundary: the weights are pulled once at start-up
-  and inference is local. agentgateway fronts this at llm.\${BASE_DOMAIN}/v1 once
-  80-ingress.sh has run, which is the URL kagent's ModelConfig points at.
+  and inference is local. agentgateway fronts it at the address above, which is
+  the URL kagent's ModelConfig and the AgentRegistry Deployment env point at.
 
   Next: ./scripts/70-agentgateway.sh, then ./scripts/90-mcp-agent.sh
 EOF
