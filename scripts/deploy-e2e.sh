@@ -12,19 +12,14 @@
 #   enterprise agentgateway -> ingress -> self-hosted model -> MCP + agents ->
 #   tool authz -> AccessPolicy, then health-checks the lot.
 #
-# The session problem, and why this script exists:
-# GCD has no unattended authentication (feedback/google/07) and its refresh
-# token dies in hours, so a build this long WILL lose its credential part-way.
-# run-all.sh exits 75 (EX_TEMPFAIL) when that happens and records which phases
-# finished. This wrapper catches 75, re-authenticates through the assist browser
-# (scripts/gcd-auth-assist.sh, one human sign-in reused indefinitely) and
-# resumes at the exact phase that was interrupted. If the assist browser is not
-# running it says so and stops rather than looping.
+# Re-running is safe: run-all.sh records which phases completed, so this resumes
+# rather than repeating work. Every Solo component is the ENTERPRISE build and
+# needs a licence key; they are read from the secrets file below and are never
+# committed.
 set -uo pipefail
 SD="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO="$(cd "$SD/.." && pwd)"
 LAB="$REPO/poc/2026-09-agentic-platform"
-MAX_RESUMES="${MAX_RESUMES:-12}"
 
 red(){ printf '\033[31m%s\033[0m\n' "$*" >&2; }
 grn(){ printf '\033[32m%s\033[0m\n' "$*"; }
@@ -55,25 +50,22 @@ done
 [[ -z "$missing" ]] || { red "missing licence key(s):$missing"; red "expected in $SECRETS"; exit 1; }
 grn "  ok licences present (kagent/UI, agentgateway, Istio)"
 
-# ── authentication ──────────────────────────────────────────────────────────
-session_alive() { gcloud auth print-access-token >/dev/null 2>&1; }
-
-reauth() {
-  hdr "session expired — re-authenticating"
-  if ! curl -s --max-time 5 "http://127.0.0.1:${GCD_ASSIST_PORT:-9222}/json/version" >/dev/null 2>&1; then
-    red "the assist browser is not running, so this cannot re-authenticate itself."
-    red "start it once and sign in:   ./scripts/gcd-auth-assist.sh start"
-    red "then re-run this script; it resumes where it stopped."
-    return 1
-  fi
-  "$SD/gcd-auth-assist.sh" login >/dev/null 2>&1
-  session_alive
-}
-
-if ! session_alive; then
-  reauth || exit 75
+# ── credential check ────────────────────────────────────────────────────────
+# ONE check, and no authentication logic. This script is run with a working
+# credential and either succeeds or reports a real failure.
+#
+# In the GCD PREVIEW specifically there is no unattended auth path at all
+# (feedback/google/07) and tokens expire in hours, so a standup can outlive its
+# credential. That is a property of an unfinished preview, not of this
+# architecture, and it does not belong in the deployment. scripts/lab-unattended.sh
+# handles it for our environment by catching exit 75 and resuming.
+if ! gcloud auth print-access-token >/dev/null 2>&1; then
+  red "no valid credential. Authenticate, then re-run -- completed phases are"
+  red "remembered, so it resumes where it stopped:"
+  red "  ./scripts/gcd-auth.sh"
+  exit 75
 fi
-grn "  ok GCD session alive"
+grn "  ok credential valid"
 
 # ── optional cluster replacement ────────────────────────────────────────────
 if [[ "$RECREATE" -eq 1 ]]; then
@@ -96,25 +88,19 @@ fi
 
 [[ "$FRESH" -eq 1 ]] && : > "$LAB/deploy/.run-all-state"
 
-# ── the build, with resume ──────────────────────────────────────────────────
-attempt=0
-while :; do
-  attempt=$((attempt+1))
-  hdr "run-all.sh (attempt $attempt)"
-  ( cd "$LAB" && ./scripts/run-all.sh )
-  rc=$?
-  case "$rc" in
-    0)  grn "  ok all phases complete"; break ;;
-    75) if [[ "$attempt" -ge "$MAX_RESUMES" ]]; then
-          red "gave up after $attempt session expiries"; exit 75
-        fi
-        reauth || exit 75
-        ;;
-    *)  red "run-all.sh failed with exit $rc — this is a real error, not a session expiry"
-        red "fix it, then re-run: ./scripts/deploy-e2e.sh   (resumes at that phase)"
-        exit "$rc" ;;
-  esac
-done
+# ── the build ───────────────────────────────────────────────────────────────
+hdr "building"
+( cd "$LAB" && ./scripts/run-all.sh )
+rc=$?
+case "$rc" in
+  0)  grn "  ok all phases complete" ;;
+  75) red "the credential expired mid-build. Re-authenticate and re-run; it"
+      red "resumes at the interrupted phase."
+      exit 75 ;;
+  *)  red "run-all.sh failed with exit $rc"
+      red "fix it, then re-run: ./scripts/deploy-e2e.sh   (resumes at that phase)"
+      exit "$rc" ;;
+esac
 
 # ── verify ──────────────────────────────────────────────────────────────────
 hdr "verification"
