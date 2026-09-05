@@ -68,9 +68,21 @@ mkdir -p "$OUT"
 
 require helm kubectl
 
+# The generator works by SERVER dry-run, so every object in the chart is
+# validated against the live API -- including the namespaced ones. Without
+# istio-system the DaemonSet fails on "namespaces not found", Warden never
+# evaluates it, and NO allowlist is emitted. That emptiness used to be read as
+# "already admissible", so on a fresh cluster this script silently kept the
+# previous run's files: allowlists pinning the WRONG image, uploaded and
+# authorised by 63, then failing at install with a capability error that says
+# nothing about the image.
+kubectl create namespace istio-system >/dev/null 2>&1 || true
+
 for CHART in cni ztunnel; do
   step "Generating the allowlist for istio-$CHART $ISTIO_CHART_VERSION ($ISTIO_EDITION)"
   NEW="$OUT/.istio-$CHART.new"
+  RAW="$OUT/.istio-$CHART.raw"
+  RENDER="$OUT/.istio-$CHART.rendered"
 
   # Both charts expose podAnnotations, so the generate-allowlist annotation goes
   # in with --set and no YAML editing is needed. --set-string matters: plain
@@ -78,6 +90,9 @@ for CHART in cni ztunnel; do
   #
   # cni.* values are ignored by the ztunnel chart and vice versa, so passing the
   # union to both is harmless and keeps this loop simple.
+  # Render FIRST, to a file. Rendering and dry-running in one pipeline hides
+  # helm's own failures: the pipeline still succeeds with empty input and the
+  # empty result then gets interpreted downstream.
   helm template "istio-$CHART" "$(istio_chart "$CHART")" --version "$ISTIO_CHART_VERSION" \
       -n istio-system \
       --set profile="$ISTIO_PROFILE" \
@@ -90,20 +105,41 @@ for CHART in cni ztunnel; do
       --set cni.useAppArmorAnnotation="$ISTIO_APPARMOR_ANNOTATION" \
       --set-string cni.podAnnotations."cloud\.google\.com/generate-allowlist"=true \
       --set-string podAnnotations."cloud\.google\.com/generate-allowlist"=true \
-      2>/dev/null \
-    | kubectl apply --dry-run=server -f - 2>&1 \
-    | sed -n '/^apiVersion: auto.gke.io/,$p' > "$NEW"
+      > "$RENDER" 2> "$RENDER.err" || {
+    warn "helm template failed for istio-$CHART:"
+    sed 's/^/    /' "$RENDER.err" >&2
+    rm -f "$RENDER" "$RENDER.err" "$RAW" "$NEW"
+    die "could not render the $ISTIO_EDITION chart for istio-$CHART"
+  }
+  rm -f "$RENDER.err"
+
+  # Then dry-run it. Warden appends the WorkloadAllowlist to its rejection.
+  kubectl apply --dry-run=server -f "$RENDER" > "$RAW" 2>&1 || true
+  rm -f "$RENDER"
+  sed -n '/^apiVersion: auto.gke.io/,$p' "$RAW" > "$NEW"
 
   if [[ ! -s "$NEW" ]]; then
-    # An empty result means the dry-run was ADMITTED, so Warden emitted nothing.
-    # That normally means an allowlist for this workload is already installed.
-    # Do not overwrite the existing file: it is very likely the one making that
-    # true. Writing to a staging file first is what makes this safe.
-    warn "istio-$CHART: nothing emitted (already admissible). Keeping the existing file."
-    [[ -s "$OUT/istio-$CHART.yaml" ]] || warn "  and no previous file exists for istio-$CHART"
-    rm -f "$NEW"
-    continue
+    # Empty output has THREE causes and they are not interchangeable. Decide
+    # which one this is rather than assuming the benign one.
+    if grep -qE 'daemonset\.apps/\S+ (created|configured|unchanged) \(server dry run\)' "$RAW"; then
+      # Warden admitted the DaemonSet, so it had nothing to emit: an allowlist
+      # for this workload is already installed, and the existing file is very
+      # likely the one making that true. Keep it.
+      warn "istio-$CHART: admitted by an installed allowlist; keeping the existing file"
+      [[ -s "$OUT/istio-$CHART.yaml" ]] || warn "  and no previous file exists for istio-$CHART"
+      rm -f "$NEW" "$RAW"
+      continue
+    fi
+    # Anything else is an ERROR. Reusing a stale allowlist after one is worse
+    # than stopping: it pins an image that is not the one being installed, and
+    # the admission failure that follows blames capabilities and hostPath.
+    warn "istio-$CHART: the server dry-run neither emitted an allowlist nor"
+    warn "admitted the DaemonSet. Output:"
+    sed 's/^/    /' "$RAW" | tail -15 >&2
+    rm -f "$NEW" "$RAW"
+    die "could not generate the allowlist for istio-$CHART"
   fi
+  rm -f "$RAW"
 
   # GKE timestamps the allowlist name, so a regeneration would create a SECOND
   # allowlist rather than replacing the first. Give it a stable name.

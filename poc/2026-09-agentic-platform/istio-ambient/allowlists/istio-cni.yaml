@@ -1,7 +1,7 @@
 apiVersion: auto.gke.io/v1
 kind: WorkloadAllowlist
 metadata:
-    name: istio-cni-1.30.4
+    name: istio-cni-1.30.4-solo
     annotations:
         autopilot.gke.io/no-connect: "true"
 exemptions:
@@ -10,7 +10,7 @@ exemptions:
 matchingCriteria:
     containers:
         - name: install-cni
-          image: registry.istio.io/release/install-cni:1.30.4-distroless
+          image: us-docker.pkg.dev/soloio-img/istio/install-cni:1.30.4-solo-distroless
           args:
             - --log_output_level=info
           command:
