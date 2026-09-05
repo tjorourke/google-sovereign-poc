@@ -37,11 +37,30 @@ reauth() {
   gcloud auth print-access-token >/dev/null 2>&1
 }
 
+# Pass the caller's flags on the FIRST attempt only, then drop the destructive
+# ones. Re-passing --recreate on a resume would tear the cluster down again --
+# the resume exists because the credential expired part-way through a build, and
+# repeating the teardown would throw away everything that succeeded before it.
+# --fresh is dropped for the same reason: it wipes the phase state this wrapper
+# depends on to resume.
+ARGS=("$@")
+RESUME_ARGS=()
+for a in "$@"; do
+  case "$a" in
+    --recreate|--fresh) ;;   # first attempt only
+    *) RESUME_ARGS+=("$a") ;;
+  esac
+done
+
 attempt=0
 while :; do
   attempt=$((attempt+1))
   hdr "deploy-e2e.sh (attempt $attempt)"
-  "$SD/deploy-e2e.sh" "$@"
+  if [[ "$attempt" -eq 1 ]]; then
+    [[ "${#ARGS[@]}" -gt 0 ]] && "$SD/deploy-e2e.sh" "${ARGS[@]}" || "$SD/deploy-e2e.sh"
+  else
+    [[ "${#RESUME_ARGS[@]}" -gt 0 ]] && "$SD/deploy-e2e.sh" "${RESUME_ARGS[@]}" || "$SD/deploy-e2e.sh"
+  fi
   rc=$?
   case "$rc" in
     0)  grn "  ok deployment complete"; exit 0 ;;
