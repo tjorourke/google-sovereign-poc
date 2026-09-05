@@ -37,14 +37,26 @@ gcloud iam workforce-pools create-login-config "${AUDIENCE}" \
   --activate
 
 echo
-echo ">>> Browser will open. A 404 page is the correct outcome."
+echo ">>> ONE browser page will open. Click through it."
+echo ">>> Ending on a 404 at .../sdk/auth_success is the CORRECT outcome."
 echo ">>> If you see 'Login successful', you hit public GCP: stop and re-check universe_domain."
 echo
 
-gcloud auth login --login-config="${WIF_LOGIN_CONFIG}"
-
-# Separate call. Terraform and the client libraries need ADC and will not pick up the above.
-gcloud auth application-default login --login-config="${WIF_LOGIN_CONFIG}"
+# --update-adc writes the CLI credential AND Application Default Credentials
+# from a SINGLE browser round trip. Terraform and the client libraries read ADC
+# and will not pick up a plain `gcloud auth login`, which is why this used to be
+# two commands -- and therefore two browser pages and two clicks, for one login.
+#
+# Set GCD_AUTH_SPLIT=1 to fall back to the two-call form if a gcloud release
+# ever drops --update-adc for external-account logins.
+if [[ "${GCD_AUTH_SPLIT:-0}" != "1" ]] \
+   && gcloud auth login --help 2>/dev/null | grep -q -- '--update-adc'; then
+  gcloud auth login --login-config="${WIF_LOGIN_CONFIG}" --update-adc
+else
+  gcloud auth login --login-config="${WIF_LOGIN_CONFIG}"
+  # Separate call: a second browser page, for the same identity.
+  gcloud auth application-default login --login-config="${WIF_LOGIN_CONFIG}"
+fi
 
 # Now that there is an active account, these can be validated. Non-fatal: the
 # project may not exist yet, and the eu0: prefix convention is still unconfirmed.
