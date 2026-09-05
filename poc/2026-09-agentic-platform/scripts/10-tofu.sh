@@ -205,7 +205,17 @@ apply_stage() {
   echo "════════════════════════════════════════════════════════════════"
   # -auto-approve is required: -input=false cannot prompt, so apply would
   # otherwise abort. This script (and the plan you ran first) is the gate.
-  tofu apply -input=false -auto-approve -var-file="$VARFILE" -var "stage=${stage}"
+  #
+  # TOFU_REPLACE forces one resource to be destroyed and recreated in the same
+  # apply. It exists so a cluster teardown reuses the var-file and backend
+  # handling above rather than a hand-rolled `tofu apply` elsewhere, which is
+  # how it was first attempted and immediately failed on unset root variables.
+  # Prefer this to a full destroy: Cloud SQL, KMS (prevent_destroy), the network
+  # and the buckets take far longer to rebuild than the cluster and none of them
+  # hold in-cluster state.
+  local extra=()
+  [[ -n "${TOFU_REPLACE:-}" ]] && extra+=(-replace="$TOFU_REPLACE")
+  tofu apply -input=false -auto-approve -var-file="$VARFILE" -var "stage=${stage}" "${extra[@]}"
 }
 
 case "$ACTION" in
@@ -216,7 +226,25 @@ case "$ACTION" in
   apply)
     # Staged on purpose — see PLAN.md phase 1. A single apply across KMS, a
     # cluster and CMEK bindings is undebuggable on an unproven cloud.
-    apply_stage foundation
+    #
+    # BUT the stages are EXCLUSIVE, not cumulative: platform resources are
+    # gated on var.stage, so `-var stage=foundation` means "platform resources
+    # are no longer wanted" and plans to DESTROY them. On a live deployment
+    # that is:
+    #   Plan: 0 to add, 0 to change, 8 to destroy
+    # including google_sql_database_instance.pg and both application databases.
+    # It only ever looked safe because Postgres refuses to drop a database that
+    # has connections, so the destroy failed rather than succeeded. Re-running
+    # `apply` against a deployed environment must never be able to do that.
+    #
+    # Once the platform stage exists in state, foundation is already satisfied
+    # (platform is a superset: it plans 0 destroys), so skip straight to it.
+    if tofu state list 2>/dev/null | grep -q '^module\.cloudsql'; then
+      echo "==> platform resources already in state; skipping the foundation"
+      echo "    stage, which would plan to DESTROY them (see comment above)."
+    else
+      apply_stage foundation
+    fi
     create_service_agents
     grant_kms_to_agents
     grant_gke_service_agent
