@@ -61,14 +61,47 @@ curl_status() {
   echo "${out:-000}"
 }
 
+# The test fixtures. This script used to assume health-server / health-allowed /
+# health-denied were already present, which was true on a long-lived cluster and
+# false on a from-empty build -- nothing else in the phase order applies them.
+# The symptom was every probe returning 000 and five checks failing for what
+# looked like a broken mesh. Create them here and wait, so the check owns its
+# own fixtures.
+step "0. Test fixtures in $NS"
+kubectl apply -f "$YAML_DIR/05-health-test-workloads.yaml" >/dev/null 2>&1 \
+  || die "could not apply $YAML_DIR/05-health-test-workloads.yaml"
+FIXTURES_OK=1
+for d in health-server health-allowed health-denied; do
+  kubectl -n "$NS" rollout status deploy/"$d" --timeout=180s >/dev/null 2>&1 \
+    || { warn "deploy/$d did not become ready"; FIXTURES_OK=0; }
+done
+[[ "$FIXTURES_OK" -eq 1 ]] \
+  && ok "health-server, health-allowed and health-denied ready" \
+  || die "test fixtures are not ready; every traffic check below would report 000"
+
 step "1. Privileged DaemonSets admitted and healthy"
+# Autopilot's autoscaler adds and removes nodes constantly, and a node it is
+# draining keeps its DaemonSet pod in the desired count while that pod is
+# already unschedulable. Insisting on ready == desired therefore flaps: it
+# reported "istio-cni-node is 3/4" on a healthy cluster whose fourth node was
+# mid-deletion. Discount the nodes that are on their way out.
+DRAINING="$(kubectl get nodes -o jsonpath='{range .items[*]}{range .spec.taints[*]}{.key}{"\n"}{end}{end}' 2>/dev/null \
+  | grep -cE '^(ToBeDeletedByClusterAutoscaler|node\.kubernetes\.io/unschedulable)$' || true)"
+DRAINING="${DRAINING:-0}"
 for d in istio-cni-node ztunnel; do
   READY="$(kubectl -n istio-system get ds "$d" -o jsonpath='{.status.numberReady}' 2>/dev/null)"
   WANT="$(kubectl -n istio-system get ds "$d" -o jsonpath='{.status.desiredNumberScheduled}' 2>/dev/null)"
-  if [[ -n "$READY" && "$READY" == "$WANT" && "$READY" -gt 0 ]]; then
-    pass "$d is $READY/$WANT ready"
+  READY="${READY:-0}"; WANT="${WANT:-0}"
+  # One node can carry both taints, so cap the discount at the actual shortfall.
+  NEED=$(( WANT - DRAINING )); [[ "$NEED" -lt 1 ]] && NEED=1
+  if [[ "$READY" -ge "$NEED" && "$READY" -gt 0 ]]; then
+    if [[ "$READY" -eq "$WANT" ]]; then
+      pass "$d is $READY/$WANT ready"
+    else
+      pass "$d is $READY/$WANT ready ($(( WANT - READY )) on node(s) the autoscaler is draining)"
+    fi
   else
-    fail "$d is ${READY:-0}/${WANT:-0} ready"
+    fail "$d is $READY/$WANT ready"
   fi
 done
 # By name, not by count: two unrelated WorkloadAllowlists would satisfy a count

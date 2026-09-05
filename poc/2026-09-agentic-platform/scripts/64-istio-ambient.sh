@@ -144,22 +144,43 @@ for d in istio-cni-node ztunnel; do
 done
 
 step "Enrolling namespaces in ambient"
+# CREATE then label. On a from-empty build these namespaces do not exist yet --
+# kagent is created by phase 40 and model by phase 60, both of which run AFTER
+# this phase -- so `kubectl label ns` failed, the error went to /dev/null, and
+# the waypoint below was applied into a namespace that was not there. Phase 66
+# then tested enforcement against nothing and every probe returned 000.
+# Creating the namespace here is harmless: the later `helm install` adopts it.
+#
 # No pod restarts required: istio-cni captures running pods in place and stamps
 # ambient.istio.io/redirection=enabled on each one.
 for ns in $AMBIENT_NAMESPACES; do
-  kubectl label ns "$ns" istio.io/dataplane-mode=ambient --overwrite >/dev/null 2>&1 \
-    && ok "$ns enrolled" || warn "could not label $ns"
+  kubectl create namespace "$ns" >/dev/null 2>&1 || true
+  if kubectl label ns "$ns" istio.io/dataplane-mode=ambient --overwrite >/dev/null 2>&1; then
+    ok "$ns created and enrolled"
+  else
+    die "could not enrol $ns in ambient; everything downstream depends on it"
+  fi
 done
 
 step "L7 waypoint for the agent namespace"
-kubectl apply -f "$YAML_DIR/waypoint/02-waypoint.yaml" >/dev/null 2>&1
-for _ in $(seq 1 20); do
+# Do not swallow this. A failed apply here used to surface only as
+# "waypoint not Programmed yet", which reads like slow reconciliation rather
+# than the resource never having been created.
+if ! kubectl apply -f "$YAML_DIR/waypoint/02-waypoint.yaml" 2>/tmp/waypoint-apply.err >/dev/null; then
+  sed 's/^/    /' /tmp/waypoint-apply.err >&2
+  die "could not apply the waypoint"
+fi
+P=""
+for _ in $(seq 1 30); do
   P="$(kubectl -n kagent get gateway agent-waypoint -o jsonpath='{.status.conditions[?(@.type=="Programmed")].status}' 2>/dev/null)"
   [[ "$P" == "True" ]] && break
   sleep 10
 done
+# A waypoint that never programs means no L7 path at all, so fail the phase
+# rather than leaving phase 66 to report it as eight mysterious failures.
 [[ "$P" == "True" ]] && ok "waypoint agent-waypoint Programmed" \
-                     || warn "waypoint not Programmed yet"
+                     || die "waypoint agent-waypoint did not become Programmed.
+    kubectl -n kagent describe gateway agent-waypoint"
 
 step "Done"
 log "verify enforcement with:  ./scripts/66-istio-health.sh"
