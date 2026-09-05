@@ -186,6 +186,30 @@ else
   die "tool-level authorization is NOT enforced — see the transcript above"
 fi
 
+# This narrative is read out to customers, so it must describe the cluster in
+# front of you. It used to assert flatly that there is no service mesh, no
+# ztunnel and no waypoint -- true when written, false since 2026-09-04, and
+# exactly the kind of stale claim that becomes a wrong slide.
+if kc -n istio-system get ds ztunnel >/dev/null 2>&1; then
+cat >&2 <<EOF
+
+  Tool-level authorization is enforced at the STANDALONE gateway, and this
+  cluster ALSO runs Solo Enterprise for Istio ambient. Both paths are real
+  here, and they answer different questions:
+
+    gateway   (this script)  which TOOLS an agent may call, at the JSON-RPC
+                             level, with the decision logged
+    waypoint  (67/69)        which IDENTITIES may reach a workload, plus L7
+                             method policy, with transparent interception and
+                             workload mTLS from ztunnel
+
+  Worth saying plainly: GKE network policy, load-balancer mTLS and Cloud NGFW
+  Enterprise are still unavailable in GCD. The mesh closes the workload-identity
+  gap; it does not close those.
+
+  Revert: ./scripts/95-authz-off.sh
+EOF
+else
 cat >&2 <<EOF
 
   This is the GCD story in one command. There is no service mesh in this
@@ -198,3 +222,4 @@ cat >&2 <<EOF
 
   Revert: ./scripts/95-authz-off.sh
 EOF
+fi
