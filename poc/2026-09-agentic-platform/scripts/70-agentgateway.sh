@@ -35,7 +35,12 @@ GW_API_VERSION="${GATEWAY_API_VERSION:-v1.6.1}"
 # deletion, no retry loop. One of the few places GCD makes life simpler.
 step "Gateway API standard CRDs $GW_API_VERSION"
 kc apply -f "https://github.com/kubernetes-sigs/gateway-api/releases/download/${GW_API_VERSION}/standard-install.yaml" >/dev/null
-ok "Gateway API installed (standard channel — experimental is not needed without waypoints)"
+# Standard channel is enough EVEN THOUGH this cluster now has waypoints: an
+# Istio waypoint is an ordinary gateway.networking.k8s.io/v1 Gateway, which is
+# in the standard channel. The old note here said experimental was unnecessary
+# "without waypoints", which stopped being the reason on 2026-09-04 when
+# ambient came up. Keep the channel, correct the reasoning.
+ok "Gateway API installed (standard channel — waypoints use the standard v1 Gateway)"
 
 step "namespace"
 kc create ns "$NS" --dry-run=client -o yaml | kc apply -f - >/dev/null
@@ -57,14 +62,30 @@ ok "controller installed"
 step "GatewayClasses"
 kc get gatewayclass -o wide >&2
 
+# This block used to say the waypoint GatewayClass was "UNUSABLE on GCD" and
+# that MCPServers must NOT be labelled kagent.solo.io/waypoint=true, because
+# ambient could not run on Autopilot. That stopped being true on 2026-09-04:
+# istio-cni and ztunnel are admitted through customer-owned WorkloadAllowlists,
+# 66-istio-health.sh verifies L7 enforcement AT a waypoint, and
+# 67-accesspolicy-setup.sh uses exactly that label to get AccessPolicy
+# enforcing. Leaving the warning in place would have told an operator not to do
+# the thing that now works.
+#
+# Decide from the cluster rather than from an assumption about the platform.
 WAYPOINT="$(kc get gatewayclass enterprise-agentgateway-waypoint -o name 2>/dev/null || true)"
 if [[ -n "$WAYPOINT" ]]; then
-  warn "the waypoint GatewayClass is registered but UNUSABLE on GCD."
-  warn "A waypoint is a normal Deployment, so it will schedule — but nothing"
-  warn "redirects traffic to it without ztunnel, and ambient cannot run on"
-  warn "Autopilot. Do not label MCPServers kagent.solo.io/waypoint=true here:"
-  warn "the resources apply, the policy reports Accepted, and nothing is enforced."
-  warn "Use 95-authz-on.sh instead, which enforces at the standalone gateway."
+  if kc -n istio-system get ds ztunnel >/dev/null 2>&1; then
+    ok "waypoint GatewayClass registered, and ztunnel is present to redirect to it"
+    log "both paths are available here:"
+    log "  standalone gateway  — 95-authz-on.sh, tool policy on the gateway"
+    log "  waypoint            — 67-accesspolicy-setup.sh, AccessPolicy at the waypoint"
+  else
+    warn "the waypoint GatewayClass is registered but there is no ztunnel in"
+    warn "istio-system, so nothing redirects traffic to a waypoint. A waypoint"
+    warn "would schedule and enforce nothing: the resources apply and the policy"
+    warn "reports Accepted. Install ambient first (62/63/64), or use"
+    warn "95-authz-on.sh, which enforces at the standalone gateway."
+  fi
 fi
 
 cat >&2 <<EOF
