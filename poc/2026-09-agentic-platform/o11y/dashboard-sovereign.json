@@ -1,0 +1,265 @@
+{
+  "title": "Sovereign stack: identity, policy and capacity",
+  "uid": "solo-sovereign",
+  "tags": [
+    "solo",
+    "gcd",
+    "istio-ambient"
+  ],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "refresh": "30s",
+  "time": {
+    "from": "now-1h",
+    "to": "now"
+  },
+  "panels": [
+    {
+      "type": "row",
+      "title": "Workload identity: who is talking to whom",
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      },
+      "id": 100
+    },
+    {
+      "type": "timeseries",
+      "title": "Connections by source -> destination identity",
+      "description": "Every series is attributed to a SPIFFE identity, not an IP. This is the evidence a DORA- or NIS2-obligated institution has to produce and cannot get from GCD's own tooling.",
+      "id": 1,
+      "gridPos": {
+        "h": 9,
+        "w": 24,
+        "x": 0,
+        "y": 1
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "custom": {
+            "fillOpacity": 10,
+            "lineWidth": 2
+          }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "expr": "sum by (source_principal, destination_principal) (\n  rate(istio_tcp_connections_opened_total[5m])\n)",
+          "legendFormat": "{{source_principal}} -> {{destination_principal}}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "row",
+      "title": "Policy decisions",
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 10
+      },
+      "id": 101
+    },
+    {
+      "type": "timeseries",
+      "title": "Denied at L4 (ztunnel, by identity)",
+      "description": "ztunnel refuses the connection outright. The client sees a reset, not an HTTP status.",
+      "id": 2,
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 11
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "custom": {
+            "fillOpacity": 10,
+            "lineWidth": 2
+          }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "expr": "sum by (source_principal, destination_principal) (\n  rate(istio_tcp_connections_closed_total{response_flags=~\".*DENY.*\"}[5m])\n)",
+          "legendFormat": "{{source_principal}} denied",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Denied at L7 (waypoint, by response code)",
+      "description": "The waypoint answers 403 with the connection intact. The difference in failure shape tells you which layer decided.",
+      "id": 3,
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 11
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "custom": {
+            "fillOpacity": 10,
+            "lineWidth": 2
+          }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "expr": "sum by (response_code) (\n  rate(istio_requests_total{response_code=~\"4..|5..\"}[5m])\n)",
+          "legendFormat": "{{response_code}}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "row",
+      "title": "Agents, tools and the model",
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 19
+      },
+      "id": 102
+    },
+    {
+      "type": "timeseries",
+      "title": "Requests through agentgateway",
+      "description": "",
+      "id": 4,
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 20
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "custom": {
+            "fillOpacity": 10,
+            "lineWidth": 2
+          }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "expr": "sum by (destination_service) (rate(istio_requests_total[5m]))",
+          "legendFormat": "{{destination_service}}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "Mesh request latency p95",
+      "description": "",
+      "id": 5,
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 20
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ms",
+          "custom": {
+            "fillOpacity": 10,
+            "lineWidth": 2
+          }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95,\n  sum by (le, destination_service) (rate(istio_request_duration_milliseconds_bucket[5m]))\n)",
+          "legendFormat": "p95 {{destination_service}}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "row",
+      "title": "Capacity (C3 quota is 24 vCPU in this project)",
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 28
+      },
+      "id": 103
+    },
+    {
+      "type": "timeseries",
+      "title": "CPU REQUESTED vs used, by namespace",
+      "description": "Requests are what consume the quota, not usage. Autopilot defaults any unsized container to 500m, and that default is a real reservation.",
+      "id": 6,
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 29
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "custom": {
+            "fillOpacity": 10,
+            "lineWidth": 2
+          }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "expr": "sum by (namespace) (\n  kube_pod_container_resource_requests{resource=\"cpu\"}\n)",
+          "legendFormat": "requested {{namespace}}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "type": "timeseries",
+      "title": "CPU actually used, by namespace",
+      "description": "Compare against the panel on the left. On this stack the gap was 6000m.",
+      "id": 7,
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 29
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "custom": {
+            "fillOpacity": 10,
+            "lineWidth": 2
+          }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "expr": "sum by (namespace) (\n  rate(container_cpu_usage_seconds_total{container!=\"\"}[5m])\n)",
+          "legendFormat": "used {{namespace}}",
+          "refId": "A"
+        }
+      ]
+    }
+  ]
+}

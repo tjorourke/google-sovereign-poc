@@ -1,0 +1,86 @@
+# Scrape targets for the Solo stack.
+#
+# kube-prometheus-stack ships ServiceMonitors for ITSELF and nothing else, so
+# out of the box Prometheus watches Prometheus. Every metric that makes this
+# environment interesting -- ztunnel's per-connection SPIFFE identities,
+# agentgateway's tool-authorization decisions, kagent's agent activity -- is
+# generated and then dropped on the floor.
+#
+# This matters more on GCD than elsewhere. Cloud Monitoring here cannot ingest
+# custom metrics, Prometheus metrics, OpenTelemetry or anything from the Ops
+# Agent, so there is no managed fallback: if this stack does not scrape it,
+# nobody sees it. Google's own recommendation on that differences page is
+# "use PromQL and Grafana", which is exactly what this is.
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: ztunnel
+  namespace: istio-system
+  labels: { solo.io/o11y: "true" }
+spec:
+  selector:
+    matchLabels: { app: ztunnel }
+  podMetricsEndpoints:
+    # ztunnel-stats. This is THE interesting one: every series carries
+    # source_principal and destination_principal, so traffic is attributable to
+    # a workload identity rather than an IP. That is the audit story.
+    - port: ztunnel-stats
+      path: /metrics
+      interval: 15s
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: istiod
+  namespace: istio-system
+  labels: { solo.io/o11y: "true" }
+spec:
+  selector:
+    matchLabels: { app: istiod }
+  endpoints:
+    - port: http-monitoring
+      interval: 30s
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: enterprise-agentgateway
+  namespace: agentgateway-system
+  labels: { solo.io/o11y: "true" }
+spec:
+  selector:
+    matchLabels: { app.kubernetes.io/name: enterprise-agentgateway }
+  endpoints:
+    - port: metrics
+      interval: 15s
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: agentgateway-waypoints
+  namespace: agents
+  labels: { solo.io/o11y: "true" }
+spec:
+  selector:
+    # Every waypoint, whatever the Gateway is called. Waypoints are where L7
+    # policy is decided, so their metrics are the per-method/per-tool evidence.
+    matchExpressions:
+      - key: gateway.networking.k8s.io/gateway-name
+        operator: Exists
+  podMetricsEndpoints:
+    - port: metrics
+      interval: 15s
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: kagent-tools
+  namespace: kagent
+  labels: { solo.io/o11y: "true" }
+spec:
+  selector:
+    matchLabels: { app: kagent-tools-metrics }
+  endpoints:
+    - port: prometheus-metrics
+      interval: 30s
