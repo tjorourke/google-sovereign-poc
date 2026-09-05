@@ -54,6 +54,24 @@ arctl apply -f "$CATALOG/mcpserver.yaml"   || die "could not catalogue the MCP s
 arctl apply -f "$AGENT_DIR/agent.yaml"     || die "could not catalogue the agent"
 
 step "Let AgentRegistry push the agent onto kagent"
+# AgentRegistry keeps its state in Cloud SQL, which OUTLIVES the cluster. After
+# a cluster rebuild the Deployment record is still there, still marked
+# "deploying" against a cluster that no longer exists, so `arctl apply` reports
+# it "unchanged" and reconciles nothing -- the kagent CRs are never created and
+# the wait below times out with "AgentRegistry created no workload", which
+# sounds like a registry fault rather than stale state.
+#
+# If a record exists but its workload does not, recreate the record. Deleting
+# only the record is safe: the catalogue Agent and MCPServer entries, which are
+# the governance data worth keeping, are separate objects.
+if arctl get deployments 2>/dev/null | grep -q 'sovereignagent-kagent'; then
+  if ! kubectl -n agentregistry-system get deploy 2>/dev/null | grep -q sovereignagent; then
+    warn "a Deployment record exists but its workload does not — this is the"
+    warn "registry's Cloud SQL state surviving a cluster rebuild. Recreating it."
+    arctl delete deployment sovereignagent-kagent >/dev/null 2>&1 || true
+    sleep 3
+  fi
+fi
 arctl apply -f "$CATALOG/deployment.yaml"  || die "could not create the AR Deployment"
 
 step "Wait for the workload the registry created"
@@ -65,7 +83,12 @@ for _ in $(seq 1 60); do
   [[ -n "$DEPLOY" ]] && break
   sleep 5
 done
-[[ -n "$DEPLOY" ]] || die "AgentRegistry created no workload — check: arctl get deployments -o yaml"
+[[ -n "$DEPLOY" ]] || die "AgentRegistry created no workload.
+    The registry's Deployment record and the cluster disagree. Inspect with:
+      arctl get deployments -o yaml
+    If a record exists while the workload does not, the record is stale from a
+    previous cluster; delete it and re-run:
+      arctl delete deployment sovereignagent-kagent"
 kubectl -n agentregistry-system rollout status "$DEPLOY" --timeout=300s \
   || die "the pushed agent did not become ready"
 
