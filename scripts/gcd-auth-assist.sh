@@ -97,17 +97,42 @@ EOF
 
   # Two logins, because --update-adc is refused for third-party flows and the
   # client libraries will not read the CLI credential. Both are driven headlessly.
+  #
+  # Each is retried: the consent page occasionally does not settle in time and
+  # a single attempt then leaves that credential dead, which is worse than
+  # useless mid-deployment because the caller believes it re-authenticated.
+  try_login() {  # try_login <label> <verify-cmd> <gcloud-args...>
+    local label="$1" verify="$2"; shift 2
+    local attempt
+    for attempt in 1 2 3; do
+      BROWSER="$HELPER" gcloud "$@" --login-config="$LOGIN_CFG" >/dev/null 2>&1
+      if eval "$verify" >/dev/null 2>&1; then
+        [[ "$attempt" -gt 1 ]] && grn "  ok $label (attempt $attempt)" || grn "  ok $label"
+        return 0
+      fi
+      ylw "  $label attempt $attempt did not take; retrying"
+      sleep 3
+    done
+    red "  $label FAILED after 3 attempts"
+    return 1
+  }
+
+  rc=0
   step "CLI credential"
-  BROWSER="$HELPER" gcloud auth login --login-config="$LOGIN_CFG" 2>&1 | tail -3
+  try_login "CLI credential" "gcloud auth print-access-token" auth login || rc=1
 
   step "Application Default Credentials"
-  BROWSER="$HELPER" gcloud auth application-default login --login-config="$LOGIN_CFG" 2>&1 | tail -3
+  try_login "ADC" "gcloud auth application-default print-access-token" \
+    auth application-default login || rc=1
 
   step "Result"
-  ok=0
-  gcloud auth print-access-token >/dev/null 2>&1 && { grn "  ok CLI credential"; ok=$((ok+1)); } || red "  CLI credential FAILED"
-  gcloud auth application-default print-access-token >/dev/null 2>&1 && { grn "  ok ADC"; ok=$((ok+1)); } || red "  ADC FAILED"
-  [[ "$ok" -eq 2 ]] || { ylw "If both failed, the assist browser's session has lapsed. Re-run 'start' and sign in again."; exit 1; }
+  if [[ "$rc" -eq 0 ]]; then
+    grn "  ok both credentials minted"
+  else
+    ylw "If this keeps failing, the assist browser's session has lapsed."
+    ylw "Re-run: ./scripts/gcd-auth-assist.sh start   (and sign in again)"
+    exit 1
+  fi
   ;;
 
 status)
