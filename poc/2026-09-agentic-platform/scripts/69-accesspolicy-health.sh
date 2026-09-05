@@ -67,12 +67,33 @@ pod_in() {  # pod_in <namespace> <deployment-name-prefix>
   kubectl -n "$1" get pods -o name 2>/dev/null | grep -E "^pod/$2-" | head -1 | cut -d/ -f2
 }
 
+# Ask until the named tool actually shows up in the call trace.
+#
+# Two sources of noise make a single ask unreliable, and neither is a policy
+# failure: tool discovery through the waypoint takes a moment to settle after
+# the MCPServer or AccessPolicy is (re)applied, and a 3B model sometimes
+# answers with ADK built-ins (ask_user, adk_request_confirmation) instead of
+# calling the tool it was given. Retrying tests the POLICY, which is what this
+# check is for, rather than the model's mood on one attempt.
+ask_until_tool() {  # ask_until_tool <ns> <pod> <tool> <prompt>
+  local ns="$1" pod="$2" want="$3" prompt="$4" out=""
+  local i
+  for i in 1 2 3 4; do
+    out="$(ask "$ns" "$pod" "$prompt")"
+    if echo "$out" | grep -q "TOOLS=.*${want}"; then
+      printf '%s' "$out"; return 0
+    fi
+    sleep 15
+  done
+  printf '%s' "$out"; return 1
+}
+
 step "A. sovereign-calc, standalone agentgateway"
 SC="$(pod_in kagent sovereign-calc)"
 if [[ -z "$SC" ]]; then
   fail "no sovereign-calc pod"
 else
-  OUT="$(ask kagent "$SC" 'Add 17 and 25 using your sum tool.')"
+  OUT="$(ask_until_tool kagent "$SC" sum 'Add 17 and 25 using your sum tool.')" || true
   echo "$OUT" | grep -q 'TOOLS=.*sum' && pass "called sum through the standalone gateway" \
     || fail "did not call sum ($(echo "$OUT" | grep '^TOOLS='))"
 fi
@@ -86,7 +107,7 @@ SA="$(pod_in agentregistry-system sovereignagent-latest-sovereignagent-k)"
 if [[ -z "$SA" ]]; then
   fail "no AgentRegistry-deployed agent pod"
 else
-  OUT="$(ask agentregistry-system "$SA" 'Add 17 and 25 using your sum tool.')"
+  OUT="$(ask_until_tool agentregistry-system "$SA" sum 'Add 17 and 25 using your sum tool.')" || true
   echo "$OUT" | grep -q 'TOOLS=.*sum' && pass "called sum through the standalone gateway" \
     || fail "did not call sum ($(echo "$OUT" | grep '^TOOLS='))"
 fi
@@ -120,7 +141,7 @@ WC="$(pod_in "$AGENTS_NS" waypoint-calc)"
 if [[ -z "$WC" ]]; then
   fail "no waypoint-calc pod"
 else
-  OUT="$(ask "$AGENTS_NS" "$WC" 'Add 17 and 25 using your sum tool.')"
+  OUT="$(ask_until_tool "$AGENTS_NS" "$WC" sum 'Add 17 and 25 using your sum tool.')" || true
   if echo "$OUT" | grep -q 'TOOLS=.*sum'; then
     pass "permitted tool: called sum through the waypoint"
   else
