@@ -173,6 +173,26 @@ else
   # with FAILED_PRECONDITION / CUSTOM_ORG_POLICY_DENIED. Identical command
   # succeeds a couple of minutes later. Retry rather than fail.
   [[ "$POLICY_CHANGED" -eq 1 ]] && { log "waiting 120s for org policy propagation"; sleep 120; }
+
+  # A cluster will not accept an update while another operation is in flight:
+  #   FAILED_PRECONDITION: Cluster is running incompatible operation <id>
+  # In a rebuild chain that is the normal case, not an error -- the cluster has
+  # just been created and is still RECONCILING behind the tofu apply. Wait for
+  # it rather than failing the phase and making a human resume the chain.
+  wait_for_cluster_idle() {
+    local i st
+    for i in $(seq 1 60); do   # up to 30 minutes
+      st="$(gcloud container clusters describe "$CLUSTER" --location "$REGION" \
+            --format='value(status)' 2>/dev/null)"
+      [[ "$st" == "RUNNING" ]] && return 0
+      [[ "$i" -eq 1 ]] && log "cluster is $st; waiting for it to settle"
+      sleep 30
+    done
+    warn "cluster still not RUNNING after 30 minutes (status: ${st:-unknown})"
+    return 1
+  }
+  wait_for_cluster_idle || true
+
   UPDATED=0
   for attempt in 1 2 3 4; do
     log "cluster update attempt $attempt (this takes ~20 minutes)"
@@ -183,6 +203,13 @@ else
     if grep -q 'CUSTOM_ORG_POLICY_DENIED' /tmp/allowlist-update.err; then
       warn "refused by org policy; almost certainly propagation. Waiting 120s."
       sleep 120
+      continue
+    fi
+    # Another operation started between the idle check and the update -- GKE
+    # runs its own maintenance, so this race cannot be eliminated, only retried.
+    if grep -qE 'running incompatible operation|FAILED_PRECONDITION' /tmp/allowlist-update.err; then
+      warn "cluster is busy with another operation; waiting for it to finish"
+      wait_for_cluster_idle || true
       continue
     fi
     # A GCD token lasts under an hour and the cluster update takes ~20 minutes,
