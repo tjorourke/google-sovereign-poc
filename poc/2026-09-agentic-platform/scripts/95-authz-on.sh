@@ -151,7 +151,17 @@ mkdir -p "$(dirname "$EV")"
 {
   printf '# MCP tool-level authorization at a standalone agentgateway on GKE Autopilot (GCD)\n'
   printf '# %s\n' "$(date -u '+%Y-%m-%dT%H:%M:%SZ')"
-  printf '# No mesh in this cluster: no ambient, no ztunnel, no waypoint, no NetworkPolicy.\n\n'
+  # Was hardcoded "No mesh in this cluster". That stopped being true on
+  # 2026-09-04 when ambient came up on Autopilot, and this file goes to Google,
+  # so state what is actually running rather than a stale assumption.
+  if kubectl -n istio-system get ds ztunnel >/dev/null 2>&1; then
+    printf '# Enforced at a STANDALONE agentgateway. Istio ambient is also installed in this\n'
+    printf '# cluster (istio-cni + ztunnel), but this path deliberately does not use it:\n'
+    printf '# the tools are behind a RemoteMCPServer, which is only a URL, so policy has to\n'
+    printf '# live on the gateway. GKE NetworkPolicy remains unavailable in GCD.\n\n'
+  else
+    printf '# No mesh in this cluster: no ambient, no ztunnel, no waypoint, no NetworkPolicy.\n\n'
+  fi
   printf '%s\n' "$LOGS"
 } >"$EV"
 ok "evidence written to $EV"
