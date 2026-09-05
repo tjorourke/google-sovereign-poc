@@ -183,10 +183,15 @@ else
 fi
 
 step "Confirming the OpenAI-compatible API"
+# --overrides, not just --image: Autopilot DEFAULTS any container that does not
+# request cpu/memory, and it defaults to 500m/2Gi. On GCD that is not free --
+# GKE here is C3-only and this project's C3_CPUS quota is 24 -- so a throwaway
+# curl pod silently reserves 2% of the cluster and can be the thing that leaves
+# a later phase unschedulable. Ask for what a curl actually needs.
 kubectl -n "$NS" run model-probe --rm -i --restart=Never --quiet \
-  --image=curlimages/curl:8.11.0 --command -- \
-  curl -sS -m 30 "http://llm.${NS}.svc.cluster.local:8080/v1/models" 2>/dev/null \
-  | head -c 300 | sed 's/^/    /' >&2 || warn "could not query /v1/models"
+  --image=curlimages/curl:8.11.0 \
+  --overrides='{"spec":{"containers":[{"name":"model-probe","image":"curlimages/curl:8.11.0","command":["curl","-sS","-m","30","http://llm.'"$NS"'.svc.cluster.local:8080/v1/models"],"resources":{"requests":{"cpu":"50m","memory":"64Mi"}}}]}}' \
+  2>/dev/null | head -c 300 | sed 's/^/    /' >&2 || warn "could not query /v1/models"
 echo >&2
 
 # ── put agentgateway in front of it ──────────────────────────────────────────

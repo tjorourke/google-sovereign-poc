@@ -56,6 +56,14 @@ helm --kube-context "$(kube_context)" upgrade --install cert-manager cert-manage
   -n cert-manager --create-namespace \
   --set crds.enabled=true \
   --set global.leaderElection.namespace=cert-manager \
+  `# Autopilot DEFAULTS any container that does not request cpu/memory, to` \
+  `# 500m and 2Gi EACH. None of these charts set resources, so on a fresh` \
+  `# cluster twelve such containers were holding 6000m -- a quarter of this` \
+  `# project's entire 24-vCPU C3 quota -- for controllers that idle near zero.` \
+  `# That is what leaves a later phase unschedulable with "GCE quota exceeded".` \
+  --set resources.requests.cpu=50m --set resources.requests.memory=128Mi \
+  --set webhook.resources.requests.cpu=50m --set webhook.resources.requests.memory=128Mi \
+  --set cainjector.resources.requests.cpu=50m --set cainjector.resources.requests.memory=128Mi \
   --wait --timeout 15m
 ok "cert-manager installed"
 
@@ -135,6 +143,10 @@ helm --kube-context "$(kube_context)" upgrade --install external-secrets externa
   --version "$ESO_VERSION" \
   -n external-secrets --create-namespace \
   --set installCRDs=true \
+  `# Same Autopilot defaulting as cert-manager above.` \
+  --set resources.requests.cpu=50m --set resources.requests.memory=128Mi \
+  --set webhook.resources.requests.cpu=50m --set webhook.resources.requests.memory=128Mi \
+  --set certController.resources.requests.cpu=50m --set certController.resources.requests.memory=128Mi \
   --wait --timeout 5m
 ok "ESO installed"
 
@@ -199,6 +211,14 @@ helm --kube-context "$(kube_context)" upgrade --install kube-prometheus-stack ku
   `# project's C3_CPUS quota is 24, so Grafana alone was taking 6% of the` \
   `# cluster's entire CPU budget and starving later phases of schedulable` \
   `# capacity. Ask for what it actually needs.` \
+  `# Same Autopilot defaulting again: kube-state-metrics, the operator and` \
+  `# Prometheus itself all ship without resources.` \
+  --set kube-state-metrics.resources.requests.cpu=50m \
+  --set kube-state-metrics.resources.requests.memory=128Mi \
+  --set prometheusOperator.resources.requests.cpu=50m \
+  --set prometheusOperator.resources.requests.memory=128Mi \
+  --set prometheus.prometheusSpec.resources.requests.cpu=200m \
+  --set prometheus.prometheusSpec.resources.requests.memory=512Mi \
   --set grafana.resources.requests.cpu=100m \
   --set grafana.resources.requests.memory=256Mi \
   --set grafana.sidecar.resources.requests.cpu=50m \
