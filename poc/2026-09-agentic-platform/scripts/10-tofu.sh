@@ -213,9 +213,15 @@ apply_stage() {
   # Prefer this to a full destroy: Cloud SQL, KMS (prevent_destroy), the network
   # and the buckets take far longer to rebuild than the cluster and none of them
   # hold in-cluster state.
-  local extra=()
-  [[ -n "${TOFU_REPLACE:-}" ]] && extra+=(-replace="$TOFU_REPLACE")
-  tofu apply -input=false -auto-approve -var-file="$VARFILE" -var "stage=${stage}" "${extra[@]}"
+  # Do NOT collect this in an array: bash 3.2, the macOS default and what
+  # `env bash` resolves to here, errors on "${arr[@]}" for an EMPTY array under
+  # set -u -- which is exactly the no-replace case.
+  if [[ -n "${TOFU_REPLACE:-}" ]]; then
+    tofu apply -input=false -auto-approve -var-file="$VARFILE" \
+      -var "stage=${stage}" -replace="$TOFU_REPLACE"
+  else
+    tofu apply -input=false -auto-approve -var-file="$VARFILE" -var "stage=${stage}"
+  fi
 }
 
 case "$ACTION" in
@@ -239,10 +245,25 @@ case "$ACTION" in
     #
     # Once the platform stage exists in state, foundation is already satisfied
     # (platform is a superset: it plans 0 destroys), so skip straight to it.
-    if tofu state list 2>/dev/null | grep -q '^module\.cloudsql'; then
+    # Fail SAFE. If the state cannot be read we must NOT run a stage whose
+    # only possible effect on a live deployment is destruction, so anything
+    # other than a confidently-empty state skips it. The first version of this
+    # guard hid the state-list error in 2>/dev/null and silently fell through
+    # to the destructive branch.
+    STATE_LIST="$(tofu state list 2>&1)"; STATE_RC=$?
+    if [[ "$STATE_RC" -ne 0 ]]; then
+      echo "==> cannot read tofu state (exit $STATE_RC); NOT running the"
+      echo "    foundation stage, which would plan to destroy platform"
+      echo "    resources. First lines of the error:"
+      printf '%s\n' "$STATE_LIST" | head -3 | sed 's/^/      /'
+    elif printf '%s\n' "$STATE_LIST" | grep -q '^module\.cloudsql'; then
       echo "==> platform resources already in state; skipping the foundation"
       echo "    stage, which would plan to DESTROY them (see comment above)."
+    elif [[ -z "${STATE_LIST//[[:space:]]/}" ]]; then
+      echo "==> empty state: first apply, running the foundation stage"
+      apply_stage foundation
     else
+      echo "==> state has no platform resources; running the foundation stage"
       apply_stage foundation
     fi
     create_service_agents
