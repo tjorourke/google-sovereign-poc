@@ -77,6 +77,8 @@ CH_ARGS+=(
   --set clickhouse.resources.limits.ephemeral-storage=8Gi
 )
 step "solo-enterprise management $VERSION"
+# Trust the internal CA, but only if it exists: on an http issuer there is
+# nothing to trust and the mount would fail the pod.
 helm --kube-context "$(kube_context)" upgrade --install solo-mgmt "$CHART" \
   -n "$NS" --version "$VERSION" \
   --set cluster="$CLUSTER" \

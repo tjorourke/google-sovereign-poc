@@ -48,6 +48,7 @@ PHASES=(
   "50|50-agentregistry.sh|yes|AgentRegistry against Cloud SQL over PSC"
   "70|70-agentgateway.sh|yes|enterprise agentgateway, standalone path"
   "80|80-ingress.sh|yes|Gateway, HTTPRoutes, private DNS"
+  "85|85-tls.sh|yes|TLS on every browser-facing URL, and the https OIDC issuer"
   "60|60-model.sh|yes|self-hosted model inside the boundary"
   "90|90-mcp-agent.sh|yes|MCP tool server and the first agent"
   "95|95-authz-on.sh|yes|tool-level authorization at the gateway"

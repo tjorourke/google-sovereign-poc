@@ -1,0 +1,35 @@
+# The serving certificate for every browser-facing hostname.
+#
+# WHY IT IS SELF-SIGNED, AND WHY THAT IS NOT LAZINESS
+# GCD has no path to a publicly-trusted certificate. There is no Certificate
+# Manager, no Google-managed certificates, no privateca. Cloud DNS here has NO
+# PUBLIC ZONES, so ACME DNS-01 is impossible, and there is no public name
+# resolving to these addresses, so HTTP-01 is impossible too. Certificates in
+# this universe are BYO and manual -- that is a real ISV finding, and it is
+# directly adjacent to what a Solo gateway does.
+#
+# What we DO have is cert-manager with an internal CA (25-cluster-baseline.sh
+# creates ClusterIssuer/agentic-ca), so the honest answer is a private CA whose
+# root you trust on the client. Browsers will warn until you do.
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: agentic-edge
+  namespace: agentgateway-system
+spec:
+  # The Gateway reads this Secret via listeners[].tls.certificateRefs.
+  secretName: agentic-edge-tls
+  issuerRef:
+    name: agentic-ca
+    kind: ClusterIssuer
+  # Every name that a browser or an out-of-cluster client resolves. The issuer
+  # hostname MUST be here: Keycloak stamps it into every token's iss claim, so
+  # a mismatch breaks OIDC rather than just showing a warning.
+  dnsNames:
+    - keycloak.agentic.eu0.internal
+    - kagent.agentic.eu0.internal
+    - agentregistry.agentic.eu0.internal
+    - mcp.agentic.eu0.internal
+    - llm.agentic.eu0.internal
+  duration: 8760h    # 1 year
+  renewBefore: 720h  # 30 days

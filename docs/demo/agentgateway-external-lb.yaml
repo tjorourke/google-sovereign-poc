@@ -23,4 +23,13 @@ spec:
     - name: http
       port: 80
       targetPort: 80
+    # 443 must be listed here explicitly. The Gateway controller adds a
+    # listener-443 port to the Service it manages when an HTTPS listener is
+    # added, but this second Service is ours -- it selects the same pods to give
+    # an out-of-VPC address -- so nothing updates it for us. Without this, the
+    # certificate is issued, the listener is Programmed, and every external
+    # https:// call still fails to connect with no error anywhere.
+    - name: https
+      port: 443
+      targetPort: 443
       protocol: TCP
