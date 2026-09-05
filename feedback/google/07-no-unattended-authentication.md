@@ -171,6 +171,25 @@ Any one of these, in our order of preference:
    pattern for GCD**, because we could not find one and currently believe none
    exists.
 
+## A smaller, adjacent annoyance
+
+Even the interactive flow costs two browser authorisations for one identity:
+`gcloud auth login --login-config=...` for the CLI credential, then
+`gcloud auth application-default login --login-config=...` for ADC, which
+Terraform and the client libraries require and do not inherit from the first.
+
+`gcloud auth login` advertises `--update-adc`, which does exactly this in one
+round trip — but refuses it for precisely the flow GCD requires:
+
+```
+ERROR: (gcloud.auth.login) arguments not allowed simultaneously: --update-adc cannot be used in a third party login flow. Please use `gcloud auth application-default login`.
+```
+
+Note the flag is present in `--help` and still rejected, so its presence cannot
+be used to detect support. Supporting `--update-adc` for external-account
+logins would halve the human interaction on every single authentication, which
+in an environment with no unattended path is not a small saving.
+
 Separately and cheaply: `gcloud iam workforce-pools create-cred-config` should
 not print "is not available in universe domain apis-berlin-build0.goog" and then
 succeed. Either it is supported or it is not; as it stands the message causes an

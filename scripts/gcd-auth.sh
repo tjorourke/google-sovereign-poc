@@ -37,26 +37,30 @@ gcloud iam workforce-pools create-login-config "${AUDIENCE}" \
   --activate
 
 echo
-echo ">>> ONE browser page will open. Click through it."
+echo ">>> TWO browser pages will open, one after the other. Click through both."
+echo ">>> They are the same identity: one for the CLI, one for ADC. See below."
 echo ">>> Ending on a 404 at .../sdk/auth_success is the CORRECT outcome."
 echo ">>> If you see 'Login successful', you hit public GCP: stop and re-check universe_domain."
 echo
 
-# --update-adc writes the CLI credential AND Application Default Credentials
-# from a SINGLE browser round trip. Terraform and the client libraries read ADC
-# and will not pick up a plain `gcloud auth login`, which is why this used to be
-# two commands -- and therefore two browser pages and two clicks, for one login.
+# TWO logins, and it cannot be reduced to one. Do not try --update-adc here:
+# the flag exists on `gcloud auth login`, but gcloud refuses it for a
+# third-party (external account / --login-config) flow, which is what WIF is:
 #
-# Set GCD_AUTH_SPLIT=1 to fall back to the two-call form if a gcloud release
-# ever drops --update-adc for external-account logins.
-if [[ "${GCD_AUTH_SPLIT:-0}" != "1" ]] \
-   && gcloud auth login --help 2>/dev/null | grep -q -- '--update-adc'; then
-  gcloud auth login --login-config="${WIF_LOGIN_CONFIG}" --update-adc
-else
-  gcloud auth login --login-config="${WIF_LOGIN_CONFIG}"
-  # Separate call: a second browser page, for the same identity.
-  gcloud auth application-default login --login-config="${WIF_LOGIN_CONFIG}"
-fi
+#   ERROR: (gcloud.auth.login) arguments not allowed simultaneously:
+#   --update-adc cannot be used in a third party login flow.
+#   Please use `gcloud auth application-default login`.
+#
+# Checking that --update-adc is present in --help is NOT enough to know it is
+# usable; it is present and still rejected. Tested 2026-09-05, gcloud on
+# apis-berlin-build0.goog.
+#
+# Both credentials are genuinely needed: gcloud CLI calls use the first,
+# Terraform/OpenTofu and the client libraries read ADC and will not see it.
+gcloud auth login --login-config="${WIF_LOGIN_CONFIG}"
+
+# Separate call, second browser page. Same identity.
+gcloud auth application-default login --login-config="${WIF_LOGIN_CONFIG}"
 
 # Now that there is an active account, these can be validated. Non-fatal: the
 # project may not exist yet, and the eu0: prefix convention is still unconfirmed.
