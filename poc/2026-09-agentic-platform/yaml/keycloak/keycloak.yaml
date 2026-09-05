@@ -42,6 +42,15 @@ spec:
       containers:
         - name: keycloak
           image: ${KEYCLOAK_IMAGE}
+          # REQUIRED on Autopilot, not optional tuning. A container that does
+          # not request cpu/memory is DEFAULTED by Autopilot to 500m and 2Gi,
+          # and that default is a real reservation against the cluster's CPU
+          # quota -- on GCD, which is C3-only with 24 vCPU in this project,
+          # that is 2% of everything for a component that idles near zero.
+          resources:
+            requests:
+              cpu: 100m
+              memory: 512Mi
           args: [start-dev, --import-realm]
           env:
             - { name: KC_BOOTSTRAP_ADMIN_USERNAME, value: admin }

@@ -1,0 +1,25 @@
+# Right-size the agentgateway DATA PLANE.
+#
+# WHY THIS IS A CRD AND NOT A HELM VALUE
+# The enterprise-agentgateway chart has exactly one `resources` key and it
+# applies to the CONTROLLER. The proxy pods are created by that controller from
+# Gateway resources, so no helm value reaches them. AgentgatewayParameters is
+# the only way to size them, attached via the Gateway's
+# spec.infrastructure.parametersRef.
+#
+# WHY IT MATTERS ON GCD
+# Autopilot DEFAULTS any container that does not request cpu/memory to 500m and
+# 2Gi. That default is a real reservation against the CPU quota, and GKE on GCD
+# is C3-only with 24 vCPU in this project. Three unsized proxy pods (the shared
+# gateway plus two waypoints) held 1500m -- 6% of everything -- for processes
+# that idle near zero. Measured after applying this: 500m -> 100m each.
+apiVersion: agentgateway.dev/v1alpha1
+kind: AgentgatewayParameters
+metadata:
+  name: right-sized
+  namespace: agentgateway-system
+spec:
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
