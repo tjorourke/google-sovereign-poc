@@ -43,6 +43,29 @@ spec:
 YAML
 ok "Gateway applied"
 
+# Re-attach the HTTPS listener if 85-tls.sh has already run.
+#
+# The apply above declares the http listener ONLY, so re-running this phase on a
+# cluster that already has TLS strips the https listener that 85-tls.sh added.
+# The gateway controller then drops listener-443 from the Service, the external
+# LoadBalancer stops answering on 443, and every https:// URL dies with a bare
+# connection failure -- while the certificate, the Gateway and the HTTPRoutes
+# all still look perfectly healthy. Nothing in the output says TLS was removed.
+#
+# Idempotence has to survive being run out of order, so restore it here rather
+# than relying on 85 being re-run afterwards.
+if kc -n "$NS" get secret agentic-edge-tls >/dev/null 2>&1; then
+  step "restoring the HTTPS listener (TLS was already configured)"
+  kc -n "$NS" patch gateway "$GW" --type=json -p '[{
+    "op":"add","path":"/spec/listeners/-","value":{
+      "name":"https","protocol":"HTTPS","port":443,
+      "allowedRoutes":{"namespaces":{"from":"All"}},
+      "tls":{"mode":"Terminate","certificateRefs":[{"name":"agentic-edge-tls"}]}}}]' \
+    >/dev/null 2>&1 \
+    && ok "https listener restored" \
+    || warn "could not restore the https listener — re-run ./scripts/85-tls.sh"
+fi
+
 # Only route to consoles that actually exist. The Enterprise UI lives in the
 # solo-enterprise namespace, which 45-telemetry.sh creates; applying its route
 # before that namespace exists fails the whole manifest.
@@ -202,7 +225,14 @@ if [[ "${EXPOSE_EXTERNAL:-0}" == "1" ]]; then
   if [[ -n "${GW_IP:-}" ]]; then
     ok "gateway reachable at http://${GW_IP}"
     log "add to /etc/hosts, all on this one address:"
-    for h in keycloak agentregistry mcp llm; do
+    # Every hostname the gateway serves, kagent INCLUDED. Leaving the kagent
+    # UI out of this list is how you end up with a working Enterprise console
+    # that the one person who wants to open it cannot resolve.
+    #
+    # HOSTS above holds only the CONSOLE hostnames (and kagent only when its
+    # route was created), while mcp and llm are always routed. Expand the array
+    # properly -- ${HOSTS:-...} would silently yield just its first element.
+    for h in ${HOSTS[@]+"${HOSTS[@]}"} mcp llm; do
       log "  ${GW_IP}  ${h}.${BASE_DOMAIN}"
     done
   else
