@@ -50,13 +50,47 @@ case "${1:-install}" in
         -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null)"
   [[ -n "$IP" ]] || die "no gateway address"
   CA="$(mktemp)"; "$0" --ca > "$CA" 2>/dev/null
+
+  # WHERE we curl from decides whether this test means anything. The gateway's
+  # own Service is an internal LB, so its address is RFC1918 and a laptop has no
+  # route to it: every request returns 000 and this loop reports "no TLS answer"
+  # on five URLs that are serving TLS perfectly. That false alarm is worse than
+  # no test, because it sends you debugging certificates that were never broken.
+  #
+  # So when the address is private and we are not already inside the cluster,
+  # run the probes from a throwaway pod that IS. The CA is a public certificate,
+  # so passing it in on the command line is fine.
+  RUNNER=local
+  case "$IP" in
+    10.*|192.168.*|172.1[6-9].*|172.2[0-9].*|172.3[01].*) RUNNER=pod ;;
+  esac
+  if [[ "$RUNNER" == pod ]]; then
+    log "gateway address $IP is internal — probing from inside the cluster"
+  else
+    log "gateway address $IP is externally routable — probing from here"
+  fi
+
+  probe() { # probe <host> -> http code, or 000
+    local h="$1"
+    if [[ "$RUNNER" == local ]]; then
+      curl -s -o /dev/null -w '%{http_code}' -m 12 --cacert "$CA" \
+           --resolve "${h}.${BASE_DOMAIN}:443:${IP}" \
+           "https://${h}.${BASE_DOMAIN}/" 2>/dev/null
+    else
+      kubectl -n "$GW_NS" run "tlsverify-$$-${h}" --rm -i --restart=Never \
+        --image="${CURL_IMAGE:-curlimages/curl:8.11.1}" --quiet --command -- \
+        sh -c "echo '$(base64 < "$CA" | tr -d '\n')' | base64 -d > /tmp/ca.pem;
+               curl -s -o /dev/null -w '%{http_code}' -m 12 --cacert /tmp/ca.pem \
+                 --resolve '${h}.${BASE_DOMAIN}:443:${IP}' \
+                 'https://${h}.${BASE_DOMAIN}/'" 2>/dev/null | tr -dc '0-9'
+    fi
+  }
+
   fail=0
   for h in $HOSTS; do
     # --resolve, not /etc/hosts: this must work from CI too, and it proves the
     # certificate matches the NAME rather than the address.
-    code="$(curl -s -o /dev/null -w '%{http_code}' -m 12 --cacert "$CA" \
-            --resolve "${h}.${BASE_DOMAIN}:443:${IP}" \
-            "https://${h}.${BASE_DOMAIN}/" 2>/dev/null)"
+    code="$(probe "$h")"
     # ANY HTTP status proves TLS terminated and the backend answered. 404 and
     # 415 are the app being particular about paths and content types, which is
     # not a TLS problem. Only "000" -- curl could not connect or the handshake

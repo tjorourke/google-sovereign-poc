@@ -50,6 +50,18 @@ done
 [[ -z "$missing" ]] || { red "missing licence key(s):$missing"; red "expected in $SECRETS"; exit 1; }
 grn "  ok licences present (kagent/UI, agentgateway, Istio)"
 
+# ── browser access ──────────────────────────────────────────────────────────
+# The gateway's own Service is internal-only (an RFC1918 ILB address), which is
+# right for in-cluster traffic and useless from a laptop. The deliverable here
+# includes the Enterprise UIs, and a UI nobody can open is not delivered, so the
+# chain also publishes an external LoadBalancer in front of the same gateway
+# pods. 80-ingress.sh gates that on this flag and leaves the internal Service
+# and every DNS record untouched.
+#
+# GCD has no public DNS zone, so the external address still needs an /etc/hosts
+# line per hostname; 80-ingress.sh prints them.
+export EXPOSE_EXTERNAL="${EXPOSE_EXTERNAL:-1}"
+
 # ── credential check ────────────────────────────────────────────────────────
 # ONE check, and no authentication logic. This script is run with a working
 # credential and either succeeds or reports a real failure.
