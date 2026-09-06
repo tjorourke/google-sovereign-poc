@@ -1,0 +1,41 @@
+# Berlin GCD in-cluster probes — 2026-09-06T11:12:34Z
+# cluster=agentic project=eu0:soloio-eval
+
+
+----- $ kc get storageclass -o wide
+Unable to connect to the server: dial tcp 34.3.135.183:443: i/o timeout
+0.5 storageclasses=[none] default=none
+
+----- $ kc get gatewayclass -o wide
+Unable to connect to the server: dial tcp 34.3.135.183:443: i/o timeout
+0.13 GKE Gateway classes ABSENT (got: none) -> wire the regional ALB by hand in OpenTofu against a standalone NEG
+error: error validating "STDIN": error validating data: failed to download openapi: Get "https://34.3.135.183/openapi/v2?timeout=32s": dial tcp 34.3.135.183:443: i/o timeout; if you choose to ignore these errors, turn validation off with --validate=false
+0.9 hostAliases REJECTED -> localtest.me fallback is dead; private DNS zone becomes mandatory
+error: error validating "STDIN": error validating data: failed to download openapi: Get "https://34.3.135.183/openapi/v2?timeout=32s": dial tcp 34.3.135.183:443: i/o timeout; if you choose to ignore these errors, turn validation off with --validate=false
+error: error validating "STDIN": error validating data: failed to download openapi: Get "https://34.3.135.183/openapi/v2?timeout=32s": dial tcp 34.3.135.183:443: i/o timeout; if you choose to ignore these errors, turn validation off with --validate=false
+error: error validating "STDIN": error validating data: failed to download openapi: Get "https://34.3.135.183/openapi/v2?timeout=32s": dial tcp 34.3.135.183:443: i/o timeout; if you choose to ignore these errors, turn validation off with --validate=false
+error: error validating "STDIN": error validating data: failed to download openapi: Get "https://34.3.135.183/openapi/v2?timeout=32s": dial tcp 34.3.135.183:443: i/o timeout; if you choose to ignore these errors, turn validation off with --validate=false
+0.6 StatefulSet+PVC REJECTED -> Cloud SQL for Postgres, ephemeral ClickHouse
+
+----- $ kc -n gcd-probe get pods -o wide
+Unable to connect to the server: dial tcp 34.3.135.183:443: i/o timeout
+
+----- $ kc -n gcd-probe get svc probe-lb -o yaml
+Unable to connect to the server: dial tcp 34.3.135.183:443: i/o timeout
+
+----- $ kc -n gcd-probe describe pod probe-pull-ghcr
+Unable to connect to the server: dial tcp 34.3.135.183:443: i/o timeout
+
+----- $ kc -n gcd-probe logs probe-egress
+Unable to connect to the server: dial tcp 34.3.135.183:443: i/o timeout
+
+----- $ kc -n gcd-probe logs probe-hostalias
+Unable to connect to the server: dial tcp 34.3.135.183:443: i/o timeout
+
+----- $ kc -n gcd-probe get events --sort-by=.lastTimestamp
+Unable to connect to the server: dial tcp 34.3.135.183:443: i/o timeout
+0.3 direct pull from ghcr.io FAILED (phase= reason=?) -> mirror everything into Artifact Registry first
+0.2 INCONCLUSIVE — probe-egress produced no logs
+0.11 public DNS from a pod resolves
+0.12 Service type=LoadBalancer got NO external IP after 90s -> Tier 1 may be blocked; check events, then fall back to internal ALB + port-forward
+0.12b NEG annotation honoured: none (this is how 85-edge.sh finds the NEGs)

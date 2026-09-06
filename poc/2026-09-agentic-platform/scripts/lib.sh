@@ -12,6 +12,23 @@ LAB_ROOT="$(cd "$LIB_DIR/.." && pwd)"
 REPO_ROOT="$(cd "$LAB_ROOT/../.." && pwd)"
 TOFU_DIR="$REPO_ROOT/infra/tofu"
 
+# ── kubeconfig isolation ──────────────────────────────────────────────────────
+# This lab gets its OWN kubeconfig, and that is not a preference.
+#
+# ~/.kube/config is a single file that every tool read-modify-WRITES in full.
+# On a laptop that also runs kind, `kind create cluster` reads the file, appends
+# its context and writes the whole thing back -- so if it read the file before
+# this chain ran get-credentials, its write silently reinstates the OLD cluster
+# endpoint. The symptom is brutal to debug: helm fails with "cluster unreachable
+# i/o timeout" against the IP of a cluster that was destroyed an hour ago, while
+# gcloud insists the cluster is RUNNING and kubectl works fine in your shell.
+# The same race blanks current-context, which reads as "the CRDs are gone".
+#
+# A dedicated file removes the shared mutable state entirely. Override by
+# exporting GCD_KUBECONFIG if you really want it somewhere else.
+export KUBECONFIG="${GCD_KUBECONFIG:-$LAB_ROOT/deploy/.kubeconfig}"
+mkdir -p "$(dirname "$KUBECONFIG")"
+
 # ── output ────────────────────────────────────────────────────────────────────
 step()  { printf '\n\033[1;34m▸ %s\033[0m\n' "$*" >&2; }
 ok()    { printf '  \033[32m✓\033[0m %s\n' "$*" >&2; }

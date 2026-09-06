@@ -34,3 +34,7 @@ poc/**/deploy/tls/
 
 # run-all.sh progress marker: local state, not shared.
 poc/**/deploy/.run-all-state
+
+# per-lab kubeconfig (see lib.sh: kubeconfig isolation)
+.kubeconfig
+*.kubeconfig
