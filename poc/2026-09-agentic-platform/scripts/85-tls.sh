@@ -222,12 +222,55 @@ kubectl -n solo-enterprise patch deploy solo-enterprise-ui --type=strategic -p '
 kubectl -n solo-enterprise rollout status deploy/solo-enterprise-ui --timeout=180s >/dev/null 2>&1 \
   && ok "UI ready" || warn "UI not ready yet; check: kubectl -n solo-enterprise logs deploy/solo-enterprise-ui -c ui-backend"
 
-step "Restarting the other OIDC clients so they pick up the new issuer"
-# They do OIDC discovery at STARTUP, so a config change alone is not enough.
-for d in agentregistry-system/agentregistry-enterprise-server kagent/kagent-controller; do
-  kubectl -n "${d%%/*}" rollout restart "deploy/${d##*/}" >/dev/null 2>&1 || true
+step "Re-deploying the other OIDC clients against the https issuer"
+# A restart is NOT enough, and restarting alone is actively harmful.
+#
+# kagent and agentregistry take the issuer as a helm value (--set oidc.issuer),
+# so a rollout restart just replays the OLD http value. Discovery then reaches a
+# Keycloak that now advertises an https iss, the client refuses the mismatch --
+#   failed to discover oidc configuration: issuer does not match
+# -- and the new pod CrashLoopBackOffs. The old pod keeps serving, so the stack
+# looks healthy and the broken rollout is invisible until something evicts that
+# pod, at which point the platform goes down for a reason nobody will connect
+# back to a TLS change made days earlier.
+#
+# 30-keycloak.sh has already rewritten .env.oidc with the https issuer, and both
+# scripts read it, so re-running them is what actually moves the config.
+for s in 40-kagent.sh 50-agentregistry.sh; do
+  ISSUER_SCHEME=https "$SD/$s" >/dev/null 2>&1 \
+    && ok "${s%%-*} re-deployed against the https issuer" \
+    || log "${s%%-*} re-deployed; not ready until the CA is trusted (next step)"
 done
-ok "restarted; they rediscover on boot"
+
+step "Trusting the CA in the other OIDC clients"
+# Same trust problem the UI backend has: once the issuer is https, discovery
+# fails closed with "x509: certificate signed by unknown authority" unless the
+# private CA is in the pod's trust store. Go reads every file in /etc/ssl/certs
+# IN ADDITION to the system bundle, so mounting the CA there with subPath adds
+# our anchor without replacing the public roots -- replacing them would break
+# egress TLS for everything else in the pod.
+for d in kagent/kagent-controller/controller \
+         agentregistry-system/agentregistry-enterprise-server/server; do
+  ns="${d%%/*}"; rest="${d#*/}"; dep="${rest%%/*}"; ctr="${rest##*/}"
+  # Strategic merge, NOT a JSON patch. A JSON patch "add /volumes/-" needs the
+  # array to exist already, and agentregistry's Deployment ships with neither
+  # volumes nor volumeMounts -- the patch fails, the CA never lands, and the
+  # pod stays down. Strategic merge creates the arrays when absent and merges by
+  # name when present, so it works on both shapes and is safe to re-run.
+  kubectl -n "$ns" patch deploy "$dep" --type=strategic -p "{
+    \"spec\":{\"template\":{\"spec\":{
+      \"volumes\":[{\"name\":\"agentic-ca\",\"configMap\":{\"name\":\"agentic-ca\"}}],
+      \"containers\":[{\"name\":\"$ctr\",\"volumeMounts\":[{
+        \"name\":\"agentic-ca\",\"mountPath\":\"/etc/ssl/certs/agentic-ca.crt\",
+        \"subPath\":\"ca.crt\",\"readOnly\":true}]}]}}}}" >/dev/null 2>&1 \
+    && ok "$dep trusts the internal CA" \
+    || warn "could not mount the CA into $dep (container $ctr)"
+done
+
+for d in kagent/kagent-controller agentregistry-system/agentregistry-enterprise-server; do
+  kubectl -n "${d%%/*}" rollout status "deploy/${d##*/}" --timeout=180s >/dev/null 2>&1 \
+    && ok "${d##*/} ready" || warn "${d##*/} did not become ready in 180s"
+done
 
 step "Done"
 "$0" --verify || true
