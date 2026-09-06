@@ -155,6 +155,19 @@ else
   warn "no gateway address; keycloak.${BASE_DOMAIN} still points at the Keycloak Service"
 fi
 
+step "Re-deploying the UI against the https issuer"
+# ORDERING. On a fresh build 45-telemetry.sh runs BEFORE this phase and sets the
+# UI's OIDC_ISSUER to the http value, because that is what the issuer was at the
+# time. Moving Keycloak to https above does not update it, so without this the
+# UI validates tokens against an issuer that no longer matches the iss claim.
+#
+# It is expected to report "not ready" here: the UI does OIDC discovery at
+# STARTUP and cannot trust the CA until the mount below, so it fails closed
+# until the next step. Tolerate that rather than aborting on it.
+ISSUER_SCHEME=https "$SD/45-telemetry.sh" >/dev/null 2>&1 \
+  && ok "UI redeployed against the https issuer" \
+  || log "UI redeployed; it will not be ready until the CA is mounted (next step)"
+
 step "Mounting the CA into the UI backend"
 # Patched onto the Deployment rather than passed as helm values. The management
 # chart's ui.backend.volumes is NOT an arbitrary volume list -- the frontend

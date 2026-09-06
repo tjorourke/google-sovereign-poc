@@ -55,6 +55,10 @@ PHASES=(
   "56|56-ar-push-agent.sh|yes|publish to the catalogue, deploy via the registry"
   "67|67-accesspolicy-setup.sh|yes|waypoint path governed by AccessPolicy"
   "69|69-accesspolicy-health.sh|yes|verify all three agent paths"
+  # Last on purpose: it installs scrape targets for the Solo components, so
+  # every one of them has to exist first or Prometheus finds nothing and the
+  # status check reports zero series on a healthy cluster.
+  "97|o11y-deploy.sh|yes|scrape the Solo stack, load the Grafana dashboard"
 )
 
 done_already() { grep -qx "$1" "$STATE" 2>/dev/null; }

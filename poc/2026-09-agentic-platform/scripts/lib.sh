@@ -280,7 +280,11 @@ ar_docker_login() {
 # error on an unrelated kubectl call, which reads like the resource is missing.
 # Call this before any "not found" diagnosis so the real cause is named.
 assert_kube_reachable() {
-  kubectl version --request-timeout=10s >/dev/null 2>&1 && return 0
+  # --request-timeout bounds the API REQUEST, not the TCP connect, so an endpoint
+  # that black-holes packets (a destroyed cluster's old IP) hangs indefinitely and
+  # stalls an unattended run. Bound it from the outside.
+  _kube_ping() { timeout 25 kubectl version --request-timeout=10s >/dev/null 2>&1; }
+  _kube_ping && return 0
 
   # Do NOT assume this is an expired session. After the cluster is recreated the
   # kubeconfig still holds the OLD endpoint and CA, so kubectl fails while the
@@ -297,8 +301,7 @@ assert_kube_reachable() {
       warn "refreshing the kubeconfig for $name (stale after a cluster rebuild)"
       gcloud container clusters get-credentials "$name" \
         --location "$region" --project "$PROJECT_ID" >/dev/null 2>&1 || true
-      kubectl version --request-timeout=15s >/dev/null 2>&1 && {
-        ok "kubeconfig refreshed"; return 0; }
+      _kube_ping && { ok "kubeconfig refreshed"; return 0; }
     fi
     die "cannot reach the cluster, and the GCD session is VALID, so this is not
     an authentication problem. Check the cluster exists and is RUNNING:
