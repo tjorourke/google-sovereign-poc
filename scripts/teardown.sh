@@ -100,10 +100,17 @@ if [[ "$ALL" -eq 1 ]]; then
   : > "$LAB/deploy/.run-all-state"
   grn "  ok all phases will re-run"
 else
-  # 08 (APIs) and 10 (infrastructure) still hold: the project and the surviving
-  # infrastructure are untouched. Everything else was in the cluster.
-  printf '08\n10\n' > "$LAB/deploy/.run-all-state"
-  grn "  ok phases 08 and 10 kept; everything else will re-run"
+  # Only 08 (enable APIs) still holds -- that is project-scoped and a cluster
+  # destroy does not touch it.
+  #
+  # 10 must NOT be kept. It is tempting to, because it also builds the VPC, the
+  # Cloud SQL instance and the buckets, and those did survive -- but it builds
+  # the CLUSTER too, and the cluster is precisely what was just destroyed.
+  # Marking it done skips cluster creation, and the standup then fails at phase
+  # 20 against a cluster that does not exist. Re-running it is cheap and correct:
+  # tofu apply no-ops on the surviving resources and recreates only the cluster.
+  printf '08\n' > "$LAB/deploy/.run-all-state"
+  grn "  ok phase 08 kept; everything else, cluster included, will re-run"
 fi
 
 hdr "DONE"
