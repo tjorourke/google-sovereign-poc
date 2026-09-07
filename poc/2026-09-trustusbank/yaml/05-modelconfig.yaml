@@ -1,0 +1,30 @@
+# ModelConfig is NAMESPACE-scoped, and an Agent's modelConfig field is a bare
+# name with no namespace, so it must resolve inside the agent's own namespace.
+# Without this the agents fail to compile with
+#   ModelConfig.kagent.dev "selfhosted" not found
+# which reads like the model is missing when the model is fine and only the
+# reference is out of scope.
+#
+# Declared as v1alpha2, which is the STORAGE version. The field naming differs
+# between versions -- v1alpha1 calls it apiKeySecretRef, v1alpha2 calls it
+# apiKeySecret -- so applying the v1alpha2 field under a v1alpha1 apiVersion is
+# rejected by strict decoding. Reading an existing object back is misleading
+# here: it always renders in the storage version's shape regardless of the
+# version it was created with.
+#
+# Points at the self-hosted Qwen2.5-3B served inside the sovereign boundary via
+# agentgateway. There is no aiplatform in Berlin, so in-universe inference is
+# self-hosted by definition -- and routing it through the gateway is what makes
+# agent-to-model traffic governable in the first place.
+apiVersion: kagent.dev/v1alpha2
+kind: ModelConfig
+metadata:
+  name: selfhosted
+  namespace: trustusbank
+spec:
+  provider: OpenAI
+  model: Qwen2.5-3B-Instruct
+  openAI:
+    baseUrl: http://llm.agentic.eu0.internal/v1
+  apiKeySecret: kagent-openai
+  apiKeySecretKey: OPENAI_API_KEY

@@ -1,0 +1,75 @@
+# Item 2: the orchestrator's A2A endpoint, published THROUGH agentgateway.
+#
+# This is the hop a partner or a group-parent system would use to hand
+# TrustUsBank a payment to triage. Routing it through the gateway gets TLS
+# termination at the edge, gateway access logs and metrics, and a single
+# enforcement point in front of the agent.
+#
+# WHAT THIS DOES NOT GIVE YOU, stated plainly:
+# AgentgatewayPolicy exposes backend.mcp.{authentication,authorization} but has
+# NO backend.a2a equivalent, so there is no per-A2A-METHOD authorization to
+# match MCP's per-tool authorization. An A2A caller is either allowed to reach
+# the agent or not; you cannot allow message/send while denying tasks/cancel at
+# the gateway. Route-level traffic.jwtAuthentication and traffic.authorization
+# can gate the whole endpoint on claims, which is coarser than the MCP story.
+# That asymmetry is a real product gap and is worth raising with Solo.
+apiVersion: agentgateway.dev/v1alpha1
+kind: AgentgatewayBackend
+metadata:
+  name: zahlungstriage-a2a
+  namespace: trustusbank
+spec:
+  a2a:
+    # kagent serves each declarative agent's A2A endpoint on 8080.
+    host: zahlungstriage.trustusbank.svc.cluster.local
+    port: 8080
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: zahlungstriage-a2a
+  namespace: trustusbank
+spec:
+  parentRefs:
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: agentgateway-proxy
+      namespace: agentgateway-system
+  hostnames:
+    - triage.agentic.eu0.internal
+  rules:
+    - matches:
+        - path:
+            type: PathPrefix
+            value: /
+      backendRefs:
+        - group: agentgateway.dev
+          kind: AgentgatewayBackend
+          name: zahlungstriage-a2a
+          weight: 1
+---
+# Since backend.a2a carries no per-method authorization, the control that IS
+# available is who may open the connection at all. This is the L4 half, by
+# SPIFFE identity: only the gateway data plane and the kagent controller may
+# reach the orchestrator's A2A port. A random pod in another namespace that has
+# guessed the service name is refused by ztunnel before the agent sees a byte.
+#
+# This is exactly what labelling the namespace ambient buys, and it is the
+# answer to "who can talk to your orchestrator".
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: a2a-callers-only
+  namespace: trustusbank
+spec:
+  selector:
+    matchLabels:
+      kagent.solo.io/agent: zahlungstriage
+  action: ALLOW
+  rules:
+    - from:
+        - source:
+            principals:
+              - cluster.local/ns/agentgateway-system/sa/agentgateway-proxy
+              - cluster.local/ns/kagent/sa/kagent-controller
+              - cluster.local/ns/trustusbank/sa/kagent

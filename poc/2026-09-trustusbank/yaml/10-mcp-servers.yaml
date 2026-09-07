@@ -1,0 +1,87 @@
+# The two MCP servers, as KMCP MCPServer resources.
+#
+# Why MCPServer and not a plain Deployment: AccessPolicy tool-scoping resolves
+# an MCPServer. A RemoteMCPServer is only a URL, so there is nothing for a
+# policy to scope. This is the difference between "the agent was asked not to"
+# and "the agent cannot".
+#
+# Why the everything-server image: it already carries python3 + fastmcp AND is
+# already mirrored into the in-universe registry. GCD reaches neither ghcr.io
+# nor pkg.dev, so an unmirrored image is simply unavailable. Mounting our own
+# script onto an image that is already here avoids both a build and the
+# two-registry credential trap.
+#
+# The waypoint label is what makes the enterprise agentgateway waypoint sit in
+# front of the server, which is where per-tool policy is actually enforced.
+apiVersion: kagent.dev/v1alpha1
+kind: MCPServer
+metadata:
+  name: core-banking
+  namespace: trustusbank
+  labels:
+    kagent.solo.io/waypoint: "true"
+spec:
+  transportType: http
+  httpTransport:
+    path: /mcp
+    targetPort: 3000
+  deployment:
+    image: docker.pkg-berlin-build0.goog/eu0/soloio-eval/solo/everything-server:latest
+    port: 3000
+    replicas: 1
+    imagePullSecrets:
+      - name: ar-pull
+    cmd: python3
+    args: ["/srv/core_banking.py"]
+    env:
+      HOST: 0.0.0.0
+      PORT: "3000"
+    # Autopilot defaults an unspecified request to 500m/2Gi PER CONTAINER, a real
+    # reservation against the 24 vCPU C3_CPUS quota. These are dictionaries with
+    # a JSON-RPC front door.
+    resources:
+      requests:
+        cpu: 50m
+        memory: 128Mi
+    volumes:
+      - name: src
+        configMap:
+          name: trustusbank-mcp-src
+    volumeMounts:
+      - name: src
+        mountPath: /srv
+---
+apiVersion: kagent.dev/v1alpha1
+kind: MCPServer
+metadata:
+  name: compliance
+  namespace: trustusbank
+  labels:
+    kagent.solo.io/waypoint: "true"
+spec:
+  transportType: http
+  httpTransport:
+    path: /mcp
+    targetPort: 3000
+  deployment:
+    image: docker.pkg-berlin-build0.goog/eu0/soloio-eval/solo/everything-server:latest
+    port: 3000
+    replicas: 1
+    imagePullSecrets:
+      - name: ar-pull
+    cmd: python3
+    args: ["/srv/compliance.py"]
+    env:
+      HOST: 0.0.0.0
+      PORT: "3000"
+    resources:
+      requests:
+        cpu: 50m
+        memory: 128Mi
+    volumes:
+      - name: src
+        configMap:
+          name: trustusbank-mcp-src
+    volumeMounts:
+      - name: src
+        mountPath: /srv

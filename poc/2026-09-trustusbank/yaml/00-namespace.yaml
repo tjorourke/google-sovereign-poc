@@ -1,0 +1,12 @@
+# TrustUsBank runs in its own namespace, IN the ambient mesh.
+#
+# The dataplane-mode label is what gives every pod here a SPIFFE identity and
+# puts ztunnel in the path, so agent-to-agent A2A gets mTLS and L4 authorization
+# by identity. Without it the A2A hop between the three agents is plaintext and
+# unattributable, which is precisely the hop an auditor asks about.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: trustusbank
+  labels:
+    istio.io/dataplane-mode: ambient

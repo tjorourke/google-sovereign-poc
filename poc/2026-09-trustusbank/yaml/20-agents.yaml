@@ -1,0 +1,187 @@
+# Three declarative agents. TrustUsBank AG, payments financial-crime desk.
+#
+# READ THIS BEFORE CHANGING THE TOOL LISTS.
+#
+# Each agent deliberately REQUESTS tools it is not allowed to have:
+#   betrugsanalyse    asks for get_customer  (customer PII)
+#   sanktionspruefung asks for list_transactions (another server entirely)
+#   zahlungstriage    asks for file_sar      (the regulatory filing)
+#
+# That is the point. If the agent spec simply omitted them, the demo would prove
+# only that we can write a short list. Listing them and having AccessPolicy
+# remove them proves the boundary is enforced at the waypoint by workload
+# identity -- the agent cannot reach the tool even though its own configuration
+# asks for it, and no prompt wording can talk its way past that.
+#
+# The model is the self-hosted Qwen2.5-3B inside the sovereign boundary. A 3B
+# model on CPU is capable but literal, so each system message keeps one job in
+# scope and tells it to name a missing tool rather than improvise. That instruction
+# is for legibility in the demo, not a control: the control is the policy.
+apiVersion: kagent.dev/v1alpha2
+kind: Agent
+metadata:
+  name: betrugsanalyse
+  namespace: trustusbank
+  # No per-agent waypoint label: the namespace waypoint in 15-waypoint.yaml
+  # covers every service here. See that file for why one is enough.
+spec:
+  type: Declarative
+  description: >-
+    Fraud analysis for TrustUsBank payments. Assesses whether a payment pattern
+    is anomalous using account behaviour only, with no access to customer
+    personal data.
+  declarative:
+    modelConfig: selfhosted
+    runtime: python
+    systemMessage: |
+      You are the fraud analysis desk at TrustUsBank AG.
+
+      Never ask the user to confirm or clarify. Call your tools and answer
+      directly in one pass.
+
+      Your job: decide whether recent activity on an account is anomalous.
+      Use `list_transactions` and `get_account`. Compare the recent transfers
+      against the account's avg_weekly_outflow_eur.
+
+      Report, in at most four short lines:
+      - the number of transfers and total amount in the burst
+      - how that compares to the account's normal weekly outflow
+      - the counterparty name, repeated verbatim
+      - VERDICT: ANOMALOUS or NORMAL
+
+      You do not need the customer's identity to do this and must not ask for it.
+      If a tool is unavailable to you, say "TOOL UNAVAILABLE: <name>" and continue
+      with what you have. Never invent figures.
+    tools:
+      - type: McpServer
+        mcpServer:
+          apiGroup: kagent.dev
+          kind: MCPServer
+          name: core-banking
+          namespace: trustusbank
+          toolNames:
+            - get_account
+            - list_transactions
+            - get_customer      # requested on purpose; AccessPolicy denies it
+---
+apiVersion: kagent.dev/v1alpha2
+kind: Agent
+metadata:
+  name: sanktionspruefung
+  namespace: trustusbank
+  # No per-agent waypoint label: the namespace waypoint in 15-waypoint.yaml
+  # covers every service here. See that file for why one is enough.
+spec:
+  type: Declarative
+  description: >-
+    Sanctions and PEP screening for TrustUsBank. Screens counterparty names
+    against the EU consolidated list. Has no access to account or transaction
+    data.
+  declarative:
+    modelConfig: selfhosted
+    runtime: python
+    systemMessage: |
+      You are the sanctions screening desk at TrustUsBank AG.
+
+      Never ask the user to confirm or clarify. Call your tools and answer
+      directly in one pass.
+
+      Your job: screen ONE counterparty name. Call `screen_sanctions` with the
+      name, then `check_pep` with the name.
+
+      Report, in at most four short lines:
+      - sanctions match: YES or NO, with the entry_id and programme if matched
+      - PEP match: YES or NO, with the role and country if matched
+      - VERDICT: BLOCK or CLEAR
+
+      You have no access to account or transaction data and must not ask for it.
+      If a tool is unavailable to you, say "TOOL UNAVAILABLE: <name>" and continue.
+    tools:
+      - type: McpServer
+        mcpServer:
+          apiGroup: kagent.dev
+          kind: MCPServer
+          name: compliance
+          namespace: trustusbank
+          toolNames:
+            - screen_sanctions
+            - check_pep
+      - type: McpServer
+        mcpServer:
+          apiGroup: kagent.dev
+          kind: MCPServer
+          name: core-banking
+          namespace: trustusbank
+          toolNames:
+            - list_transactions   # requested on purpose; no AccessPolicy grants it
+---
+apiVersion: kagent.dev/v1alpha2
+kind: Agent
+metadata:
+  name: zahlungstriage
+  namespace: trustusbank
+  # No per-agent waypoint label: the namespace waypoint in 15-waypoint.yaml
+  # covers every service here. See that file for why one is enough.
+spec:
+  type: Declarative
+  description: >-
+    Payment triage orchestrator for TrustUsBank. Coordinates the fraud and
+    sanctions desks over A2A on a held SEPA Instant payment and opens an
+    investigation case. Cannot file a regulatory report.
+  declarative:
+    modelConfig: selfhosted
+    runtime: python
+    systemMessage: |
+      You are the payment triage coordinator at TrustUsBank AG. A SEPA Instant
+      payment has been held. Instant payments must be resolved in seconds, so
+      work briskly and do not repeat a step.
+
+      NEVER ask the user to confirm, approve or clarify anything. You already
+      have the authority to run every step below. Do not use any confirmation or
+      ask-user tool. Work autonomously from start to finish in one pass.
+      (A 3B model left to its own judgement stops to ask permission before
+      delegating; this instruction is what keeps the chain moving. It is not a
+      security control -- the controls are the AccessPolicies, which hold
+      whatever the model decides to do.)
+
+      Follow this order exactly:
+      1. Ask the `betrugsanalyse` agent: "Assess IBAN DE89370400440532013000."
+      2. Take the counterparty name from its answer and ask the
+         `sanktionspruefung` agent: "Screen <counterparty name>."
+      3. Call `create_case` with the IBAN and a one-sentence summary that names
+         the counterparty and both verdicts. Use severity HIGH if either desk
+         says ANOMALOUS or BLOCK.
+      4. Finish with exactly these lines:
+         FRAUD: <verdict from step 1>
+         SANCTIONS: <verdict from step 2>
+         CASE: <case_id from step 3>
+         HANDOVER: filing a report is reserved to a compliance officer.
+
+      You must not file a regulatory report yourself. If a tool is unavailable to
+      you, say "TOOL UNAVAILABLE: <name>" and continue.
+    tools:
+      # Agent-to-agent. These two refs are what make the desks talk: kagent
+      # resolves each to the other agent's A2A endpoint, and because this
+      # namespace is in the ambient mesh that hop carries a SPIFFE identity and
+      # is authorizable at L4.
+      - type: Agent
+        agent:
+          apiGroup: kagent.dev
+          kind: Agent
+          name: betrugsanalyse
+          namespace: trustusbank
+      - type: Agent
+        agent:
+          apiGroup: kagent.dev
+          kind: Agent
+          name: sanktionspruefung
+          namespace: trustusbank
+      - type: McpServer
+        mcpServer:
+          apiGroup: kagent.dev
+          kind: MCPServer
+          name: compliance
+          namespace: trustusbank
+          toolNames:
+            - create_case
+            - file_sar          # requested on purpose; AccessPolicy denies it

@@ -1,0 +1,58 @@
+# Companion policy for the waypoint hop. This is a WORKAROUND, not design.
+#
+# When an AccessPolicy puts a waypoint in front of an MCP server, the waypoint's
+# own connection to that server is itself subject to L4 authorization -- and
+# nothing grants it. The hop is refused, discovery returns an empty tool list,
+# and the agent reports that no tools exist. The failure names neither the
+# waypoint nor the policy, so it reads as a broken MCP server.
+#
+# Tracked in feedback/solo/01-accesspolicy-waypoint-hop.md.
+#
+# With a single namespace waypoint the identity to allow is that one waypoint's
+# ServiceAccount. Per-resource waypoints would each need their own entry, which
+# is a second reason to prefer one.
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: allow-waypoint-to-core-banking
+  namespace: trustusbank
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: core-banking
+  action: ALLOW
+  rules:
+    - from:
+        - source:
+            principals:
+              # Every identity that can legitimately front an MCP server here:
+              # the namespace waypoint, the per-server waypoint kagent creates
+              # for tool-level policy, and the controller. Listing all three
+              # keeps this correct whichever waypoint topology is in effect.
+              - cluster.local/ns/trustusbank/sa/trustusbank-waypoint
+              - cluster.local/ns/trustusbank/sa/mcpserver-core-banking-waypoint
+              - cluster.local/ns/trustusbank/sa/mcpserver-compliance-waypoint
+              - cluster.local/ns/kagent/sa/kagent-controller
+---
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: allow-waypoint-to-compliance
+  namespace: trustusbank
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: compliance
+  action: ALLOW
+  rules:
+    - from:
+        - source:
+            principals:
+              # Every identity that can legitimately front an MCP server here:
+              # the namespace waypoint, the per-server waypoint kagent creates
+              # for tool-level policy, and the controller. Listing all three
+              # keeps this correct whichever waypoint topology is in effect.
+              - cluster.local/ns/trustusbank/sa/trustusbank-waypoint
+              - cluster.local/ns/trustusbank/sa/mcpserver-core-banking-waypoint
+              - cluster.local/ns/trustusbank/sa/mcpserver-compliance-waypoint
+              - cluster.local/ns/kagent/sa/kagent-controller

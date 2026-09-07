@@ -1,0 +1,43 @@
+# WAYPOINT TOPOLOGY — and why it is not one namespace waypoint.
+#
+# This file intentionally declares NO Gateway. It records a measured constraint,
+# because the obvious optimisation does not work and the failure is silent.
+#
+# What we tried: one namespace waypoint (a Gateway of class
+# enterprise-agentgateway-waypoint plus istio.io/use-waypoint on the namespace),
+# with the kagent.solo.io/waypoint label removed from every Agent and MCPServer.
+# It looked correct: the waypoint programmed, every service inherited it, and
+# the AgentgatewayBackend and EnterpriseAgentgatewayPolicy objects all survived
+# -- the generated policy targets the BACKEND, not a named waypoint, so there
+# was every reason to expect it to be enforced.
+#
+# What actually happened: enforcement on core-banking INVERTED. The agent the
+# policy granted list_transactions to could not call it, and the agent no policy
+# mentioned could. Nothing errored; the tools simply resolved wrongly.
+#
+# Conclusion: AccessPolicy tool-scoping is only enforced through the waypoint
+# kagent provisions for that MCPServer via kagent.solo.io/waypoint. A generic
+# Istio namespace waypoint carries the traffic but not the policy.
+#
+# So the floor is ONE WAYPOINT PER MCP SERVER, which is two here:
+#   mcpserver-core-banking-waypoint
+#   mcpserver-compliance-waypoint
+#
+# What we did remove, and would recommend removing anywhere:
+#   - the three PER-AGENT waypoints. Labelling an Agent gives it its own
+#     waypoint, and since agentgateway has no per-A2A-method authorization, an
+#     L7 waypoint in front of an agent buys observability rather than policy.
+#     The real control on the agent-to-agent hop is L4 identity in ztunnel,
+#     which costs no pods at all.
+#   - the namespace waypoint itself, once the agents no longer needed one.
+#
+# Net: five waypoints down to two, and the two that remain are load-bearing.
+# On Autopilot that matters -- the five only scheduled after the cluster added a
+# node, each being a real reservation against the 24 vCPU C3_CPUS quota.
+#
+# To get to a single waypoint you would have to merge core-banking and
+# compliance into ONE MCPServer exposing all eight tools; AccessPolicy scopes by
+# tool name and would still enforce all four controls. That trades away the
+# separation of two genuinely different bank systems, which is why it is not the
+# default here. Tracked as a question for Solo alongside
+# feedback/solo/01-accesspolicy-waypoint-hop.md.

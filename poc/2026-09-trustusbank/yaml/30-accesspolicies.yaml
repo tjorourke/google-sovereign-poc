@@ -1,0 +1,79 @@
+# The controls. Each AccessPolicy names an AGENT IDENTITY and the exact tools
+# that identity may call on one MCP server. kagent-enterprise translates each
+# into an EnterpriseAgentgatewayPolicy on the waypoint (L7, per tool) and an
+# Istio AuthorizationPolicy (L4, per SPIFFE identity), so the same intent is
+# enforced twice at different layers.
+#
+# Semantics are allow-list: an agent with no policy for a server gets NOTHING
+# from it. Three deliberate omissions carry the whole governance story.
+
+# ── 1. PII boundary ─────────────────────────────────────────────────────────
+# betrugsanalyse asks for get_customer. It is not granted here, so the tool is
+# filtered out of discovery and the fraud desk reaches a verdict on the payment
+# without ever seeing Katrin Vogel's name, date of birth or address. Data
+# minimisation as a mechanism rather than a policy document.
+apiVersion: policy.kagent-enterprise.solo.io/v1alpha1
+kind: AccessPolicy
+metadata:
+  name: fraud-desk-behaviour-only
+  namespace: trustusbank
+spec:
+  action: ALLOW
+  from:
+    subjects:
+      - kind: Agent
+        name: betrugsanalyse
+        namespace: trustusbank
+  targetRef:
+    kind: MCPServer
+    name: core-banking
+    tools:
+      - get_account
+      - list_transactions
+---
+# ── 2. Tool scoping per agent ───────────────────────────────────────────────
+# sanktionspruefung gets the screening tools and nothing else. Note there is
+# deliberately NO policy granting it anything on core-banking, which is why its
+# list_transactions request resolves to nothing. Least privilege is per identity,
+# not a shared service account.
+apiVersion: policy.kagent-enterprise.solo.io/v1alpha1
+kind: AccessPolicy
+metadata:
+  name: sanctions-desk-screening-only
+  namespace: trustusbank
+spec:
+  action: ALLOW
+  from:
+    subjects:
+      - kind: Agent
+        name: sanktionspruefung
+        namespace: trustusbank
+  targetRef:
+    kind: MCPServer
+    name: compliance
+    tools:
+      - screen_sanctions
+      - check_pep
+---
+# ── 3. Separation of duties ─────────────────────────────────────────────────
+# zahlungstriage may open an internal case. file_sar is granted to NO agent in
+# this namespace, so the submission to the German FIU under GwG section 43
+# always requires a named compliance officer. The chain stops one step short of
+# the legal act, by construction.
+apiVersion: policy.kagent-enterprise.solo.io/v1alpha1
+kind: AccessPolicy
+metadata:
+  name: triage-may-open-cases-not-file
+  namespace: trustusbank
+spec:
+  action: ALLOW
+  from:
+    subjects:
+      - kind: Agent
+        name: zahlungstriage
+        namespace: trustusbank
+  targetRef:
+    kind: MCPServer
+    name: compliance
+    tools:
+      - create_case
