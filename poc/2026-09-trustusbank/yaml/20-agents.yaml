@@ -22,8 +22,12 @@ kind: Agent
 metadata:
   name: betrugsanalyse
   namespace: trustusbank
-  # No per-agent waypoint label: the namespace waypoint in 15-waypoint.yaml
-  # covers every service here. See that file for why one is enough.
+  labels:
+    # This waypoint is the A2A AUTHORIZATION point for this agent. An
+    # AccessPolicy with targetRef.kind: Agent is enforced here, which is what
+    # restricts who may call this desk over A2A. Without the label there is no
+    # waypoint, and agent-to-agent calls are governed at L4 only.
+    kagent.solo.io/waypoint: "true"
 spec:
   type: Declarative
   description: >-
@@ -69,8 +73,12 @@ kind: Agent
 metadata:
   name: sanktionspruefung
   namespace: trustusbank
-  # No per-agent waypoint label: the namespace waypoint in 15-waypoint.yaml
-  # covers every service here. See that file for why one is enough.
+  labels:
+    # This waypoint is the A2A AUTHORIZATION point for this agent. An
+    # AccessPolicy with targetRef.kind: Agent is enforced here, which is what
+    # restricts who may call this desk over A2A. Without the label there is no
+    # waypoint, and agent-to-agent calls are governed at L4 only.
+    kagent.solo.io/waypoint: "true"
 spec:
   type: Declarative
   description: >-
@@ -120,8 +128,12 @@ kind: Agent
 metadata:
   name: zahlungstriage
   namespace: trustusbank
-  # No per-agent waypoint label: the namespace waypoint in 15-waypoint.yaml
-  # covers every service here. See that file for why one is enough.
+  # Deliberately NO waypoint. Nothing inside the mesh calls the orchestrator --
+  # its inbound is the external A2A caller arriving through agentgateway, which
+  # is already TLS-terminated and policy-bearing at the edge, plus the L4
+  # AuthorizationPolicy in 40-a2a-edge.yaml restricting which identities may
+  # open its A2A port. A waypoint here would add a pod and enforce nothing new.
+  # Add the label if you later need JWT or UserGroup authz on its inbound A2A.
 spec:
   type: Declarative
   description: >-

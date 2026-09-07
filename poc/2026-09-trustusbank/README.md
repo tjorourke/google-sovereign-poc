@@ -19,6 +19,8 @@ workload identity rather than by prompt:
 - **no agent can file** the regulatory report; the chain stops one step short of
   the legal act
 - each desk sees **only its own tools**, per identity, not a shared credential
+- **only the orchestrator may call either desk over A2A** — any other identity
+  gets 403 at the desk's waypoint
 - every hop carries a **SPIFFE identity** over mTLS
 
 Each agent deliberately requests a tool it must not have, so the demo proves the
@@ -29,7 +31,7 @@ denial rather than the absence of a request.
 ```bash
 ./scripts/deploy.sh     # namespace, MCP servers, agents, policies, A2A edge
 ./scripts/demo.sh       # the scenario end to end
-./scripts/health.sh     # attack all four controls (expect 17 passed, 0 failed)
+./scripts/health.sh     # attack every control (expect 23 passed, 0 failed)
 ```
 
 `./scripts/deploy.sh --ambient` applies only the mesh-enrolment step.
@@ -51,14 +53,23 @@ mcp/compliance.py       sanctions, PEP, open a case, file a SAR
 yaml/00-namespace.yaml  namespace, in the ambient mesh
 yaml/05-modelconfig.yaml  self-hosted Qwen2.5-3B via agentgateway
 yaml/10-mcp-servers.yaml  both MCP servers as KMCP MCPServer resources
+yaml/01-waypoint-params.yaml  pinned Istio cluster id + trust domain for the waypoints
 yaml/15-waypoint.yaml   NO resources -- records why one namespace waypoint fails
 yaml/20-agents.yaml     the three agents, incl. A2A tool refs
-yaml/30-accesspolicies.yaml  the controls
+yaml/30-accesspolicies.yaml  tool-level controls (which agent may call which tool)
+yaml/35-a2a-accesspolicies.yaml  A2A controls (which agent may call which agent)
 yaml/31-waypoint-hop.yaml    workaround for the waypoint hop being refused
 yaml/40-a2a-edge.yaml   A2A published through agentgateway
 scripts/probe.py        one A2A call, reports the tool-call trace
 ```
 
-`yaml/15-waypoint.yaml` is worth reading before optimising the waypoint count:
-one namespace waypoint looks correct, applies cleanly, and silently loses
-per-tool enforcement.
+## Waypoints
+
+Four, and each is an enforcement point rather than overhead: two front the MCP
+servers for per-tool authz, two front the specialist agents for A2A authz. The
+orchestrator has none on purpose — nothing in the mesh calls it.
+
+Read `yaml/15-waypoint.yaml` before trying to reduce that count. One namespace
+waypoint looks correct, applies cleanly, and silently loses per-tool
+enforcement; and removing an agent's waypoint removes the ability to authorize
+who may call it over A2A.

@@ -89,7 +89,34 @@ denied sanktionspruefung list_transactions \
 allowed sanktionspruefung screen_sanctions \
   "Call screen_sanctions for the name 'Volkov Trading OOO' and state whether it matched."
 
-hdr "Control 4 — identity: the A2A hop is mTLS and attributable"
+hdr "Control 4 — A2A authorization: who may call which agent"
+# The decisive test for the agent-to-agent hop: same endpoint, two different
+# caller identities. Enforced at the TARGET agent's waypoint by AccessPolicy
+# with targetRef.kind: Agent -- not a network assertion, an actual 403.
+a2a_call(){ # a2a_call <from-agent> ; echos ALLOWED / HTTP <code> / REFUSED
+  local p; p="$(pod_for "$1")"; [[ -n "$p" ]] || { echo "NOPOD"; return; }
+  kubectl -n "$NS" exec "$p" -c kagent -- python3 -c '
+import json,urllib.request,urllib.error
+b=json.dumps({"jsonrpc":"2.0","id":"1","method":"message/send","params":{"message":{
+ "role":"user","messageId":"x","parts":[{"kind":"text","text":"ping"}]}}}).encode()
+try:
+    r=urllib.request.urlopen(urllib.request.Request(
+      "http://betrugsanalyse.trustusbank.svc.cluster.local:8080",b,
+      {"Content-Type":"application/json"}),timeout=25)
+    print("ALLOWED")
+except urllib.error.HTTPError as e: print("HTTP %d"%e.code)
+except Exception: print("REFUSED")' 2>/dev/null
+}
+NEG="$(a2a_call sanktionspruefung)"
+[[ "$NEG" == "HTTP 403" ]] \
+  && ok "sanktionspruefung -> betrugsanalyse refused with 403 (no policy permits it)" \
+  || bad "sanktionspruefung -> betrugsanalyse returned [$NEG], expected HTTP 403"
+POS="$(a2a_call zahlungstriage)"
+[[ "$POS" == "ALLOWED" ]] \
+  && ok "zahlungstriage -> betrugsanalyse allowed (the only permitted caller)" \
+  || bad "zahlungstriage -> betrugsanalyse returned [$POS], expected ALLOWED"
+
+hdr "Control 5 — identity: the A2A hop is mTLS and attributable"
 for a in betrugsanalyse sanktionspruefung zahlungstriage; do
   p="$(pod_for "$a")"
   amb="$(kubectl -n "$NS" get pod "$p" -o jsonpath='{.metadata.annotations.ambient\.istio\.io/redirection}' 2>/dev/null)"
@@ -100,21 +127,38 @@ kubectl -n "$NS" get authorizationpolicy a2a-callers-only >/dev/null 2>&1 \
   && ok "only the gateway and kagent may open the orchestrator's A2A port" \
   || bad "a2a-callers-only missing"
 
-hdr "Waypoint economy — two, and both load-bearing"
+hdr "Waypoint placement — four, every one an enforcement point"
 # Expect exactly the two per-MCPServer waypoints. See yaml/15-waypoint.yaml for
 # why a single namespace waypoint silently breaks tool scoping.
+# Four, and every one is an enforcement point: two fronting the MCP servers for
+# per-tool authz, two fronting the specialist agents for A2A authz. The
+# orchestrator deliberately has none -- nothing in the mesh calls it.
 W="$(kubectl -n "$NS" get gateway --no-headers 2>/dev/null | wc -l | tr -d ' ')"
-[[ "$W" == "2" ]] && ok "exactly 2 waypoints, one per MCP server" \
-                  || bad "$W waypoints (expected 2: core-banking + compliance)"
-AW="$(kubectl -n "$NS" get gateway --no-headers 2>/dev/null | grep -c '^agent-' || true)"
-[[ "$AW" == "0" ]] && ok "no per-agent waypoints (L4 identity governs the A2A hop instead)" \
-                   || bad "$AW per-agent waypoint(s) still present"
+[[ "$W" == "4" ]] && ok "exactly 4 waypoints, all load-bearing" \
+                  || bad "$W waypoints (expected 4: 2 MCP + 2 specialist agents)"
+for a in betrugsanalyse sanktionspruefung; do
+  kubectl -n "$NS" get gateway "agent-$a-waypoint" >/dev/null 2>&1 \
+    && ok "agent-$a-waypoint present (A2A authz enforcement point)" \
+    || bad "agent-$a-waypoint missing — A2A authz cannot be enforced for $a"
+done
+kubectl -n "$NS" get gateway agent-zahlungstriage-waypoint >/dev/null 2>&1 \
+  && bad "orchestrator has a waypoint it does not need" \
+  || ok "orchestrator has no waypoint (its inbound is the edge gateway + L4)"
 for m in core-banking compliance; do
   pinned="$(kubectl -n "$NS" get svc "$m" -o jsonpath='{.metadata.labels.istio\.io/use-waypoint}' 2>/dev/null)"
   [[ "$pinned" == "mcpserver-$m-waypoint" ]] \
     && ok "svc/$m is behind its own waypoint (required for tool scoping)" \
     || bad "svc/$m waypoint is [$pinned] — tool scoping will not be enforced"
 done
+
+hdr "Waypoint identity parameters pinned explicitly"
+P="$(kubectl -n istio-system get enterpriseagentgatewayparameters enterprise-agentgateway-waypoint-params -o jsonpath='{.spec.istioClusterId}/{.spec.ca.trustDomain}' 2>/dev/null)"
+[[ "$P" == "Kubernetes/cluster.local" ]] \
+  && ok "cluster id and trust domain pinned ($P), not left to a default" \
+  || bad "waypoint params are [$P] — see yaml/01-waypoint-params.yaml"
+REF="$(kubectl get gatewayclass enterprise-agentgateway-waypoint -o jsonpath='{.spec.parametersRef.name}' 2>/dev/null)"
+[[ -n "$REF" ]] && ok "GatewayClass points at them ($REF)" \
+               || bad "GatewayClass has no parametersRef — the params are inert"
 
 hdr "Item 2 — A2A published through agentgateway"
 B="$(kubectl -n "$NS" get agentgatewaybackend zahlungstriage-a2a -o jsonpath='{.spec.a2a.host}:{.spec.a2a.port}' 2>/dev/null)"

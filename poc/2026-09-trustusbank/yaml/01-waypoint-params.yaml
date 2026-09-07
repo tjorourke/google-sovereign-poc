@@ -1,0 +1,48 @@
+# Explicit Istio identity parameters for the enterprise-agentgateway waypoints.
+#
+# kagent-enterprise's own _docs/platform/agw-waypoint-params.md documents three
+# parameters and warns that if the waypoint's view of them is wrong, "ztunnel
+# bypasses the waypoint entirely and AccessPolicy enforcement is silently
+# skipped". A control whose failure mode is silent is exactly the one that must
+# not depend on a default, so two of the three are pinned here explicitly even
+# though both happen to match the Istio defaults on this cluster:
+#
+#   istioClusterId    Kubernetes      (istiod CLUSTER_ID=Kubernetes)
+#   ca.trustDomain    cluster.local   (meshConfig trustDomain)
+#
+# istioNetwork is DELIBERATELY OMITTED, and this is the one judgement call worth
+# reading before changing:
+#
+#   The doc says the network must always be set and must match the
+#   topology.istio.io/network label on istio-system. On this cluster that label
+#   is empty, istiod has no network env and neither does ztunnel -- a consistent
+#   single, unnamed network. Setting the parameter to a name the mesh does not
+#   know would MISMATCH, which is the failure the doc is warning about rather
+#   than a fix for it.
+#
+#   Naming the network consistently means setting global.network, which adds
+#   ISTIO_META_NETWORK to ztunnel's pod spec. On GKE Autopilot the
+#   WorkloadAllowlist pins that spec INCLUDING env, so ztunnel would be refused
+#   admission and the mesh would drop until the allowlists are regenerated and
+#   reinstalled (phases 62 and 63 of the platform lab).
+#
+#   And it would buy nothing here: a named network matters for multi-network and
+#   multi-cluster routing, and GCD Berlin has no Fleet, no GKE Hub and no
+#   multi-cluster services, so there is no second network to route to.
+#
+#   Enforcement is verified working with the network unset -- an unauthorised A2A
+#   caller gets 403 at the waypoint and a denied tool gets a filtered tools/list
+#   plus 400. The waypoint is demonstrably in the path.
+#
+#   If this cluster ever joins a second network, do it in this order: regenerate
+#   the allowlists for the new ztunnel spec, install them, set global.network on
+#   istiod and ztunnel, label istio-system, then add istioNetwork here to match.
+apiVersion: enterpriseagentgateway.solo.io/v1alpha1
+kind: EnterpriseAgentgatewayParameters
+metadata:
+  name: enterprise-agentgateway-waypoint-params
+  namespace: istio-system
+spec:
+  istioClusterId: "Kubernetes"
+  ca:
+    trustDomain: "cluster.local"

@@ -1,0 +1,51 @@
+# A2A AUTHORIZATION — who may call which agent, by identity.
+#
+# AccessPolicy targets an AGENT here, not an MCPServer. That is the control on
+# the agent-to-agent hop: it is enforced at the target agent's waypoint, which is
+# why betrugsanalyse and sanktionspruefung carry kagent.solo.io/waypoint.
+#
+# Semantics are allow-list, exactly as for tools. Naming zahlungstriage as the
+# only permitted caller means every other identity in the cluster is refused --
+# another agent, a rogue pod, a curl from a neighbouring namespace. The desks
+# answer to the orchestrator and to nothing else.
+#
+# Why this matters for a bank: the fraud and sanctions desks are the components
+# holding delegated authority over customer data. "Which systems can ask my
+# fraud desk a question" is a real audit question, and this is the answer to it
+# rather than a network diagram asserting it.
+#
+# The subject may also be a UserGroup evaluated against JWT claims (issuer,
+# audiences, claimName, claimValue, jwksKey) instead of a workload identity --
+# which is the same hook that carries the RFC 8693 act.sub claim. See the OBO
+# section of docs/trustusbank-sepa-fraud-triage.md.
+apiVersion: policy.kagent-enterprise.solo.io/v1alpha1
+kind: AccessPolicy
+metadata:
+  name: only-triage-may-ask-the-fraud-desk
+  namespace: trustusbank
+spec:
+  action: ALLOW
+  from:
+    subjects:
+      - kind: Agent
+        name: zahlungstriage
+        namespace: trustusbank
+  targetRef:
+    kind: Agent
+    name: betrugsanalyse
+---
+apiVersion: policy.kagent-enterprise.solo.io/v1alpha1
+kind: AccessPolicy
+metadata:
+  name: only-triage-may-ask-the-sanctions-desk
+  namespace: trustusbank
+spec:
+  action: ALLOW
+  from:
+    subjects:
+      - kind: Agent
+        name: zahlungstriage
+        namespace: trustusbank
+  targetRef:
+    kind: Agent
+    name: sanktionspruefung

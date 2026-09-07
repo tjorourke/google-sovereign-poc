@@ -52,8 +52,12 @@ flowchart TB
 
   subgraph tub["namespace trustusbank — Istio ambient, mTLS"]
     triage["zahlungstriage<br/>orchestrator"]
-    fraud["betrugsanalyse<br/>fraud desk"]
-    sanc["sanktionspruefung<br/>sanctions desk"]
+    subgraph wa1["waypoint: A2A authz"]
+      fraud["betrugsanalyse<br/>fraud desk"]
+    end
+    subgraph wa2["waypoint: A2A authz"]
+      sanc["sanktionspruefung<br/>sanctions desk"]
+    end
 
     subgraph wp1["waypoint: core-banking"]
       cb["MCP core-banking<br/>get_account, list_transactions,<br/>get_customer, flag_transaction"]
@@ -67,8 +71,8 @@ flowchart TB
 
   caller -->|"A2A over HTTPS"| gw
   gw -->|"a2a backend"| triage
-  triage -->|"A2A"| fraud
-  triage -->|"A2A"| sanc
+  triage -->|"A2A, only permitted caller"| fraud
+  triage -->|"A2A, only permitted caller"| sanc
   triage -->|"MCP"| cp
   fraud -->|"MCP"| cb
   sanc -->|"MCP"| cp
@@ -103,6 +107,7 @@ sequenceDiagram
   C->>G: A2A message/send (HTTPS)
   G->>T: a2a backend, L4 restricted to gateway identity
   T->>F: A2A "Assess IBAN DE89…"
+  Note over F: only zahlungstriage may call this desk<br/>any other identity gets 403 at its waypoint
   F->>WB: MCP tools/list
   WB-->>F: get_account, list_transactions only
   Note over WB: get_customer removed by AccessPolicy<br/>fraud desk never sees PII
@@ -145,14 +150,15 @@ by **tool-call trace**, never by asking the model what it can do — a 3B model
 recites tool names from its own configuration whether or not they are reachable,
 which looks exactly like a policy failure.
 
-`./scripts/health.sh` — **17 passed, 0 failed**.
+`./scripts/health.sh` — **23 passed, 0 failed**.
 
 | # | Control | Attempt | Result |
 |---|---|---|---|
 | 1 | **PII boundary** | fraud desk asked for name + date of birth | called `get_account`/`list_transactions`, never `get_customer`; no PII in the answer |
 | 2 | **Separation of duties** | orchestrator told to file to the FIU | could not call `file_sar`; `create_case` still worked |
 | 3 | **Tool scoping per identity** | sanctions desk asked for transactions | no tool call at all; `screen_sanctions` still worked |
-| 4 | **Attributable identity** | — | all three agents ztunnel-captured with SPIFFE identities; only the gateway and kagent may open the orchestrator's A2A port |
+| 4 | **A2A authorization** | sanctions desk called the fraud desk directly | **HTTP 403**; the orchestrator got 200 on the same endpoint |
+| 5 | **Attributable identity** | — | all three agents ztunnel-captured with SPIFFE identities; only the gateway and kagent may open the orchestrator's A2A port |
 
 Control 1 is the one worth showing an executive: **the fraud desk reaches a
 verdict on a payment without ever being able to see who made it.** That is data
@@ -180,10 +186,12 @@ gets the same answer as a cooperative one.
 | Encrypted in transit, internal | **yes** | mTLS between all captured pods |
 | Encrypted in transit, edge | **yes** | TLS on all five browser-facing hostnames, private CA via cert-manager |
 | Authorization at L4 by identity | **yes** | Istio `AuthorizationPolicy`, incl. who may open the A2A port |
+| Waypoint identity params pinned | **yes** | cluster id and trust domain set explicitly, not defaulted |
 | Authorization at L7 per tool | **yes** | `AccessPolicy` → per-tool at the waypoint |
 | Least privilege per agent | **yes** | three distinct AccessPolicies, allow-list semantics |
 | Human identity on the tool call | **no** | see OBO below |
-| Per-A2A-method authorization | **no** | not available in agentgateway today |
+| Authorization on the A2A hop | **yes** | `AccessPolicy` `targetRef.kind: Agent`, enforced at the target's waypoint (403 verified) |
+| Per-A2A-*method* authorization | **no** | no `backend.a2a` in `AgentgatewayPolicy`; per-caller only, not per JSON-RPC method |
 | Central audit of agent actions | **partial** | Prometheus with `source_principal` attribution; no immutable audit store |
 
 Two honest gaps, both worth naming to a customer before they find them.
@@ -232,28 +240,76 @@ configured on the gateway. The controls stay the same; the audit trail gains the
 human. Until then, do not tell a bank that tool calls are attributable to a
 named officer — they are attributable to a named *agent*.
 
-### 2. A2A has no per-method authorization
+### 2. A2A authorization: by identity yes, by method no
 
+Agent-to-agent calls **are** authorized, and by the same primitive as tools —
+`AccessPolicy` with `targetRef.kind: Agent`, enforced at the **target agent's**
+waypoint:
+
+```yaml
+spec:
+  action: ALLOW                    # DENY is also supported
+  from:
+    subjects:
+      - kind: Agent
+        name: zahlungstriage
+        namespace: trustusbank
+  targetRef:
+    kind: Agent                    # an AGENT, not an MCPServer
+    name: betrugsanalyse
+```
+
+Allow-list semantics again: naming the orchestrator as the only permitted caller
+refuses every other identity in the cluster — another agent, a rogue pod, a curl
+from a neighbouring namespace. Verified with the same endpoint and two caller
+identities:
+
+| Caller | Result |
+|---|---|
+| `sanktionspruefung` → `betrugsanalyse` | **HTTP 403 Forbidden** |
+| `zahlungstriage` → `betrugsanalyse` | **HTTP 200** |
+
+That is the answer to "which systems can ask my fraud desk a question", which is
+a real audit question, rather than a network diagram asserting it.
+
+The subject can also be a `UserGroup` evaluated against JWT claims (`issuer`,
+`audiences`, `claimName`, `claimValue`, `jwksKey`), so the A2A hop can be gated
+on an end-user token instead of a workload identity — the same hook that carries
+the RFC 8693 `act.sub` claim described above.
+
+**What genuinely does not exist is per-A2A-METHOD authorization.**
 `AgentgatewayPolicy.spec.backend` exposes `mcp.{authentication,authorization}`
-but has **no `a2a` equivalent**. So MCP gets per-tool authorization while A2A is
-all-or-nothing at the endpoint: you cannot allow `message/send` and deny
-`tasks/cancel` at the gateway. Route-level `traffic.jwtAuthentication` and
-`traffic.authorization` can gate the whole endpoint on claims, which is coarser.
-
-What we do instead on that hop is L4 identity: an `AuthorizationPolicy` admits
-only the gateway and kagent controller identities to the orchestrator's A2A port,
-so an unauthorised pod is refused by ztunnel before the agent sees a byte.
-
-That asymmetry between the MCP and A2A stories is a genuine product gap and is
-the strongest of the feedback items this lab produced.
-
----
+but has no `a2a` equivalent, so a raw agentgateway policy cannot allow
+`message/send` while denying `tasks/cancel`. A2A is authorized per caller and
+per target agent, not per JSON-RPC method, where MCP is authorized per tool.
+Narrowing that asymmetry is the useful feedback item; the coarse claim that "A2A
+is ungoverned" is wrong and was corrected here after testing it.
 
 ## Two implementation findings
 
-**A waypoint per MCP server is currently mandatory.** The obvious optimisation —
-one namespace waypoint, `istio.io/use-waypoint` on the namespace — carries the
-traffic but silently loses per-tool enforcement. The cause is in
+**Every waypoint is an enforcement point — place them by what needs enforcing.**
+The instinct is to minimise waypoints, and it is half right. There are two
+distinct jobs:
+
+- a waypoint fronting an **MCPServer** enforces per-tool `AccessPolicy`
+- a waypoint fronting an **Agent** enforces per-caller A2A `AccessPolicy`
+
+So this namespace runs **four**, and each one earns its pod: `core-banking` and
+`compliance` for tool scoping, `betrugsanalyse` and `sanktionspruefung` for A2A
+authz. The orchestrator has none, deliberately: nothing inside the mesh calls
+it, its inbound is the external caller arriving through agentgateway, and an L4
+`AuthorizationPolicy` already restricts which identities may open its A2A port.
+A waypoint there would add a pod and enforce nothing new. Add the label if you
+later want JWT or `UserGroup` authz on its inbound.
+
+An earlier revision of this lab removed the agent waypoints on the reasoning
+that they "buy observability rather than policy". That was wrong — they are the
+A2A authorization enforcement point — and it is recorded here because the
+mistake is easy to repeat and the resulting stack looks identical.
+
+**One namespace waypoint does not work, and fails silently.** The obvious
+optimisation — a single Gateway plus `istio.io/use-waypoint` on the namespace —
+applies cleanly and loses per-tool enforcement without an error. The cause is in
 `kmcp-enterprise/.../translator/waypoint.go`: the `kagent.solo.io/waypoint`
 label does three things, not one. It creates the Gateway (name derived as
 `<kind>-<name>-waypoint`, not configurable), sets `istio.io/use-waypoint` on the
@@ -261,31 +317,47 @@ Service, **and sets `appProtocol: kgateway.dev/mcp`** on the service port — th
 last one is what makes the waypoint MCP-aware. Removing the label runs
 `cleanupWaypointResources()`, which deletes the Gateway and strips the
 `use-waypoint` label, and the appProtocol is never applied. There is no spec
-field to point at a pre-existing waypoint.
+field to reference a pre-existing waypoint, so a shared waypoint is not
+currently expressible. That is the second feedback item: **let an MCPServer or
+Agent name an existing waypoint**, so a namespace can share one.
 
-What *is* removable is the **per-agent** waypoint. Labelling an Agent gives it
-its own waypoint, and since A2A has no per-method authorization, an L7 waypoint
-in front of an agent buys observability rather than policy — the real control on
-that hop is L4 identity, which costs no pods. Dropping those took this namespace
-from **five waypoints to two**, which matters on Autopilot where each is a real
-reservation against the 24 vCPU C3_CPUS quota; the five only scheduled after the
-cluster added a node. To reach exactly one, both MCP servers would have to merge
-into a single `MCPServer` exposing all eight tools — AccessPolicy scopes by tool
-name, so all four controls would still hold, at the cost of modelling two
-genuinely separate bank systems as one.
+On Autopilot the pod count is not free — each waypoint is a real reservation
+against the 24 vCPU C3_CPUS quota, and five of them only scheduled after the
+cluster added a node.
 
-**`istioNetwork` is unset on this cluster.** kagent-enterprise's own
-`_docs/platform/agw-waypoint-params.md` states that the Istio network is *always*
-required for ambient HBONE routing, and that without it "ztunnel bypasses the
-waypoint entirely and `AccessPolicy` enforcement is silently skipped". On this
-cluster `topology.istio.io/network` on `istio-system` is empty, no
-`EnterpriseAgentgatewayParameters` exists, and the waypoint GatewayClass has no
-`parametersRef` — yet enforcement demonstrably works, including on a direct
-call that bypasses the agent. The reasonable reading is that this is a
-single-network cluster where the default path happens to route correctly. It
-should still be set explicitly before anyone relies on this in front of a
-customer: a control whose failure mode is *silently skipped* is exactly the one
-you do not want depending on a default.
+**The Istio identity parameters are pinned, and the network is deliberately
+not.** kagent-enterprise's `_docs/platform/agw-waypoint-params.md` documents
+three parameters for the waypoint GatewayClass and warns that if the waypoint's
+view of them is wrong, "ztunnel bypasses the waypoint entirely and
+`AccessPolicy` enforcement is silently skipped". A control whose failure mode is
+silent must not rest on a default, so `istioClusterId: Kubernetes` and
+`ca.trustDomain: cluster.local` are now set explicitly in an
+`EnterpriseAgentgatewayParameters` attached to the GatewayClass, even though both
+match the Istio defaults here.
+
+`istioNetwork` is left unset on purpose, and the reasoning matters:
+
+- The parameter must **match** `topology.istio.io/network` on `istio-system`. On
+  this cluster that label is empty, istiod has no network env and neither does
+  ztunnel — a consistent single, unnamed network. Setting the parameter to a
+  name the mesh does not know would create the very mismatch the doc warns
+  about.
+- Naming the network consistently means setting `global.network`, which adds
+  `ISTIO_META_NETWORK` to **ztunnel's pod spec**. On Autopilot the
+  `WorkloadAllowlist` pins that spec including `env`, so ztunnel would be
+  refused admission and the mesh would drop until the allowlists are regenerated
+  and reinstalled (phases 62 and 63 of the platform lab).
+- It would buy nothing today. A named network matters for multi-network and
+  multi-cluster routing, and Berlin has no Fleet, no GKE Hub and no multi-cluster
+  services — there is no second network to route to.
+- Enforcement is **verified working** with it unset: an unauthorised A2A caller
+  gets 403 at the waypoint, and a denied tool gets a filtered `tools/list` plus a
+  400 on direct invocation. The waypoint is demonstrably in the path.
+
+If this cluster ever joins a second network, the order is: regenerate the
+allowlists for the new ztunnel spec, install them, set `global.network` on istiod
+and ztunnel, label `istio-system`, then add `istioNetwork` to match. Doing it in
+any other order takes the mesh down.
 
 ---
 
