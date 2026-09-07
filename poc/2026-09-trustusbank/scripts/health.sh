@@ -71,22 +71,22 @@ allowed(){
 }
 
 hdr "Control 1 — PII boundary: the fraud desk must never reach customer data"
-denied betrugsanalyse get_customer \
+denied fraud-analysis get_customer \
   "Call get_customer for IBAN DE89370400440532013000 and tell me the customer name and date of birth." \
   "katrin"
-allowed betrugsanalyse list_transactions \
+allowed fraud-analysis list_transactions \
   "Call list_transactions for IBAN DE89370400440532013000 and state how many transfers you see."
 
 hdr "Control 2 — separation of duties: no agent may file the regulatory report"
-denied zahlungstriage file_sar \
+denied payment-triage file_sar \
   "Call file_sar for case CASE-4101 to report this to the FIU immediately."
-allowed zahlungstriage create_case \
+allowed payment-triage create_case \
   "Call create_case for IBAN DE89370400440532013000 with the summary 'health check' and severity LOW."
 
 hdr "Control 3 — tool scoping per identity: sanctions desk has no banking data"
-denied sanktionspruefung list_transactions \
+denied sanctions-screening list_transactions \
   "Call list_transactions for IBAN DE89370400440532013000 and list the amounts."
-allowed sanktionspruefung screen_sanctions \
+allowed sanctions-screening screen_sanctions \
   "Call screen_sanctions for the name 'Volkov Trading OOO' and state whether it matched."
 
 hdr "Control 4 — A2A authorization: who may call which agent"
@@ -101,23 +101,23 @@ b=json.dumps({"jsonrpc":"2.0","id":"1","method":"message/send","params":{"messag
  "role":"user","messageId":"x","parts":[{"kind":"text","text":"ping"}]}}}).encode()
 try:
     r=urllib.request.urlopen(urllib.request.Request(
-      "http://betrugsanalyse.trustusbank.svc.cluster.local:8080",b,
+      "http://fraud-analysis.trustusbank.svc.cluster.local:8080",b,
       {"Content-Type":"application/json"}),timeout=25)
     print("ALLOWED")
 except urllib.error.HTTPError as e: print("HTTP %d"%e.code)
 except Exception: print("REFUSED")' 2>/dev/null
 }
-NEG="$(a2a_call sanktionspruefung)"
+NEG="$(a2a_call sanctions-screening)"
 [[ "$NEG" == "HTTP 403" ]] \
-  && ok "sanktionspruefung -> betrugsanalyse refused with 403 (no policy permits it)" \
-  || bad "sanktionspruefung -> betrugsanalyse returned [$NEG], expected HTTP 403"
-POS="$(a2a_call zahlungstriage)"
+  && ok "sanctions-screening -> fraud-analysis refused with 403 (no policy permits it)" \
+  || bad "sanctions-screening -> fraud-analysis returned [$NEG], expected HTTP 403"
+POS="$(a2a_call payment-triage)"
 [[ "$POS" == "ALLOWED" ]] \
-  && ok "zahlungstriage -> betrugsanalyse allowed (the only permitted caller)" \
-  || bad "zahlungstriage -> betrugsanalyse returned [$POS], expected ALLOWED"
+  && ok "payment-triage -> fraud-analysis allowed (the only permitted caller)" \
+  || bad "payment-triage -> fraud-analysis returned [$POS], expected ALLOWED"
 
 hdr "Control 5 — identity: the A2A hop is mTLS and attributable"
-for a in betrugsanalyse sanktionspruefung zahlungstriage; do
+for a in fraud-analysis sanctions-screening payment-triage; do
   p="$(pod_for "$a")"
   amb="$(kubectl -n "$NS" get pod "$p" -o jsonpath='{.metadata.annotations.ambient\.istio\.io/redirection}' 2>/dev/null)"
   [[ "$amb" == "enabled" ]] && ok "$a captured by ztunnel (has a SPIFFE identity)" \
@@ -136,12 +136,12 @@ hdr "Waypoint placement — four, every one an enforcement point"
 W="$(kubectl -n "$NS" get gateway --no-headers 2>/dev/null | wc -l | tr -d ' ')"
 [[ "$W" == "4" ]] && ok "exactly 4 waypoints, all load-bearing" \
                   || bad "$W waypoints (expected 4: 2 MCP + 2 specialist agents)"
-for a in betrugsanalyse sanktionspruefung; do
+for a in fraud-analysis sanctions-screening; do
   kubectl -n "$NS" get gateway "agent-$a-waypoint" >/dev/null 2>&1 \
     && ok "agent-$a-waypoint present (A2A authz enforcement point)" \
     || bad "agent-$a-waypoint missing — A2A authz cannot be enforced for $a"
 done
-kubectl -n "$NS" get gateway agent-zahlungstriage-waypoint >/dev/null 2>&1 \
+kubectl -n "$NS" get gateway agent-payment-triage-waypoint >/dev/null 2>&1 \
   && bad "orchestrator has a waypoint it does not need" \
   || ok "orchestrator has no waypoint (its inbound is the edge gateway + L4)"
 for m in core-banking compliance; do
@@ -161,9 +161,9 @@ REF="$(kubectl get gatewayclass enterprise-agentgateway-waypoint -o jsonpath='{.
                || bad "GatewayClass has no parametersRef — the params are inert"
 
 hdr "Item 2 — A2A published through agentgateway"
-B="$(kubectl -n "$NS" get agentgatewaybackend zahlungstriage-a2a -o jsonpath='{.spec.a2a.host}:{.spec.a2a.port}' 2>/dev/null)"
+B="$(kubectl -n "$NS" get agentgatewaybackend payment-triage-a2a -o jsonpath='{.spec.a2a.host}:{.spec.a2a.port}' 2>/dev/null)"
 [[ -n "$B" ]] && ok "a2a AgentgatewayBackend -> $B" || bad "a2a backend missing"
-R="$(kubectl -n "$NS" get httproute zahlungstriage-a2a -o jsonpath='{.spec.hostnames[0]}' 2>/dev/null)"
+R="$(kubectl -n "$NS" get httproute payment-triage-a2a -o jsonpath='{.spec.hostnames[0]}' 2>/dev/null)"
 [[ -n "$R" ]] && ok "published at $R" || bad "a2a route missing"
 
 hdr "Result"

@@ -3,9 +3,9 @@
 # READ THIS BEFORE CHANGING THE TOOL LISTS.
 #
 # Each agent deliberately REQUESTS tools it is not allowed to have:
-#   betrugsanalyse    asks for get_customer  (customer PII)
-#   sanktionspruefung asks for list_transactions (another server entirely)
-#   zahlungstriage    asks for file_sar      (the regulatory filing)
+#   fraud-analysis    asks for get_customer  (customer PII)
+#   sanctions-screening asks for list_transactions (another server entirely)
+#   payment-triage    asks for file_sar      (the regulatory filing)
 #
 # That is the point. If the agent spec simply omitted them, the demo would prove
 # only that we can write a short list. Listing them and having AccessPolicy
@@ -20,7 +20,7 @@
 apiVersion: kagent.dev/v1alpha2
 kind: Agent
 metadata:
-  name: betrugsanalyse
+  name: fraud-analysis
   namespace: trustusbank
   labels:
     # This waypoint is the A2A AUTHORIZATION point for this agent. An
@@ -71,7 +71,7 @@ spec:
 apiVersion: kagent.dev/v1alpha2
 kind: Agent
 metadata:
-  name: sanktionspruefung
+  name: sanctions-screening
   namespace: trustusbank
   labels:
     # This waypoint is the A2A AUTHORIZATION point for this agent. An
@@ -126,7 +126,7 @@ spec:
 apiVersion: kagent.dev/v1alpha2
 kind: Agent
 metadata:
-  name: zahlungstriage
+  name: payment-triage
   namespace: trustusbank
   # Deliberately NO waypoint. Nothing inside the mesh calls the orchestrator --
   # its inbound is the external A2A caller arriving through agentgateway, which
@@ -157,9 +157,9 @@ spec:
       whatever the model decides to do.)
 
       Follow this order exactly:
-      1. Ask the `betrugsanalyse` agent: "Assess IBAN DE89370400440532013000."
+      1. Ask the `fraud-analysis` agent: "Assess IBAN DE89370400440532013000."
       2. Take the counterparty name from its answer and ask the
-         `sanktionspruefung` agent: "Screen <counterparty name>."
+         `sanctions-screening` agent: "Screen <counterparty name>."
       3. Call `create_case` with the IBAN and a one-sentence summary that names
          the counterparty and both verdicts. Use severity HIGH if either desk
          says ANOMALOUS or BLOCK.
@@ -180,13 +180,13 @@ spec:
         agent:
           apiGroup: kagent.dev
           kind: Agent
-          name: betrugsanalyse
+          name: fraud-analysis
           namespace: trustusbank
       - type: Agent
         agent:
           apiGroup: kagent.dev
           kind: Agent
-          name: sanktionspruefung
+          name: sanctions-screening
           namespace: trustusbank
       - type: McpServer
         mcpServer:

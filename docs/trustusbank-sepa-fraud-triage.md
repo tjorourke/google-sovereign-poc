@@ -34,9 +34,9 @@ control** does.
 
 | Agent | Desk | May call | Deliberately cannot |
 |---|---|---|---|
-| `zahlungstriage` | payment triage, orchestrator | `create_case` | `file_sar` |
-| `betrugsanalyse` | fraud analysis | `get_account`, `list_transactions` | `get_customer` |
-| `sanktionspruefung` | sanctions screening | `screen_sanctions`, `check_pep` | anything on core-banking |
+| `payment-triage` | payment triage, orchestrator | `create_case` | `file_sar` |
+| `fraud-analysis` | fraud analysis | `get_account`, `list_transactions` | `get_customer` |
+| `sanctions-screening` | sanctions screening | `screen_sanctions`, `check_pep` | anything on core-banking |
 
 ---
 
@@ -51,12 +51,12 @@ flowchart TB
   end
 
   subgraph tub["namespace trustusbank — Istio ambient, mTLS"]
-    triage["zahlungstriage<br/>orchestrator"]
+    triage["payment-triage<br/>orchestrator"]
     subgraph wa1["waypoint: A2A authz"]
-      fraud["betrugsanalyse<br/>fraud desk"]
+      fraud["fraud-analysis<br/>fraud desk"]
     end
     subgraph wa2["waypoint: A2A authz"]
-      sanc["sanktionspruefung<br/>sanctions desk"]
+      sanc["sanctions-screening<br/>sanctions desk"]
     end
 
     subgraph wp1["waypoint: core-banking"]
@@ -87,7 +87,7 @@ Both specialists reach their tools through a waypoint, never directly.
 
 Agent-to-agent is declared, not coded — `tools[].type: Agent` with a Kubernetes
 reference. kagent resolves it to the target agent's A2A endpoint and surfaces it
-to the model as a callable tool named `trustusbank__NS__betrugsanalyse`.
+to the model as a callable tool named `trustusbank__NS__fraud-analysis`.
 
 ---
 
@@ -98,16 +98,16 @@ sequenceDiagram
   autonumber
   participant C as External caller
   participant G as agentgateway (edge)
-  participant T as zahlungstriage
-  participant F as betrugsanalyse
-  participant S as sanktionspruefung
+  participant T as payment-triage
+  participant F as fraud-analysis
+  participant S as sanctions-screening
   participant WB as waypoint core-banking
   participant WC as waypoint compliance
 
   C->>G: A2A message/send (HTTPS)
   G->>T: a2a backend, L4 restricted to gateway identity
   T->>F: A2A "Assess IBAN DE89…"
-  Note over F: only zahlungstriage may call this desk<br/>any other identity gets 403 at its waypoint
+  Note over F: only payment-triage may call this desk<br/>any other identity gets 403 at its waypoint
   F->>WB: MCP tools/list
   WB-->>F: get_account, list_transactions only
   Note over WB: get_customer removed by AccessPolicy<br/>fraud desk never sees PII
@@ -129,11 +129,33 @@ sequenceDiagram
 Verified output from `./scripts/demo.sh`:
 
 ```
-Tools invoked: trustusbank__NS__betrugsanalyse,
-               trustusbank__NS__sanktionspruefung, create_case
-Outcome:       FRAUD: ANOMALOUS  SANCTIONS: BLOCK  CASE: CASE-4108
+Tools invoked: trustusbank__NS__fraud_analysis,
+               trustusbank__NS__sanctions_screening, create_case
+Outcome:       CASE: CASE-4112
                HANDOVER: filing a report is reserved to a compliance officer
 ```
+
+The two `trustusbank__NS__*` entries are the A2A delegations: kagent resolves a
+`tools[].type: Agent` reference to the target agent's A2A endpoint and surfaces
+it to the model as a callable tool.
+
+**The model is the non-deterministic part, and that is the point.** Across runs
+on the self-hosted 3B model this chain varies: it usually calls both desks and
+`create_case`, but one observed run delegated to both desks and then *invented* a
+case identifier (`2023-09-15-VolkovTradingOOO`) instead of calling the tool, and
+mislabelled a verdict. Another produced the full four-line summary; another
+truncated it.
+
+None of that variance touches the security properties. The model chooses what to
+attempt; the waypoints decide what succeeds. A run where the model behaves and a
+run where it improvises produce the same answer to "could the fraud desk read
+customer PII" — no — because that is settled by an AccessPolicy and not by the
+model's cooperation. A demo whose guarantees depended on a 3B model following a
+four-step plan would not be worth showing a bank; this one does not.
+
+If you want the narrative crisper for a live audience, a larger model makes the
+prose better and the tool calls more reliable. It does not make the controls any
+stronger, and it costs latency on CPU — there is no schedulable GPU in Berlin.
 
 ---
 
@@ -252,11 +274,11 @@ spec:
   from:
     subjects:
       - kind: Agent
-        name: zahlungstriage
+        name: payment-triage
         namespace: trustusbank
   targetRef:
     kind: Agent                    # an AGENT, not an MCPServer
-    name: betrugsanalyse
+    name: fraud-analysis
 ```
 
 Allow-list semantics again: naming the orchestrator as the only permitted caller
@@ -266,8 +288,8 @@ identities:
 
 | Caller | Result |
 |---|---|
-| `sanktionspruefung` → `betrugsanalyse` | **HTTP 403 Forbidden** |
-| `zahlungstriage` → `betrugsanalyse` | **HTTP 200** |
+| `sanctions-screening` → `fraud-analysis` | **HTTP 403 Forbidden** |
+| `payment-triage` → `fraud-analysis` | **HTTP 200** |
 
 That is the answer to "which systems can ask my fraud desk a question", which is
 a real audit question, rather than a network diagram asserting it.
@@ -295,7 +317,7 @@ distinct jobs:
 - a waypoint fronting an **Agent** enforces per-caller A2A `AccessPolicy`
 
 So this namespace runs **four**, and each one earns its pod: `core-banking` and
-`compliance` for tool scoping, `betrugsanalyse` and `sanktionspruefung` for A2A
+`compliance` for tool scoping, `fraud-analysis` and `sanctions-screening` for A2A
 authz. The orchestrator has none, deliberately: nothing inside the mesh calls
 it, its inbound is the external caller arriving through agentgateway, and an L4
 `AuthorizationPolicy` already restricts which identities may open its A2A port.

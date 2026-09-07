@@ -16,18 +16,18 @@
 apiVersion: agentgateway.dev/v1alpha1
 kind: AgentgatewayBackend
 metadata:
-  name: zahlungstriage-a2a
+  name: payment-triage-a2a
   namespace: trustusbank
 spec:
   a2a:
     # kagent serves each declarative agent's A2A endpoint on 8080.
-    host: zahlungstriage.trustusbank.svc.cluster.local
+    host: payment-triage.trustusbank.svc.cluster.local
     port: 8080
 ---
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
 metadata:
-  name: zahlungstriage-a2a
+  name: payment-triage-a2a
   namespace: trustusbank
 spec:
   parentRefs:
@@ -45,7 +45,7 @@ spec:
       backendRefs:
         - group: agentgateway.dev
           kind: AgentgatewayBackend
-          name: zahlungstriage-a2a
+          name: payment-triage-a2a
           weight: 1
 ---
 # Since backend.a2a carries no per-method authorization, the control that IS
@@ -64,7 +64,7 @@ metadata:
 spec:
   selector:
     matchLabels:
-      kagent.solo.io/agent: zahlungstriage
+      kagent.solo.io/agent: payment-triage
   action: ALLOW
   rules:
     - from:

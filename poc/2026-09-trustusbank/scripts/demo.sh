@@ -18,8 +18,8 @@ timeout 25 kubectl version --request-timeout=10s >/dev/null 2>&1 || {
   printf '\n\033[1;31m✗ cannot reach the cluster. Re-authenticate first.\033[0m\n\n' >&2; exit 75; }
 
 POD="$(kubectl -n "$NS" get pods --no-headers 2>/dev/null \
-  | awk '$1 ~ /^zahlungstriage-/ && $3=="Running" {print $1; exit}')"
-[[ -n "$POD" ]] || { echo "no running zahlungstriage pod" >&2; exit 1; }
+  | awk '$1 ~ /^payment-triage-/ && $3=="Running" {print $1; exit}')"
+[[ -n "$POD" ]] || { echo "no running payment-triage pod" >&2; exit 1; }
 
 cat <<'EOF'
 
@@ -46,7 +46,7 @@ sed -n 's/^ANSWER=//p' <<<"$OUT" | fold -s -w 76 | sed 's/^/    /'
 
 hdr "Who did what, from the mesh's point of view"
 log "every hop below is mTLS with a SPIFFE identity, so the trail is attributable"
-for a in zahlungstriage betrugsanalyse sanktionspruefung; do
+for a in payment-triage fraud-analysis sanctions-screening; do
   p="$(kubectl -n "$NS" get pods --no-headers 2>/dev/null | awk -v d="$a" '$1 ~ "^"d"-" && $3=="Running"{print $1;exit}')"
   printf '    %-20s %s\n' "$a" "spiffe://cluster.local/ns/$NS/sa/${a}"
 done

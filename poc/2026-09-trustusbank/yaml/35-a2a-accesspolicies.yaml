@@ -2,9 +2,9 @@
 #
 # AccessPolicy targets an AGENT here, not an MCPServer. That is the control on
 # the agent-to-agent hop: it is enforced at the target agent's waypoint, which is
-# why betrugsanalyse and sanktionspruefung carry kagent.solo.io/waypoint.
+# why fraud-analysis and sanctions-screening carry kagent.solo.io/waypoint.
 #
-# Semantics are allow-list, exactly as for tools. Naming zahlungstriage as the
+# Semantics are allow-list, exactly as for tools. Naming payment-triage as the
 # only permitted caller means every other identity in the cluster is refused --
 # another agent, a rogue pod, a curl from a neighbouring namespace. The desks
 # answer to the orchestrator and to nothing else.
@@ -28,11 +28,11 @@ spec:
   from:
     subjects:
       - kind: Agent
-        name: zahlungstriage
+        name: payment-triage
         namespace: trustusbank
   targetRef:
     kind: Agent
-    name: betrugsanalyse
+    name: fraud-analysis
 ---
 apiVersion: policy.kagent-enterprise.solo.io/v1alpha1
 kind: AccessPolicy
@@ -44,8 +44,8 @@ spec:
   from:
     subjects:
       - kind: Agent
-        name: zahlungstriage
+        name: payment-triage
         namespace: trustusbank
   targetRef:
     kind: Agent
-    name: sanktionspruefung
+    name: sanctions-screening

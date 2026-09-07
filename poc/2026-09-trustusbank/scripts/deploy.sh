@@ -130,7 +130,7 @@ kubectl apply -f "$LAB/yaml/05-modelconfig.yaml" >/dev/null \
 # ── agents, then the policies that constrain them ───────────────────────────
 hdr "Agents"
 kubectl apply -f "$LAB/yaml/20-agents.yaml" >/dev/null || die "agents failed"
-for a in betrugsanalyse sanktionspruefung zahlungstriage; do
+for a in fraud-analysis sanctions-screening payment-triage; do
   for _ in $(seq 1 40); do
     r="$(kubectl -n "$NS" get agent "$a" \
          -o jsonpath='{.status.conditions[?(@.type=="Ready")].status}' 2>/dev/null)"
@@ -146,7 +146,7 @@ done
 # Service, so do it here -- this is what makes re-running safe after the
 # topology change described in yaml/15-waypoint.yaml.
 hdr "Clearing stale per-agent waypoint pins"
-for a in betrugsanalyse sanktionspruefung zahlungstriage; do
+for a in fraud-analysis sanctions-screening payment-triage; do
   cur="$(kubectl -n "$NS" get svc "$a" -o jsonpath='{.metadata.labels.istio\.io/use-waypoint}' 2>/dev/null)"
   [[ -n "$cur" ]] || continue
   kubectl -n "$NS" label svc "$a" istio.io/use-waypoint- >/dev/null 2>&1 \
@@ -171,10 +171,10 @@ kubectl apply -f "$LAB/yaml/40-a2a-edge.yaml" >/dev/null \
 # The agents cache tool discovery at startup, so they must be restarted AFTER
 # the policies exist or they hold the pre-policy tool list.
 hdr "Restarting agents so they rediscover under policy"
-for a in betrugsanalyse sanktionspruefung zahlungstriage; do
+for a in fraud-analysis sanctions-screening payment-triage; do
   kubectl -n "$NS" rollout restart "deploy/$a" >/dev/null 2>&1 || true
 done
-for a in betrugsanalyse sanktionspruefung zahlungstriage; do
+for a in fraud-analysis sanctions-screening payment-triage; do
   kubectl -n "$NS" rollout status "deploy/$a" --timeout=300s >/dev/null 2>&1 \
     && grn "$a rolled out" || ylw "$a rollout slow"
 done

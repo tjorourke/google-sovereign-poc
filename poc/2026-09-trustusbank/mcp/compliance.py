@@ -2,7 +2,7 @@
 
 Screening and case management. The separation that matters here is between
 ASSESSING and FILING: screen_sanctions and check_pep inform a decision,
-create_case records one, and file_sar submits a Geldwaescheverdachtsanzeige to
+create_case records one, and file_sar submits a suspicious activity report to
 the German FIU under GwG section 43. No agent is granted file_sar. A regulatory
 filing is a legal act by a named officer, so the chain deliberately stops one
 step short and hands over.
