@@ -1,0 +1,451 @@
+# Evidence: ComputeClass CRD absent on a GCD Berlin Autopilot cluster
+# Captured 2026-09-09T13:32:48Z by Solo.io (Tom O'Rourke)
+# Universe: berlin / apis-berlin-build0.goog   Project: eu0:soloio-eval
+
+## 1. gcloud version
+Google Cloud SDK 568.0.0
+bq 2.1.31
+core 2026.05.08
+
+## 2. gcloud container clusters list
+NAME     LOCATION              STATUS   CURRENT_MASTER_VERSION  NODE_VERSION        ENABLED  CHANNEL
+agentic  u-germany-northeast1  RUNNING  1.35.6-gke.1049000      1.35.6-gke.1049000  True     REGULAR
+
+## 3. gcloud container clusters describe agentic --location u-germany-northeast1
+#    (masterAuth.clusterCaCertificate elided: long base64, not relevant)
+addonsConfig:
+  dnsCacheConfig:
+    enabled: true
+  gcePersistentDiskCsiDriverConfig:
+    enabled: true
+  gcpFilestoreCsiDriverConfig:
+    enabled: true
+  gcsFuseCsiDriverConfig:
+    enabled: true
+  kubernetesDashboard:
+    disabled: true
+  networkPolicyConfig:
+    disabled: true
+  nodeReadinessConfig: {}
+  parallelstoreCsiDriverConfig:
+    enabled: true
+  statefulHaConfig:
+    enabled: true
+anonymousAuthenticationConfig:
+  mode: LIMITED
+autopilot:
+  enabled: true
+  privilegedAdmissionConfig:
+    allowlistPaths:
+    - gke://*
+    - gs://agentic-allowlist/istio/1.30.4/istio-cni.yaml
+    - gs://agentic-allowlist/istio/1.30.4/istio-ztunnel.yaml
+autoscaling:
+  autoprovisioningNodePoolDefaults:
+    imageType: COS_CONTAINERD
+    management:
+      autoRepair: true
+      autoUpgrade: true
+    oauthScopes:
+    - https://www.googleapis.com/auth/devstorage.read_only
+    - https://www.googleapis.com/auth/logging.write
+    - https://www.googleapis.com/auth/monitoring
+    - https://www.googleapis.com/auth/service.management.readonly
+    - https://www.googleapis.com/auth/servicecontrol
+    - https://www.googleapis.com/auth/trace.append
+    serviceAccount: default
+    upgradeSettings:
+      maxSurge: 1
+      strategy: SURGE
+  autoscalingProfile: OPTIMIZE_UTILIZATION
+  enableNodeAutoprovisioning: true
+  resourceLimits:
+  - maximum: '1000000000'
+    resourceType: cpu
+  - maximum: '1000000000'
+    resourceType: memory
+  - maximum: '1000000000'
+    resourceType: nvidia-tesla-t4
+  - maximum: '1000000000'
+    resourceType: nvidia-tesla-a100
+binaryAuthorization: {}
+clusterIpv4Cidr: 10.32.0.0/14
+controlPlaneEgress:
+  mode: VIA_CONTROL_PLANE
+controlPlaneEndpointsConfig:
+  dnsEndpointConfig:
+    allowExternalTraffic: false
+    enableK8sCertsViaDns: false
+    enableK8sTokensViaDns: false
+    endpoint: gke-18b8f435bb874906b5f368e582eee665a579-560780937444745.u-germany-northeast1.gke-berlin-build0.goog
+  ipEndpointsConfig:
+    authorizedNetworksConfig:
+      privateEndpointEnforcementEnabled: true
+    enablePublicEndpoint: true
+    enabled: true
+    privateEndpoint: 10.20.0.63
+    publicEndpoint: 34.3.136.164
+createTime: '2026-09-06T10:53:11+00:00'
+currentMasterVersion: 1.35.6-gke.1049000
+currentNodeCount: 6
+currentNodeVersion: 1.35.6-gke.1049000
+databaseEncryption:
+  currentState: CURRENT_STATE_DECRYPTED
+  state: DECRYPTED
+defaultMaxPodsConstraint:
+  maxPodsPerNode: '110'
+endpoint: 34.3.136.164
+enterpriseConfig:
+  clusterTier: STANDARD
+etag: 62201a9c-6d20-4bbe-b708-9263426c3717
+id: 18b8f435bb874906b5f368e582eee665a5794fc9eab140ada0c47b6f90c125c5
+initialClusterVersion: 1.35.6-gke.1049000
+instanceGroupUrls:
+- https://compute.apis-berlin-build0.goog/compute/v1/projects/eu0:soloio-eval/zones/u-germany-northeast1-c/instanceGroupManagers/gk3-agentic-nap-7rqhfzh7-c3bf1cf7-grp
+- https://compute.apis-berlin-build0.goog/compute/v1/projects/eu0:soloio-eval/zones/u-germany-northeast1-a/instanceGroupManagers/gk3-agentic-nap-7rqhfzh7-9d5a0287-grp
+- https://compute.apis-berlin-build0.goog/compute/v1/projects/eu0:soloio-eval/zones/u-germany-northeast1-b/instanceGroupManagers/gk3-agentic-nap-7rqhfzh7-6742a2ad-grp
+- https://compute.apis-berlin-build0.goog/compute/v1/projects/eu0:soloio-eval/zones/u-germany-northeast1-c/instanceGroupManagers/gk3-agentic-nap-7wzu5vwm-f03c66de-grp
+- https://compute.apis-berlin-build0.goog/compute/v1/projects/eu0:soloio-eval/zones/u-germany-northeast1-a/instanceGroupManagers/gk3-agentic-nap-7wzu5vwm-2c73aea8-grp
+- https://compute.apis-berlin-build0.goog/compute/v1/projects/eu0:soloio-eval/zones/u-germany-northeast1-b/instanceGroupManagers/gk3-agentic-nap-7wzu5vwm-f2aa2c62-grp
+ipAllocationPolicy:
+  clusterIpv4Cidr: 10.32.0.0/14
+  clusterIpv4CidrBlock: 10.32.0.0/14
+  clusterSecondaryRangeName: pods
+  defaultPodIpv4RangeUtilization: 0.002
+  networkTierConfig:
+    networkTier: NETWORK_TIER_DEFAULT
+  podCidrOverprovisionConfig: {}
+  servicesIpv4Cidr: 10.36.0.0/20
+  servicesIpv4CidrBlock: 10.36.0.0/20
+  servicesSecondaryRangeName: services
+  stackType: IPV4
+  useIpAliases: true
+labelFingerprint: d68a59ef
+legacyAbac: {}
+location: u-germany-northeast1
+locations:
+- u-germany-northeast1-c
+- u-germany-northeast1-a
+- u-germany-northeast1-b
+loggingConfig:
+  componentConfig:
+    enableComponents:
+    - SYSTEM_COMPONENTS
+    - WORKLOADS
+loggingService: logging.googleapis.com/kubernetes
+maintenancePolicy:
+  resourceVersion: e3b0c442
+masterAuth:
+  clientCertificateConfig: {}
+  clusterCaCertificate: <elided>
+masterAuthorizedNetworksConfig:
+  privateEndpointEnforcementEnabled: true
+monitoringConfig:
+  advancedDatapathObservabilityConfig:
+    enableMetrics: true
+  componentConfig:
+    enableComponents:
+    - SYSTEM_COMPONENTS
+  managedPrometheusConfig: {}
+monitoringService: monitoring.googleapis.com/kubernetes
+name: agentic
+network: agentic
+networkConfig:
+  datapathProvider: ADVANCED_DATAPATH
+  defaultEnablePrivateNodes: true
+  defaultSnatStatus: {}
+  dnsConfig:
+    clusterDns: CLOUD_DNS
+    clusterDnsDomain: cluster.local
+    clusterDnsScope: CLUSTER_SCOPE
+  enableIntraNodeVisibility: true
+  gatewayApiConfig:
+    channel: CHANNEL_STANDARD
+  network: projects/eu0:soloio-eval/global/networks/agentic
+  serviceExternalIpsConfig: {}
+  subnetwork: projects/eu0:soloio-eval/regions/u-germany-northeast1/subnetworks/agentic-nodes
+nodeConfig:
+  bootDisk:
+    diskType: hyperdisk-balanced
+    sizeGb: '100'
+  diskSizeGb: 100
+  diskType: hyperdisk-balanced
+  effectiveCgroupMode: EFFECTIVE_CGROUP_MODE_V2
+  gvnic:
+    enabled: true
+  imageType: COS_CONTAINERD
+  kubeletConfig:
+    insecureKubeletReadonlyPortEnabled: false
+    maxParallelImagePulls: 2
+  machineType: c3-highcpu-4
+  metadata:
+    disable-legacy-endpoints: 'true'
+  nodeImageConfig:
+    image: gke-1356-gke1049000-cos-125-19216-395-109-c-pre
+    imageProject: eu0-system:gke-node-images
+  oauthScopes:
+  - https://www.googleapis.com/auth/devstorage.read_only
+  - https://www.googleapis.com/auth/logging.write
+  - https://www.googleapis.com/auth/monitoring
+  - https://www.googleapis.com/auth/service.management.readonly
+  - https://www.googleapis.com/auth/servicecontrol
+  - https://www.googleapis.com/auth/trace.append
+  reservationAffinity:
+    consumeReservationType: NO_RESERVATION
+  resourceLabels:
+    goog-gke-node-pool-provisioning-model: on-demand
+  serviceAccount: default
+  shieldedInstanceConfig:
+    enableIntegrityMonitoring: true
+    enableSecureBoot: true
+  windowsNodeConfig: {}
+  workloadMetadataConfig:
+    mode: GKE_METADATA
+nodeCreationConfig:
+  nodeCreationMode: VIA_KUBELET
+nodePoolAutoConfig:
+  nodeKubeletConfig:
+    insecureKubeletReadonlyPortEnabled: false
+nodePoolDefaults:
+  nodeConfigDefaults:
+    loggingConfig:
+      variantConfig:
+        variant: DEFAULT
+    nodeKubeletConfig:
+      insecureKubeletReadonlyPortEnabled: false
+nodePools:
+- autoscaling:
+    autoprovisioned: true
+    enabled: true
+    locationPolicy: BALANCED
+    maxNodeCount: 1000
+  config:
+    bootDisk:
+      diskType: hyperdisk-balanced
+      sizeGb: '100'
+    diskSizeGb: 100
+    diskType: hyperdisk-balanced
+    effectiveCgroupMode: EFFECTIVE_CGROUP_MODE_V2
+    gvnic:
+      enabled: true
+    imageType: COS_CONTAINERD
+    kubeletConfig:
+      insecureKubeletReadonlyPortEnabled: false
+      maxParallelImagePulls: 2
+    machineType: c3-highcpu-4
+    metadata:
+      disable-legacy-endpoints: 'true'
+    nodeImageConfig:
+      image: gke-1356-gke1049000-cos-125-19216-395-109-c-pre
+      imageProject: eu0-system:gke-node-images
+    oauthScopes:
+    - https://www.googleapis.com/auth/devstorage.read_only
+    - https://www.googleapis.com/auth/logging.write
+    - https://www.googleapis.com/auth/monitoring
+    - https://www.googleapis.com/auth/service.management.readonly
+    - https://www.googleapis.com/auth/servicecontrol
+    - https://www.googleapis.com/auth/trace.append
+    reservationAffinity:
+      consumeReservationType: NO_RESERVATION
+    resourceLabels:
+      goog-gke-node-pool-provisioning-model: on-demand
+    serviceAccount: default
+    shieldedInstanceConfig:
+      enableIntegrityMonitoring: true
+      enableSecureBoot: true
+    windowsNodeConfig: {}
+    workloadMetadataConfig:
+      mode: GKE_METADATA
+  etag: 18daa077-424b-43b9-97c4-924f586e5df3
+  instanceGroupUrls:
+  - https://compute.apis-berlin-build0.goog/compute/v1/projects/eu0:soloio-eval/zones/u-germany-northeast1-c/instanceGroupManagers/gk3-agentic-nap-7rqhfzh7-c3bf1cf7-grp
+  - https://compute.apis-berlin-build0.goog/compute/v1/projects/eu0:soloio-eval/zones/u-germany-northeast1-a/instanceGroupManagers/gk3-agentic-nap-7rqhfzh7-9d5a0287-grp
+  - https://compute.apis-berlin-build0.goog/compute/v1/projects/eu0:soloio-eval/zones/u-germany-northeast1-b/instanceGroupManagers/gk3-agentic-nap-7rqhfzh7-6742a2ad-grp
+  kubeletCertInfo:
+    tpmBootstrapCertExpireTime: '2031-09-05T11:33:15Z'
+  locations:
+  - u-germany-northeast1-c
+  - u-germany-northeast1-a
+  - u-germany-northeast1-b
+  management:
+    autoRepair: true
+    autoUpgrade: true
+  maxPodsConstraint:
+    maxPodsPerNode: '64'
+  name: nap-7rqhfzh7
+  networkConfig:
+    enablePrivateNodes: true
+    networkTierConfig:
+      networkTier: NETWORK_TIER_DEFAULT
+    podIpv4CidrBlock: 10.32.0.0/14
+    podIpv4RangeUtilization: 0.002
+    podRange: pods
+    subnetwork: projects/eu0:soloio-eval/regions/u-germany-northeast1/subnetworks/agentic-nodes
+  placementPolicy: {}
+  podIpv4CidrSize: 25
+  selfLink: https://container.apis-berlin-build0.goog/v1/projects/eu0:soloio-eval/locations/u-germany-northeast1/clusters/agentic/nodePools/nap-7rqhfzh7
+  status: RUNNING
+  upgradeSettings:
+    maxSurge: 1
+    strategy: SURGE
+  version: 1.35.6-gke.1049000
+- autoscaling:
+    autoprovisioned: true
+    enabled: true
+    locationPolicy: BALANCED
+    maxNodeCount: 1000
+  config:
+    bootDisk:
+      diskType: hyperdisk-balanced
+      sizeGb: '100'
+    diskSizeGb: 100
+    diskType: hyperdisk-balanced
+    effectiveCgroupMode: EFFECTIVE_CGROUP_MODE_V2
+    gvnic:
+      enabled: true
+    imageType: COS_CONTAINERD
+    kubeletConfig:
+      insecureKubeletReadonlyPortEnabled: false
+      maxParallelImagePulls: 2
+    machineType: c3-standard-4
+    metadata:
+      disable-legacy-endpoints: 'true'
+    nodeImageConfig:
+      image: gke-1356-gke1049000-cos-125-19216-395-109-c-pre
+      imageProject: eu0-system:gke-node-images
+    oauthScopes:
+    - https://www.googleapis.com/auth/devstorage.read_only
+    - https://www.googleapis.com/auth/logging.write
+    - https://www.googleapis.com/auth/monitoring
+    - https://www.googleapis.com/auth/service.management.readonly
+    - https://www.googleapis.com/auth/servicecontrol
+    - https://www.googleapis.com/auth/trace.append
+    reservationAffinity:
+      consumeReservationType: NO_RESERVATION
+    resourceLabels:
+      goog-gke-node-pool-provisioning-model: on-demand
+    serviceAccount: default
+    shieldedInstanceConfig:
+      enableIntegrityMonitoring: true
+      enableSecureBoot: true
+    windowsNodeConfig: {}
+    workloadMetadataConfig:
+      mode: GKE_METADATA
+  etag: c6c694ec-ccde-4626-bcbc-822e657ccad1
+  instanceGroupUrls:
+  - https://compute.apis-berlin-build0.goog/compute/v1/projects/eu0:soloio-eval/zones/u-germany-northeast1-c/instanceGroupManagers/gk3-agentic-nap-7wzu5vwm-f03c66de-grp
+  - https://compute.apis-berlin-build0.goog/compute/v1/projects/eu0:soloio-eval/zones/u-germany-northeast1-a/instanceGroupManagers/gk3-agentic-nap-7wzu5vwm-2c73aea8-grp
+  - https://compute.apis-berlin-build0.goog/compute/v1/projects/eu0:soloio-eval/zones/u-germany-northeast1-b/instanceGroupManagers/gk3-agentic-nap-7wzu5vwm-f2aa2c62-grp
+  kubeletCertInfo:
+    tpmBootstrapCertExpireTime: '2031-09-05T11:36:53Z'
+  locations:
+  - u-germany-northeast1-c
+  - u-germany-northeast1-a
+  - u-germany-northeast1-b
+  management:
+    autoRepair: true
+    autoUpgrade: true
+  maxPodsConstraint:
+    maxPodsPerNode: '32'
+  name: nap-7wzu5vwm
+  networkConfig:
+    enablePrivateNodes: true
+    networkTierConfig:
+      networkTier: NETWORK_TIER_DEFAULT
+    podIpv4CidrBlock: 10.32.0.0/14
+    podIpv4RangeUtilization: 0.002
+    podRange: pods
+    subnetwork: projects/eu0:soloio-eval/regions/u-germany-northeast1/subnetworks/agentic-nodes
+  placementPolicy: {}
+  podIpv4CidrSize: 26
+  selfLink: https://container.apis-berlin-build0.goog/v1/projects/eu0:soloio-eval/locations/u-germany-northeast1/clusters/agentic/nodePools/nap-7wzu5vwm
+  status: RUNNING
+  upgradeSettings:
+    maxSurge: 1
+    strategy: SURGE
+  version: 1.35.6-gke.1049000
+notificationConfig:
+  pubsub: {}
+podAutoscaling:
+  hpaProfile: HPA_PROFILE_UNSPECIFIED
+privateClusterConfig:
+  enablePrivateNodes: true
+  privateEndpoint: 10.20.0.63
+  publicEndpoint: 34.3.136.164
+rbacBindingConfig:
+  enableInsecureBindingSystemAuthenticated: false
+  enableInsecureBindingSystemUnauthenticated: false
+releaseChannel:
+  channel: REGULAR
+resourceLabels:
+  goog-terraform-provisioned: 'true'
+  managed-by: opentofu
+  purpose: agentic-platform-eval
+satisfiesPzi: true
+satisfiesPzs: false
+securityPostureConfig:
+  mode: BASIC
+  vulnerabilityMode: VULNERABILITY_MODE_UNSPECIFIED
+selfLink: https://container.apis-berlin-build0.goog/v1/projects/eu0:soloio-eval/locations/u-germany-northeast1/clusters/agentic
+servicesIpv4Cidr: 10.36.0.0/20
+shieldedNodes:
+  enabled: true
+status: RUNNING
+subnetwork: agentic-nodes
+userManagedKeysConfig: {}
+verticalPodAutoscaling:
+  enabled: true
+workloadIdentityConfig:
+  workloadPool: soloio-eval.eu0.svc.id.goog
+zone: u-germany-northeast1
+
+## 4. kubectl: is the ComputeClass CRD served?
+$ kubectl api-resources --api-group=cloud.google.com
+NAME             SHORTNAMES   APIVERSION            NAMESPACED   KIND
+backendconfigs   bc           cloud.google.com/v1   true         BackendConfig
+
+$ kubectl get crd | grep -i computeclass
+(no matches)
+
+$ kubectl explain computeclass
+the server doesn't have a resource type "computeclass"
+
+$ kubectl get computeclasses.cloud.google.com
+error: the server doesn't have a resource type "computeclasses"
+
+## 5. GKE-specific API groups that ARE served
+--- cloud.google.com ---
+NAME             SHORTNAMES   APIVERSION            NAMESPACED   KIND
+backendconfigs   bc           cloud.google.com/v1   true         BackendConfig
+--- auto.gke.io ---
+NAME                     SHORTNAMES   APIVERSION       NAMESPACED   KIND
+allowlistedv2workloads                auto.gke.io/v1   false        AllowlistedV2Workload
+allowlistedworkloads                  auto.gke.io/v1   false        AllowlistedWorkload
+allowlistsynchronizers                auto.gke.io/v1   false        AllowlistSynchronizer
+workloadallowlists                    auto.gke.io/v1   false        WorkloadAllowlist
+--- node.gke.io ---
+NAME                    SHORTNAMES   APIVERSION       NAMESPACED   KIND
+gcpresourceallowlists                node.gke.io/v1   false        GCPResourceAllowlist
+--- nodemanagement.gke.io ---
+NAME          SHORTNAMES   APIVERSION                       NAMESPACED   KIND
+updateinfos   updinf       nodemanagement.gke.io/v1alpha1   true         UpdateInfo
+
+## 6. GPU scheduling, re-tested on this cluster (rebuilt 2026-09-06)
+$ kubectl get pod gpu-probe -o wide
+gpu-probe   0/1   Pending   0     2m3s   <none>   <none>   <none>   <none>
+
+$ kubectl describe pod gpu-probe   # events only
+Events:
+  Type     Reason             Age   From                                   Message
+  ----     ------             ----  ----                                   -------
+  Warning  FailedScheduling   2m3s  gke.io/optimize-utilization-scheduler  0/6 nodes are available: 6 node(s) didn't match Pod's node affinity/selector. no new claims to deallocate, preemption: 0/6 nodes are available: 6 Preemption is not helpful for scheduling.
+  Normal   NotTriggerScaleUp  2m    cluster-autoscaler                     Pod didn't trigger scale-up: 6 node(s) didn't match Pod's node affinity/selector
+
+# Pod spec used: nodeSelector cloud.google.com/gke-accelerator=nvidia-h100-80gb,
+# limits nvidia.com/gpu: 1, requests cpu 1 / memory 2Gi.
+
+## 7. Accelerator catalogue for contrast: the hardware IS listed
+$ gcloud compute accelerator-types list --filter='zone~u-germany-northeast1'
+NAME              ZONE
+nvidia-h100-80gb  u-germany-northeast1-a
+nvidia-h100-80gb  u-germany-northeast1-b
