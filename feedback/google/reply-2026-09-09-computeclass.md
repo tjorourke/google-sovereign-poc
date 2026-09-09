@@ -70,9 +70,25 @@ So Privileged Admission Control (`auto.gke.io`) is fully present and we are
 using it in production in this cluster to run Istio ambient. It is specifically
 ComputeClass that is missing.
 
-## Consequence: A3/H100 is catalogued but not schedulable
+## Consequence: both of the two supported GPU paths are closed
 
-This is why it matters to us. The accelerator hardware is in the catalogue:
+This is why it matters to us, and it is a bit worse than "custom compute classes
+are unavailable". GKE Warden on this cluster states the supported mechanisms
+itself. Requesting `nvidia.com/gpu` with only `compute-class: Accelerator` and no
+accelerator type is rejected with:
+
+```
+[denied by autogke-gpu-limitation]
+When requesting 'nvidia.com/gpu' resources, you must specify either node selector
+'cloud.google.com/gke-accelerator' with accelerator type or node selector
+'cloud.google.com/compute-class' with existing custom compute class which has at
+least one GPU priority rule.
+```
+
+So there are exactly two ways in, and we have tested both on this cluster today.
+
+**Path 1 — `gke-accelerator` with an accelerator type.** The hardware is in the
+catalogue:
 
 ```
 $ gcloud compute accelerator-types list --filter='zone~u-germany-northeast1'
@@ -81,13 +97,13 @@ nvidia-h100-80gb  u-germany-northeast1-a
 nvidia-h100-80gb  u-germany-northeast1-b
 ```
 
-A pod requesting one in the form Autopilot expects is admitted and then stays
-`Pending` indefinitely, re-tested on this cluster today:
+The pod is admitted and then stays `Pending` indefinitely. This is true both with
+and without `compute-class: Accelerator` alongside it:
 
 ```
-$ kubectl get pod gpu-probe
-NAME        READY   STATUS    RESTARTS   AGE
-gpu-probe   0/1     Pending   0          107s
+$ kubectl get pod gpu-accelclass
+NAME             READY   STATUS    RESTARTS   AGE
+gpu-accelclass   0/1     Pending   0          2m37s
 
 Warning  FailedScheduling   gke.io/optimize-utilization-scheduler
   0/6 nodes are available: 6 node(s) didn't match Pod's node affinity/selector.
@@ -95,15 +111,15 @@ Normal   NotTriggerScaleUp  cluster-autoscaler
   Pod didn't trigger scale-up: 6 node(s) didn't match Pod's node affinity/selector
 ```
 
-Pod spec: `nodeSelector cloud.google.com/gke-accelerator=nvidia-h100-80gb`,
-`limits nvidia.com/gpu: 1`, `requests cpu 1 / memory 2Gi`.
+The autoscaler declines to provision a GPU node. Note this path needs **no**
+ComputeClass CRD, so the missing CRD is not what is blocking it.
 
-Per Google's own GCD guidance the A3 Edge type
-(`a3-edgegpu-8g-nolssd`) has to be requested through a **custom ComputeClass**,
-and the Accelerator built-in class does not appear to cover it here. With no
-ComputeClass CRD there is no way to express that request, so there is no path to
-a GPU node on this cluster at all — which is the blocker rather than the quota or
-the pod spec.
+**Path 2 — a custom ComputeClass with a GPU priority rule.** Not expressible:
+the CRD is not served, as above. Warden names this as a supported mechanism in
+the same breath as rejecting the pod.
+
+That combination is the finding. It is not only that custom compute classes are
+missing — the path that does not need them does not scale up either.
 
 ## What would unblock us
 
@@ -117,9 +133,14 @@ Narrow and in preference order:
 2. **If it is fixed in a later version, name the version.** We will recreate the
    cluster on it — the whole stack rebuilds from one script, so this costs us
    about an hour and we are happy to do it as a test for you.
-3. **If ComputeClass is not coming to GCD,** tell us the supported way to place a
-   pod on `a3-edgegpu-8g-nolssd` or any H100 node under Autopilot here, since
-   Autopilot is the only mode GCD offers.
+3. **Separately from the CRD, why does path 1 not scale up?** A pod with
+   `gke-accelerator: nvidia-h100-80gb` needs no ComputeClass and still gets
+   `NotTriggerScaleUp`. If A3 node auto-provisioning is simply not enabled for
+   this project or this universe, that is useful to know and may be the actual
+   root cause, with the CRD a second and independent gap.
+4. **If neither path is expected to work in preview,** we would like that said
+   plainly, because Google's published GCD AI reference architectures depend on
+   A3/H100 under Autopilot and Autopilot is the only mode GCD offers.
 
 We are also happy to give you the cluster name and project number directly, or
 to run any specific command you want output from — this cluster is a preview

@@ -449,3 +449,36 @@ $ gcloud compute accelerator-types list --filter='zone~u-germany-northeast1'
 NAME              ZONE
 nvidia-h100-80gb  u-germany-northeast1-a
 nvidia-h100-80gb  u-germany-northeast1-b
+
+## 8. Both GPU request paths tested — GKE Warden names them both
+
+### 8a. Predefined Accelerator class + accelerator type (needs NO CRD)
+# nodeSelector: cloud.google.com/compute-class=Accelerator
+#              cloud.google.com/gke-accelerator=nvidia-h100-80gb
+# ADMITTED by Warden, then never scheduled:
+gpu-accelclass   0/1   Pending   0     5m58s   <none>   <none>   <none>   <none>
+Events:
+  Type     Reason             Age                   From                                   Message
+  ----     ------             ----                  ----                                   -------
+  Warning  FailedScheduling   53s (x2 over 5m58s)   gke.io/optimize-utilization-scheduler  0/6 nodes are available: 6 node(s) didn't match Pod's node affinity/selector. no new claims to deallocate, preemption: 0/6 nodes are available: 6 Preemption is not helpful for scheduling.
+  Normal   NotTriggerScaleUp  52s (x44 over 5m56s)  cluster-autoscaler                     Pod didn't trigger scale-up: 6 node(s) didn't match Pod's node affinity/selector
+
+### 8b. Accelerator class WITHOUT an accelerator type — Warden rejects, and
+###      its message names the two supported mechanisms verbatim
+# nodeSelector: cloud.google.com/compute-class=Accelerator only
+Error from server (GKE Warden constraints violations): admission webhook
+"warden-validating.common-webhooks.networking.gke.io" denied the request:
+Violations details: {"[denied by autogke-gpu-limitation]":["When requesting
+'nvidia.com/gpu' resources, you must specify either node selector
+'cloud.google.com/gke-accelerator' with accelerator type or node selector
+'cloud.google.com/compute-class' with existing custom compute class which has at
+least one GPU priority rule."],"[denied by autopilot-compute-class-limitation]":
+["node selector 'cloud.google.com/gke-accelerator' must be specified when
+compute class is set to Accelerator."]}
+
+# CONCLUSION: Warden documents exactly two ways to request a GPU.
+#   path 1  gke-accelerator + type      -> admitted, Pending forever,
+#                                          NotTriggerScaleUp (8a, and section 6)
+#   path 2  custom ComputeClass         -> impossible, the CRD is not served
+#                                          (sections 4 and 5)
+# Both supported mechanisms are therefore closed on this cluster.
