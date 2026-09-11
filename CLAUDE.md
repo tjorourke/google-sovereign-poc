@@ -500,7 +500,16 @@ name; check `gcloud services list --available`.
 ### GKE constraints (now verified for Berlin, `/kubernetes-engine/docs/tpc-differences`)
 
 Autopilot only, no Standard. C3 and A3 machine series only. GPUs on A3 only, no TPUs, no Arm, no
-Spot VMs on node pools, no compact placement. Stable and Regular channels only. VPC-native only.
+Spot VMs on node pools, no compact placement. VPC-native only.
+
+**RAPID channel DOES exist, despite the differences page.** That page lists
+Stable and Regular only, and we encoded it as a Terraform validation rule. Live
+`gcloud container get-server-config --location u-germany-northeast1` returns a
+RAPID channel defaulting to `1.36.0-gke.4681000`, with `1.36.2-gke.1498000` and
+`1.36.2-gke.1346000` also valid. Live API beats the doc. This matters beyond
+pedantry: Google's own engineer reproduced our missing-ComputeClass-CRD failure
+on 1.35.6 and reported success on a **1.36 Rapid** cluster, so the channel the
+docs say is absent is the one carrying the fix.
 **Max 32 pods per node.** Hyperdisk Balanced storage only. No Backup for GKE, Policy Controller,
 Binary Authorization, Confidential Nodes, GKE security posture, or GKE control plane authority.
 

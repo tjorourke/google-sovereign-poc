@@ -13,7 +13,14 @@ project_number           = "560780937444745"
 region                   = "u-germany-northeast1"
 
 cluster_name    = "agentic"
-release_channel = "REGULAR"
+# RAPID + an explicit 1.36 pin, to test Google's claim that ComputeClass is
+# served there. Their engineer reproduced our missing-CRD failure on 1.35.6 and
+# reported success on a 1.36 Rapid cluster (2026-09-11), so the version IS the
+# experiment here and is pinned rather than left to a channel default that will
+# move. Revert to REGULAR once the question is settled -- RAPID is not where a
+# customer-facing environment should live.
+release_channel    = "RAPID"
+min_master_version = "1.36.0-gke.4681000"
 
 network_name  = "agentic"
 subnet_cidr   = "10.20.0.0/20"

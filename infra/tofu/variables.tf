@@ -86,12 +86,18 @@ variable "cluster_name" {
 }
 
 variable "release_channel" {
-  description = "GCD offers STABLE and REGULAR only. RAPID does not exist here."
+  description = "GCD release channel. RAPID DOES exist here, despite the docs."
   type        = string
   default     = "REGULAR"
+  # RAPID was excluded here on the strength of the GKE differences page, which
+  # lists Stable and Regular only. That is wrong: `gcloud container
+  # get-server-config --location u-germany-northeast1` returns a RAPID channel
+  # with 1.36.0-gke.4681000 as its default and 1.36.2-gke.1498000 available.
+  # Live API beats the doc, which is the precedence rule in CLAUDE.md, and it
+  # matters because 1.36 is where Google says ComputeClass appears.
   validation {
-    condition     = contains(["STABLE", "REGULAR"], var.release_channel)
-    error_message = "GCD offers STABLE and REGULAR only."
+    condition     = contains(["STABLE", "REGULAR", "RAPID"], var.release_channel)
+    error_message = "GCD offers STABLE, REGULAR and RAPID."
   }
 }
 
@@ -228,4 +234,15 @@ variable "enforce_no_external_ip" {
 variable "project_number" {
   type        = string
   description = "Project number, e.g. 560780937444745. Used for service agent emails."
+}
+
+variable "min_master_version" {
+  description = <<-EOT
+    Optional exact control-plane version, e.g. 1.36.0-gke.4681000. Empty means
+    take the channel default. Pin it when the version IS the experiment and the
+    result has to be attributable to a named build -- a channel default moves
+    under you, which makes "we tested 1.36" unreproducible a fortnight later.
+  EOT
+  type        = string
+  default     = ""
 }

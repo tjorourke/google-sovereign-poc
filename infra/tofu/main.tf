@@ -93,6 +93,7 @@ module "cluster_autopilot" {
   pods_range_name     = module.network.pods_range_name
   services_range_name = module.network.services_range_name
   release_channel     = var.release_channel
+  min_master_version  = var.min_master_version
   labels              = var.labels
 
   enable_private_nodes = var.enable_private_nodes

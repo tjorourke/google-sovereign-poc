@@ -5,6 +5,10 @@ variable "subnet_id" { type = string }
 variable "pods_range_name" { type = string }
 variable "services_range_name" { type = string }
 variable "release_channel" { type = string }
+variable "min_master_version" {
+  type    = string
+  default = ""
+}
 variable "labels" { type = map(string) }
 
 variable "enable_private_nodes" {

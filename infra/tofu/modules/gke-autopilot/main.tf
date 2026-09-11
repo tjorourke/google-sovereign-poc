@@ -30,6 +30,9 @@ resource "google_container_cluster" "this" {
     services_secondary_range_name = var.services_range_name
   }
 
+  # Empty string means "channel default"; the provider omits the field.
+  min_master_version = var.min_master_version != "" ? var.min_master_version : null
+
   release_channel {
     channel = var.release_channel
   }

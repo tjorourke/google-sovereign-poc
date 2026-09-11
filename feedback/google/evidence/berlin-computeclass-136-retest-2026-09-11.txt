@@ -1,0 +1,71 @@
+# Re-test on GKE 1.36 RAPID, at Google's request (engineer via Alfred Chung)
+# Captured 2026-09-11T14:33:24Z — Solo.io, Tom O'Rourke
+# Same project and universe as the 1.35.6 test: eu0:soloio-eval / berlin
+# The 1.35.6 cluster was DESTROYED and recreated on 1.36; C3_CPUS is 24 and
+# was fully consumed, so running both side by side was not possible.
+
+## 1. Cluster under test
+NAME     LOCATION              STATUS   CURRENT_MASTER_VERSION  CHANNEL  ENABLED
+agentic  u-germany-northeast1  RUNNING  1.36.0-gke.4681000      RAPID    True
+
+## 2. ComputeClass CRD — NOW SERVED (it was absent on 1.35.6-gke.1049000)
+$ kubectl api-resources --api-group=cloud.google.com
+NAME             SHORTNAMES   APIVERSION            NAMESPACED   KIND
+backendconfigs   bc           cloud.google.com/v1   true         BackendConfig
+computeclasses   cc,ccs       cloud.google.com/v1   false        ComputeClass
+
+$ kubectl get crd | grep -i computeclass
+computeclasses.cloud.google.com                        2026-09-11T14:12:28Z
+
+## 3. A ComputeClass with a GPU priority rule applies cleanly
+a3-edge    8m16s
+h100-gpu   18m
+
+$ kubectl get computeclass a3-edge -o yaml   (spec only)
+{"nodePoolAutoCreation":{"enabled":true},"priorities":[{"gpu":{"count":8,"driverVersion":"default","type":"nvidia-h100-80gb"},"machineType":"a3-edgegpu-8g-nolssd"}],"whenUnsatisfiable":"ScaleUpAnyway"}
+
+## 4. machineFamily: a3 does NOT trigger a scale-up
+# ComputeClass h100-gpu used priorities[0].machineFamily=a3
+Events:
+  Type     Reason             Age                   From                                   Message
+  ----     ------             ----                  ----                                   -------
+  Warning  FailedScheduling   18m                   gke.io/optimize-utilization-scheduler  0/1 nodes are available: 1 node(s) had untolerated taint(s). no new claims to deallocate, preemption: 0/1 nodes are available: 1 Preemption is not helpful for scheduling.
+  Warning  FailedScheduling   17m (x4 over 17m)     gke.io/optimize-utilization-scheduler  0/2 nodes are available: 1 node(s) didn't match Pod's node affinity/selector, 1 node(s) were unschedulable. no new claims to deallocate, preemption: 0/2 nodes are available: 2 Preemption is not helpful for scheduling.
+  Normal   NotTriggerScaleUp  17m                   cluster-autoscaler                     Pod didn't trigger scale-up: 1 node(s) had untolerated taint(s), 3 node(s) didn't match Pod's node affinity/selector
+  Normal   NotTriggerScaleUp  7m10s (x60 over 16m)  cluster-autoscaler                     Pod didn't trigger scale-up: 3 node(s) didn't match Pod's node affinity/selector
+  Warning  FailedScheduling   2m37s (x3 over 12m)   gke.io/optimize-utilization-scheduler  0/1 nodes are available: 1 node(s) didn't match Pod's node affinity/selector. no new claims to deallocate, preemption: 0/1 nodes are available: 1 Preemption is not helpful for scheduling.
+  Normal   NotTriggerScaleUp  108s (x2 over 7m26s)  cluster-autoscaler                     Pod didn't trigger scale-up: 3 node(s) didn't match Pod's node affinity/selector, 2 in backoff after failed scale-up
+
+## 5. machineType: a3-edgegpu-8g-nolssd DOES trigger a scale-up,
+##    and then fails on QUOTA — a different failure from 1.35.6
+Events:
+  Type     Reason             Age                   From                                   Message
+  ----     ------             ----                  ----                                   -------
+  Normal   TriggeredScaleUp   8m5s                  cluster-autoscaler                     Pod triggered scale-up: [{https://compute.apis-berlin-build0.goog/compute/v1//projects/eu0:soloio-eval/zones/u-germany-northeast1-a/instanceGroups/nap-1f4zkot9-temporary-mig-xdtm6vl1-async-0 0->1 (max: 1000)}]
+  Normal   NotTriggerScaleUp  7m36s                 cluster-autoscaler                     Pod didn't trigger scale-up: 3 node(s) didn't match Pod's node affinity/selector, 2 in backoff after failed scale-up
+  Warning  FailedScheduling   3m8s (x2 over 8m17s)  gke.io/optimize-utilization-scheduler  0/1 nodes are available: 1 node(s) didn't match Pod's node affinity/selector. no new claims to deallocate, preemption: 0/1 nodes are available: 1 Preemption is not helpful for scheduling.
+  Normal   TriggeredScaleUp   2m35s                 cluster-autoscaler                     Pod triggered scale-up: [{https://compute.apis-berlin-build0.goog/compute/v1//projects/eu0:soloio-eval/zones/u-germany-northeast1-a/instanceGroups/nap-1jnqq9oz-temporary-mig-1mbqgtlu-async-0 0->1 (max: 1000)}]
+  Warning  FailedScaleUp      117s (x2 over 7m36s)  cluster-autoscaler                     Node scale up in zones u-germany-northeast1-a associated with this pod failed: GCE quota exceeded. Pod is at risk of not being scheduled.
+  Normal   NotTriggerScaleUp  117s                  cluster-autoscaler                     Pod didn't trigger scale-up: 2 in backoff after failed scale-up, 3 node(s) didn't match Pod's node affinity/selector
+
+## 6. Root cause: the only GPU offered here has no quota metric
+$ gcloud compute accelerator-types list --filter='zone~u-germany-northeast1'
+NAME              ZONE
+nvidia-h100-80gb  u-germany-northeast1-a
+nvidia-h100-80gb  u-germany-northeast1-b
+
+# GPU quota metrics that EXIST in this region (non-preemptible, non-committed):
+NVIDIA_A100_80GB_GPUS
+NVIDIA_A100_GPUS
+NVIDIA_K80_GPUS
+NVIDIA_L4_GPUS
+NVIDIA_P100_GPUS
+NVIDIA_P100_VWS_GPUS
+NVIDIA_P4_GPUS
+NVIDIA_P4_VWS_GPUS
+NVIDIA_T4_GPUS
+NVIDIA_T4_VWS_GPUS
+NVIDIA_V100_GPUS
+
+# grep for H100 or A3 quota metrics:
+(no matches — none exist)
