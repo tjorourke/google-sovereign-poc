@@ -236,11 +236,3 @@ with any kind clusters on the machine and gets overwritten mid-run. Export
 GPUs do not schedule. `ComputeClass` requires GKE 1.36 (RAPID channel), and the
 A3/H100 quota metrics do not exist in this universe. Open with Google:
 `feedback/google/gpu-quota-ask.md`.
-
----
-
-## Feedback to Google
-
-`feedback/google/` holds numbered findings with verbatim command output and the
-evidence files behind them. `feedback/google/01-autopilot-ambient-blocker.md`
-shows the format.
