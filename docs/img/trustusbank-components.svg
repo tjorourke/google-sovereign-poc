@@ -1,0 +1,110 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1000 700" width="1000" height="700" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif">
+  <defs>
+    <marker id="a2a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#1d4ed8"/>
+    </marker>
+    <marker id="mcp" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#b45309"/>
+    </marker>
+    <marker id="inf" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#64748b"/>
+    </marker>
+  </defs>
+
+  <rect x="0" y="0" width="1000" height="700" fill="#ffffff"/>
+  <text x="24" y="34" font-size="19" font-weight="600" fill="#0f172a">TrustUsBank AG — components</text>
+  <text x="24" y="56" font-size="13" fill="#475569">SEPA Instant fraud triage. Every hop below carries a SPIFFE identity over mTLS.</text>
+
+  <!-- namespace container -->
+  <rect x="250" y="76" width="726" height="558" rx="10" fill="#f8fafc" stroke="#94a3b8" stroke-width="1.5" stroke-dasharray="7 5"/>
+  <text x="266" y="98" font-size="13" font-weight="600" fill="#475569">namespace trustusbank · Istio ambient mesh</text>
+
+  <!-- external caller -->
+  <rect x="24" y="120" width="190" height="62" rx="7" fill="#f1f5f9" stroke="#475569" stroke-width="1.5"/>
+  <text x="119" y="146" font-size="13" font-weight="600" text-anchor="middle" fill="#0f172a">External caller</text>
+  <text x="119" y="166" font-size="11" text-anchor="middle" fill="#64748b">partner / group system</text>
+
+  <!-- gateway -->
+  <rect x="24" y="230" width="190" height="72" rx="7" fill="#dcfce7" stroke="#15803d" stroke-width="1.5"/>
+  <text x="119" y="256" font-size="13" font-weight="600" text-anchor="middle" fill="#14532d">agentgateway</text>
+  <text x="119" y="274" font-size="11" text-anchor="middle" fill="#166534">edge · TLS terminated</text>
+  <text x="119" y="291" font-size="11" text-anchor="middle" fill="#166534">a2a backend + route</text>
+
+  <!-- self-hosted model -->
+  <rect x="24" y="470" width="190" height="72" rx="7" fill="#f1f5f9" stroke="#475569" stroke-width="1.5"/>
+  <text x="119" y="496" font-size="13" font-weight="600" text-anchor="middle" fill="#0f172a">self-hosted model</text>
+  <text x="119" y="514" font-size="11" text-anchor="middle" fill="#64748b">Qwen2.5-3B, in boundary</text>
+  <text x="119" y="531" font-size="11" text-anchor="middle" fill="#64748b">llm.agentic.eu0.internal</text>
+
+  <!-- orchestrator -->
+  <rect x="284" y="230" width="196" height="76" rx="7" fill="#e0f2fe" stroke="#0369a1" stroke-width="1.5"/>
+  <text x="382" y="256" font-size="13" font-weight="600" text-anchor="middle" fill="#0c4a6e">payment-triage</text>
+  <text x="382" y="274" font-size="11" text-anchor="middle" fill="#0369a1">orchestrator</text>
+  <text x="382" y="291" font-size="11" text-anchor="middle" fill="#64748b">no waypoint by design</text>
+
+  <!-- fraud desk, behind waypoint -->
+  <rect x="560" y="112" width="392" height="116" rx="9" fill="#faf5ff" stroke="#7c3aed" stroke-width="1.5" stroke-dasharray="5 4"/>
+  <text x="576" y="132" font-size="11" font-weight="600" fill="#6d28d9">waypoint · A2A authz</text>
+  <rect x="580" y="142" width="352" height="70" rx="6" fill="#e0f2fe" stroke="#0369a1" stroke-width="1.5"/>
+  <text x="756" y="166" font-size="13" font-weight="600" text-anchor="middle" fill="#0c4a6e">fraud-analysis</text>
+  <text x="756" y="186" font-size="11" text-anchor="middle" fill="#0369a1">get_account · list_transactions</text>
+  <text x="756" y="203" font-size="11" text-anchor="middle" fill="#b91c1c">denied: get_customer (PII)</text>
+
+  <!-- sanctions desk, behind waypoint -->
+  <rect x="560" y="252" width="392" height="116" rx="9" fill="#faf5ff" stroke="#7c3aed" stroke-width="1.5" stroke-dasharray="5 4"/>
+  <text x="576" y="272" font-size="11" font-weight="600" fill="#6d28d9">waypoint · A2A authz</text>
+  <rect x="580" y="282" width="352" height="70" rx="6" fill="#e0f2fe" stroke="#0369a1" stroke-width="1.5"/>
+  <text x="756" y="306" font-size="13" font-weight="600" text-anchor="middle" fill="#0c4a6e">sanctions-screening</text>
+  <text x="756" y="326" font-size="11" text-anchor="middle" fill="#0369a1">screen_sanctions · check_pep</text>
+  <text x="756" y="343" font-size="11" text-anchor="middle" fill="#b91c1c">denied: core-banking entirely</text>
+
+  <!-- core banking MCP, behind waypoint -->
+  <rect x="560" y="404" width="392" height="104" rx="9" fill="#fffbeb" stroke="#b45309" stroke-width="1.5" stroke-dasharray="5 4"/>
+  <text x="576" y="424" font-size="11" font-weight="600" fill="#92400e">waypoint · per-tool authz</text>
+  <rect x="580" y="434" width="352" height="60" rx="6" fill="#fef3c7" stroke="#b45309" stroke-width="1.5"/>
+  <text x="756" y="457" font-size="13" font-weight="600" text-anchor="middle" fill="#78350f">MCP: core-banking</text>
+  <text x="756" y="472" font-size="10" text-anchor="middle" fill="#92400e">get_account · list_transactions</text>
+  <text x="756" y="486" font-size="10" text-anchor="middle" fill="#92400e">get_customer · flag_transaction</text>
+
+  <!-- compliance MCP, behind waypoint -->
+  <rect x="560" y="528" width="392" height="104" rx="9" fill="#fffbeb" stroke="#b45309" stroke-width="1.5" stroke-dasharray="5 4"/>
+  <text x="576" y="548" font-size="11" font-weight="600" fill="#92400e">waypoint · per-tool authz</text>
+  <rect x="580" y="558" width="352" height="60" rx="6" fill="#fef3c7" stroke="#b45309" stroke-width="1.5"/>
+  <text x="756" y="581" font-size="13" font-weight="600" text-anchor="middle" fill="#78350f">MCP: compliance</text>
+  <text x="756" y="596" font-size="10" text-anchor="middle" fill="#92400e">screen_sanctions · check_pep</text>
+  <text x="756" y="610" font-size="10" text-anchor="middle" fill="#92400e">create_case · file_sar</text>
+
+  <!-- edges -->
+  <path d="M 119 182 L 119 226" stroke="#1d4ed8" stroke-width="2" fill="none" marker-end="url(#a2a)"/>
+  <text x="128" y="209" font-size="11" fill="#1d4ed8">A2A / HTTPS</text>
+
+  <path d="M 214 266 L 280 266" stroke="#1d4ed8" stroke-width="2" fill="none" marker-end="url(#a2a)"/>
+
+  <path d="M 480 252 C 520 252, 524 175, 556 172" stroke="#1d4ed8" stroke-width="2" fill="none" marker-end="url(#a2a)"/>
+  <text x="486" y="206" font-size="11" fill="#1d4ed8">A2A</text>
+
+  <path d="M 480 288 C 520 288, 524 310, 556 312" stroke="#1d4ed8" stroke-width="2" fill="none" marker-end="url(#a2a)"/>
+  <text x="486" y="318" font-size="11" fill="#1d4ed8">A2A</text>
+
+  <path d="M 756 212 L 756 400" stroke="#b45309" stroke-width="2" fill="none" stroke-dasharray="6 4" marker-end="url(#mcp)"/>
+  <text x="766" y="310" font-size="11" fill="#b45309">MCP</text>
+
+  <path d="M 860 352 C 900 372, 900 500, 878 524" stroke="#b45309" stroke-width="2" fill="none" stroke-dasharray="6 4" marker-end="url(#mcp)"/>
+  <text x="898" y="440" font-size="11" fill="#b45309">MCP</text>
+
+  <path d="M 382 306 C 382 470, 470 580, 576 582" stroke="#b45309" stroke-width="2" fill="none" stroke-dasharray="6 4" marker-end="url(#mcp)"/>
+  <text x="392" y="470" font-size="11" fill="#b45309">MCP: create_case</text>
+
+  <path d="M 284 280 C 240 300, 214 420, 160 466" stroke="#64748b" stroke-width="1.5" fill="none" stroke-dasharray="3 4" marker-end="url(#inf)"/>
+  <text x="196" y="394" font-size="11" fill="#64748b">inference</text>
+
+  <!-- legend -->
+  <line x1="24" y1="600" x2="64" y2="600" stroke="#1d4ed8" stroke-width="2"/>
+  <text x="72" y="604" font-size="11" fill="#334155">A2A (agent to agent)</text>
+  <line x1="24" y1="622" x2="64" y2="622" stroke="#b45309" stroke-width="2" stroke-dasharray="6 4"/>
+  <text x="72" y="626" font-size="11" fill="#334155">MCP (tool calls)</text>
+  <line x1="24" y1="644" x2="64" y2="644" stroke="#64748b" stroke-width="1.5" stroke-dasharray="3 4"/>
+  <text x="72" y="648" font-size="11" fill="#334155">model inference</text>
+  <rect x="24" y="660" width="14" height="12" fill="#faf5ff" stroke="#7c3aed" stroke-width="1.2" stroke-dasharray="4 3"/>
+  <text x="46" y="670" font-size="11" fill="#334155">waypoint = policy enforcement point</text>
+</svg>

@@ -197,7 +197,70 @@ sudo security add-trusted-cert -d -r trustRoot -k /Library/Keychains/System.keyc
 | Lab | What it is |
 |---|---|
 | `poc/2026-09-agentic-platform/` | the platform itself, as listed in the phase table above |
-| `poc/2026-09-trustusbank/` | SEPA Instant fraud triage across three agents under MCP and A2A policy. Write-up: `docs/trustusbank-sepa-fraud-triage.md` |
+| `poc/2026-09-trustusbank/` | a worked banking scenario built on top of it |
+
+### TrustUsBank
+
+TrustUsBank AG is a fictional German bank. The lab exists to answer the question
+a regulated buyer asks about agents: when one touches customer data or moves
+money, what stops it, and can you show me.
+
+The scenario is SEPA Instant fraud triage. A transfer of EUR 9,850 is held by a
+velocity rule. It is the fourth to the same new counterparty in eighteen
+minutes, totalling EUR 31,400, against an account whose normal weekly outflow is
+EUR 280. Each amount sits just under the EUR 10,000 reporting threshold. The
+counterparty matches the EU consolidated sanctions list and its controller is a
+PEP. The EU Instant Payments Regulation gives the bank seconds to decide, which
+is what makes the work agentic rather than a nightly batch.
+
+Three agents split the work the way a financial-crime desk does, and, more to
+the point, the way its access control does:
+
+| Agent | Role | May call | Cannot call |
+|---|---|---|---|
+| `payment-triage` | orchestrator | `create_case` | `file_sar` |
+| `fraud-analysis` | fraud desk | `get_account`, `list_transactions` | `get_customer` |
+| `sanctions-screening` | sanctions desk | `screen_sanctions`, `check_pep` | anything on core-banking |
+
+Each agent is configured to *request* a tool it is not allowed to have. That is
+the point of the lab. If the agent definitions simply omitted them, the demo
+would prove only that a short list can be written. Listing them and having the
+policy remove them proves the boundary is enforced at the waypoint by workload
+identity, and that no prompt wording gets past it.
+
+#### Components
+
+A2A carries agent-to-agent delegation, MCP carries every tool call, and both run
+through a waypoint that enforces policy on them.
+
+![TrustUsBank components](docs/img/trustusbank-components.svg)
+
+#### Flow
+
+![TrustUsBank fraud triage sequence](docs/img/trustusbank-sequence.svg)
+
+#### What it enforces
+
+Four controls, each verified by attempting to break it rather than asserting it.
+`./scripts/health.sh` runs 23 checks, every denial paired with a positive control
+on the same server so a pass cannot be an unreachable waypoint reading as success.
+
+- **PII boundary.** `fraud-analysis` reaches a verdict on the payment without
+  being able to read the customer record. Calling the MCP server directly from
+  its own pod returns a filtered `tools/list` and a 400 on `get_customer`, so a
+  reprogrammed agent gets the same answer as a cooperative one.
+- **Separation of duties.** No agent is granted `file_sar`. The chain stops one
+  step short of the GwG §43 filing, which stays with a named compliance officer.
+- **Tool scoping per identity.** Each desk sees only its own tools, granted to
+  its own identity rather than a shared credential.
+- **A2A authorization.** Only `payment-triage` may call either desk. The same
+  request from `sanctions-screening` to `fraud-analysis` returns 403 at the
+  target's waypoint; from `payment-triage` it returns 200.
+
+Full write-up, including the zero-trust assessment and where OBO / RFC 8693
+would fit: `docs/trustusbank-sepa-fraud-triage.md`.
+
+#### Running it
 
 TrustUsBank requires the platform to be deployed. It adds one namespace:
 
@@ -207,3 +270,6 @@ cd poc/2026-09-trustusbank
 ./scripts/demo.sh                    # the scenario end to end
 ./scripts/health.sh                  # policy checks          expect 23/0
 ```
+
+Allow two to four minutes for the scenario: three agents and several tool calls
+against a 3B model on CPU.
