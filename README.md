@@ -207,32 +207,3 @@ cd poc/2026-09-trustusbank
 ./scripts/demo.sh                    # the scenario end to end
 ./scripts/health.sh                  # policy checks          expect 23/0
 ```
-
----
-
-## Operational constraints
-
-`universe_domain` must be set on every gcloud invocation. Without it gcloud talks
-to public GCP and the resulting errors look like broken permissions. Work inside
-a named gcloud configuration and confirm with `gcloud config list`.
-
-ADC is separate from the CLI credential. Terraform and the client libraries do
-not pick up `gcloud auth login`. `gcd-auth.sh` mints both.
-
-Autopilot defaults any unspecified CPU or memory request to 500m/2Gi per
-container, which is a real reservation against a 24 vCPU quota. Set requests
-explicitly. See `docs/autopilot-resource-sizing.md`.
-
-Do not change the `istio-cni` or `ztunnel` resource requests. The
-`WorkloadAllowlist` pins the container spec exactly, including `env` and
-`resources`. Changing one field causes the pod to be refused admission and
-ambient mesh stops working.
-
-The lab uses its own kubeconfig at
-`poc/2026-09-agentic-platform/deploy/.kubeconfig`. `~/.kube/config` is shared
-with any kind clusters on the machine and gets overwritten mid-run. Export
-`KUBECONFIG` to the lab path before running `kubectl` by hand.
-
-GPUs do not schedule. `ComputeClass` requires GKE 1.36 (RAPID channel), and the
-A3/H100 quota metrics do not exist in this universe. Open with Google:
-`feedback/google/gpu-quota-ask.md`.
