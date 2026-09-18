@@ -129,6 +129,29 @@ else
   [[ -n "${HF_TOKEN:-}" ]] || die "MODEL_PROFILE=gpu needs HF_TOKEN: Gemma is gated."
   kubectl -n "$NS" create secret generic hf-token \
     --from-literal=token="$HF_TOKEN" --dry-run=client -o yaml | kubectl apply -f - >/dev/null 2>&1
+
+  # The weights need a disk, and the container filesystem is not one.
+  #
+  # HuggingFace caches to /root/.cache/huggingface, which on Autopilot lands on
+  # ephemeral storage: the pod requests 1Gi by default and the whole NODE only
+  # allocates ~47GB. Gemma 3 27B is ~54GB of safetensors, so the download cannot
+  # fit even if the pod claimed every byte the node has. Worse, exceeding an
+  # ephemeral-storage limit gets the pod EVICTED rather than failed, and the
+  # restart count stays 0, so it looks like a crash loop with no cause.
+  kubectl apply -f - >/dev/null 2>&1 <<PVC
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: hf-cache
+  namespace: ${NS}
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: hyperdisk-balanced
+  resources:
+    requests:
+      storage: ${HF_CACHE_SIZE:-200Gi}
+PVC
+  ok "PVC hf-cache (${HF_CACHE_SIZE:-200Gi}, hyperdisk-balanced) for the weights"
   kubectl apply -f - >/dev/null 2>&1 <<YAML
 apiVersion: apps/v1
 kind: Deployment
@@ -148,6 +171,10 @@ spec:
       # stock. a3-edge-zb prefers -b and falls back to -a.
       nodeSelector:
         cloud.google.com/compute-class: ${GPU_COMPUTE_CLASS:-a3-edge-zb}
+      volumes:
+        - name: hf-cache
+          persistentVolumeClaim:
+            claimName: hf-cache
       containers:
         - name: server
           image: ${IMAGE}
@@ -156,17 +183,33 @@ spec:
             - --served-model-name=${SERVED_NAME}
             - --tensor-parallel-size=${GPU_COUNT:-1}
             - --max-model-len=${MAX_MODEL_LEN:-8192}
+            # Gemma is trained in bfloat16 and MUST be served in it. vLLM
+            # otherwise downcasts to float16 ("Downcasting torch.float32 to
+            # torch.float16" in the startup log), whose narrower exponent range
+            # overflows on Gemma's activations. The failure is silent and easy to
+            # misread: the server is healthy, /v1/models answers, requests return
+            # 200 with a token count, and message.content is an empty string.
+            - --dtype=bfloat16
           ports: [{ containerPort: 8000, name: http }]
           env:
             - name: HUGGING_FACE_HUB_TOKEN
               valueFrom: { secretKeyRef: { name: hf-token, key: token } }
+            - name: HF_HOME
+              value: /hf-cache
+          volumeMounts:
+            - name: hf-cache
+              mountPath: /hf-cache
           resources:
             limits:
               # Gemma 3 27B is ~54GB in bf16 and fits a single 80GB H100.
               # Taking all eight would idle the rest of a scarce node for nothing.
               nvidia.com/gpu: ${GPU_COUNT:-1}
               cpu: "8"
-              memory: 32Gi
+              # vLLM materialises the weights in CPU RAM before moving them to
+              # the GPU, so this has to exceed the model size. 32Gi against a
+              # 54GB model is an OOM kill (exit 137) about five minutes in, after
+              # the download has already completed. The node has 1.8TB.
+              memory: ${MODEL_MEMORY:-128Gi}
 ---
 apiVersion: v1
 kind: Service

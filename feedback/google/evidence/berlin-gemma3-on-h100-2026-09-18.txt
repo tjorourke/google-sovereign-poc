@@ -1,0 +1,32 @@
+# Gemma 3 27B serving on A3/H100 in GCD Berlin
+# Captured 2026-09-18T15:07:43Z — Solo.io, Tom O'Rourke
+# Project eu0:soloio-eval, region u-germany-northeast1, zone -b
+# Cluster agentic, GKE 1.36.0-gke.4681000 RAPID, Autopilot
+
+## Node
+machine: a3-edgegpu-8g-nolssd  zone: u-germany-northeast1-b  gpus: 8
+
+## Serving
+{"object":"list","data":[{"id":"gemma-3-27b-it","object":"model","created":1789744064,"owned_by":"vllm","root":"google/gemma-3-27b-it","parent":null,"max_model_len":8192,"permission":[{"id":"modelperm-edb60f8cd4ef49bfacbf31de371a1eb7","object":"model_permission","created":1789744064,"allow_create_engine":false,"allow_sampling":true,"allow_logprobs":true,"allow_search_indices":false,"allow_view":true,"allow_fine_tuning":false,"organization":"*","group":null,"is_blocking":false}]}]}
+
+## Inference
+  completion tokens : 256
+  elapsed           : 6.4s
+  throughput        : 40.0 tok/s (single stream)
+  sample            : ## SEPA Instant Payment (SIP) Fraud Typologies: A Briefing for Compliance Officers
+
+Okay, let's break down the fraud typologies we're seeing (and anticipating) with SEPA 
+
+## Weights on disk (PVC, hyperdisk-balanced 200Gi)
+62G	/hf-cache
+
+## Three things that had to be right, each failed alone first
+1. PVC for the weights. HF caches to the container filesystem; Autopilot
+   gives 1Gi by default and the NODE only allocates ~47GB, against ~62GB
+   of Gemma 3 27B. Exceeding it evicts rather than fails, restarts stay 0.
+2. memory 128Gi, not 32Gi. vLLM materialises weights in CPU RAM before
+   moving them to the GPU. 32Gi = OOM kill, exit 137, five minutes in,
+   AFTER the download completed.
+3. --dtype=bfloat16. vLLM downcasts to float16 by default; Gemma is
+   trained in bf16 and overflows in fp16. Silent: /v1/models answers, the
+   request returns 200 with a token count, and content is an empty string.
