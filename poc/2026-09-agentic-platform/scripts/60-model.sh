@@ -49,8 +49,10 @@ case "$PROFILE" in
     MODEL_ID="${MODEL_ID:-google/gemma-3-27b-it}"
     SERVED_NAME="${SERVED_NAME:-gemma-3-27b-it}"
     IMAGE="${VLLM_IMAGE:-vllm/vllm-openai:v0.8.5}"
-    warn "MODEL_PROFILE=gpu. In Berlin this WILL stay Pending: the H100 is"
-    warn "catalogued but no GPU node provisions. See feedback/google/06."
+    # Provisioning works as of 2026-09-18. Three conditions, all required:
+    # GKE 1.36 RAPID for the ComputeClass CRD, an explicit machineType rather
+    # than machineFamily, and a zone with stock. See yaml/gpu/computeclass-a3.yaml.
+    log "GPU profile: needs the a3-edge-zb ComputeClass (yaml/gpu/computeclass-a3.yaml)"
     ;;
   *) die "MODEL_PROFILE must be cpu or gpu" ;;
 esac
@@ -140,22 +142,29 @@ spec:
   template:
     metadata: { labels: { app: llm } }
     spec:
+      # NOT the predefined Accelerator class. It is admitted by Warden and then
+      # never scales up, because A3 in this universe has to be requested by
+      # explicit machineType through a custom ComputeClass, and zone -a has no
+      # stock. a3-edge-zb prefers -b and falls back to -a.
       nodeSelector:
-        cloud.google.com/compute-class: Accelerator
-        cloud.google.com/gke-accelerator: nvidia-h100-80gb
+        cloud.google.com/compute-class: ${GPU_COMPUTE_CLASS:-a3-edge-zb}
       containers:
         - name: server
           image: ${IMAGE}
           args:
             - --model=${MODEL_ID}
             - --served-model-name=${SERVED_NAME}
+            - --tensor-parallel-size=${GPU_COUNT:-1}
+            - --max-model-len=${MAX_MODEL_LEN:-8192}
           ports: [{ containerPort: 8000, name: http }]
           env:
             - name: HUGGING_FACE_HUB_TOKEN
               valueFrom: { secretKeyRef: { name: hf-token, key: token } }
           resources:
             limits:
-              nvidia.com/gpu: 8
+              # Gemma 3 27B is ~54GB in bf16 and fits a single 80GB H100.
+              # Taking all eight would idle the rest of a scarce node for nothing.
+              nvidia.com/gpu: ${GPU_COUNT:-1}
               cpu: "8"
               memory: 32Gi
 ---
