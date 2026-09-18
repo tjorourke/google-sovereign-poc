@@ -1,0 +1,76 @@
+# GPU SUCCESSFULLY PROVISIONED on GCD Berlin
+# Captured 2026-09-18T14:28:43Z — Solo.io, Tom O'Rourke
+# Project eu0:soloio-eval (560780937444745), region u-germany-northeast1
+# Cluster: agentic, GKE 1.36.0-gke.4681000, RAPID, Autopilot
+
+## 1. The node
+machine : a3-edgegpu-8g-nolssd
+zone    : u-germany-northeast1-b
+gpu     : nvidia-h100-80gb
+cpu     : 208
+memory  : 1932087844Ki
+gpus    : 8 (allocatable 8)
+
+## 2. nvidia-smi from inside the pod
+index, name, memory.total [MiB], driver_version
+0, NVIDIA H100 80GB HBM3, 81559 MiB, 580.159.04
+1, NVIDIA H100 80GB HBM3, 81559 MiB, 580.159.04
+2, NVIDIA H100 80GB HBM3, 81559 MiB, 580.159.04
+3, NVIDIA H100 80GB HBM3, 81559 MiB, 580.159.04
+4, NVIDIA H100 80GB HBM3, 81559 MiB, 580.159.04
+5, NVIDIA H100 80GB HBM3, 81559 MiB, 580.159.04
+6, NVIDIA H100 80GB HBM3, 81559 MiB, 580.159.04
+7, NVIDIA H100 80GB HBM3, 81559 MiB, 580.159.04
+
+## 3. What changed since 2026-09-11
+# C3_CPUS raised 24 -> 48. A3/H100 quota now effective.
+{'limit': 48.0, 'metric': 'C3_CPUS', 'usage': 4.0}
+{'limit': 0.0, 'metric': 'COMMITTED_C3_CPUS', 'usage': 0.0}
+# NOTE: no NVIDIA_H100_80GB_GPUS or A3_CPUS metric is exposed via
+#       'gcloud compute regions describe', yet provisioning now succeeds.
+#       The grant is evidently not surfaced as a visible quota row.
+
+## 4. Zone matters: -a is out of capacity, -b works
+# Pod pinned to zone -a (ComputeClass a3-edge):
+  Normal   TriggeredScaleUp   5m55s                  cluster-autoscaler                     Pod triggered scale-up: [{https://compute.apis-berlin-build0.goog/compute/v1//projects/eu0:soloio-eval/zones/u-germany-northeast1-a/instanceGroups/nap-65rh49gy-temporary-mig-8g93kjbn-async-0 0->1 (max: 1000)}]
+  Warning  FailedScaleUp      5m26s (x2 over 10m)    cluster-autoscaler                     Node scale up in zones u-germany-northeast1-a associated with this pod failed: GCE out of resources. Pod is at risk of not being scheduled.
+  Normal   TriggeredScaleUp   28s                    cluster-autoscaler                     Pod triggered scale-up: [{https://compute.apis-berlin-build0.goog/compute/v1//projects/eu0:soloio-eval/zones/u-germany-northeast1-b/instanceGroups/nap-5r2kfzep-temporary-mig-1ciutmmt-async-1 0->1 (max: 1000)}]
+
+# Pod preferring zone -b then -a (ComputeClass a3-edge-zb): SCHEDULED in ~180s
+gpu-zb   1/1   Running   0     3m42s   10.32.0.68   gk3-agentic-nap-5oosmnnh-250986c3-cwtq   <none>   <none>
+
+## 5. The ComputeClass that worked
+{
+    "nodePoolAutoCreation": {
+        "enabled": true
+    },
+    "priorities": [
+        {
+            "gpu": {
+                "count": 8,
+                "driverVersion": "default",
+                "type": "nvidia-h100-80gb"
+            },
+            "location": {
+                "zones": [
+                    "u-germany-northeast1-b"
+                ]
+            },
+            "machineType": "a3-edgegpu-8g-nolssd"
+        },
+        {
+            "gpu": {
+                "count": 8,
+                "driverVersion": "default",
+                "type": "nvidia-h100-80gb"
+            },
+            "location": {
+                "zones": [
+                    "u-germany-northeast1-a"
+                ]
+            },
+            "machineType": "a3-edgegpu-8g-nolssd"
+        }
+    ],
+    "whenUnsatisfiable": "ScaleUpAnyway"
+}

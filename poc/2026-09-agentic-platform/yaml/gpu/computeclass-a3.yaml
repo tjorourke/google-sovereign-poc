@@ -1,0 +1,59 @@
+# The ComputeClass that actually provisions an A3 node on GCD Berlin.
+#
+# Three things have to be right, and each one failed on its own first:
+#
+# 1. GKE 1.36 (RAPID). The ComputeClass CRD is not served on 1.35.6 REGULAR, so
+#    this file cannot even be applied there.
+# 2. machineType, not machineFamily. "machineFamily: a3" never triggers a
+#    scale-up and fails silently, looking identical to having no quota at all.
+#    The A3 Edge type has to be named.
+# 3. Zone order. u-germany-northeast1-a returns "GCE out of resources"; -b has
+#    capacity. Listing -b first and -a as a fallback is what got a node. Without
+#    the location block the autoscaler picked -a and failed indefinitely.
+#
+# One node is 208 vCPU and 8 x H100 80GB, which is the smallest GPU unit this
+# universe sells -- there is no a3-highgpu-1g, no g2, no a2.
+apiVersion: cloud.google.com/v1
+kind: ComputeClass
+metadata:
+  name: a3-edge-zb
+spec:
+  priorities:
+    - machineType: a3-edgegpu-8g-nolssd
+      gpu:
+        type: nvidia-h100-80gb
+        count: 8
+      location:
+        zones: ["u-germany-northeast1-b"]
+    - machineType: a3-edgegpu-8g-nolssd
+      gpu:
+        type: nvidia-h100-80gb
+        count: 8
+      location:
+        zones: ["u-germany-northeast1-a"]
+  nodePoolAutoCreation:
+    enabled: true
+  whenUnsatisfiable: ScaleUpAnyway
+---
+# Minimal pod proving the GPUs are addressable. nginx carries no CUDA runtime,
+# so point at the driver the node mounts:
+#   LD_LIBRARY_PATH=/usr/local/nvidia/lib64 /usr/local/nvidia/bin/nvidia-smi
+apiVersion: v1
+kind: Pod
+metadata:
+  name: gpu-smoke
+  namespace: default
+spec:
+  restartPolicy: Never
+  nodeSelector:
+    cloud.google.com/compute-class: a3-edge-zb
+  containers:
+    - name: probe
+      image: nginx:stable
+      command: ["sh","-c","LD_LIBRARY_PATH=/usr/local/nvidia/lib64 /usr/local/nvidia/bin/nvidia-smi --query-gpu=index,name,memory.total,driver_version --format=csv; sleep 900"]
+      resources:
+        limits:
+          nvidia.com/gpu: "8"
+        requests:
+          cpu: "2"
+          memory: 8Gi
