@@ -73,7 +73,14 @@ log "over this record in 80-ingress.sh, and the issuer string never changes."
 # There is no Secret Manager in GCD, so they are envelope-encrypted with Cloud
 # KMS before anything is written to disk.
 step "scraping confidential client secrets from the admin API"
-PF_PORT="${PF_PORT:-18099}"
+PF_PORT="${PF_PORT:-18299}"
+# Refuse a port something else already holds. The port-forward then fails to
+# bind and exits silently, and every request below lands on whatever owns the
+# port: it once answered /realms/master with 200 and the token POST with 405,
+# which read as "could not get a Keycloak admin token" on a healthy Keycloak.
+if lsof -nP -iTCP:"$PF_PORT" -sTCP:LISTEN >/dev/null 2>&1; then
+  die "port $PF_PORT is already in use ($(lsof -nP -iTCP:"$PF_PORT" -sTCP:LISTEN -Fc 2>/dev/null | sed -n 's/^c//p' | head -1)); rerun with PF_PORT=<free port>"
+fi
 kc -n "$NS" port-forward svc/keycloak "${PF_PORT}:8080" >/dev/null 2>&1 &
 PF_PID=$!
 trap 'kill $PF_PID 2>/dev/null || true' EXIT
@@ -81,10 +88,18 @@ for i in $(seq 1 30); do
   curl -sf "http://localhost:${PF_PORT}/realms/master" >/dev/null 2>&1 && break
   sleep 2
 done
+kill -0 "$PF_PID" 2>/dev/null || die "port-forward to svc/keycloak exited"
 
-ADM="$(curl -s -X POST "http://localhost:${PF_PORT}/realms/master/protocol/openid-connect/token" \
-  -d "grant_type=password&client_id=admin-cli&username=admin&password=${KEYCLOAK_ADMIN_PASSWORD}" \
-  | jq -r .access_token)"
+# Retried: /realms/master answers before the bootstrap admin can log in on a
+# freshly rolled pod.
+ADM=""
+for i in $(seq 1 20); do
+  ADM="$(curl -s -X POST "http://localhost:${PF_PORT}/realms/master/protocol/openid-connect/token" \
+    -d "grant_type=password&client_id=admin-cli&username=admin&password=${KEYCLOAK_ADMIN_PASSWORD}" \
+    | jq -r .access_token 2>/dev/null)"
+  [[ -n "$ADM" && "$ADM" != "null" ]] && break
+  sleep 3
+done
 [[ -n "$ADM" && "$ADM" != "null" ]] || die "could not get a Keycloak admin token"
 
 get_secret() {

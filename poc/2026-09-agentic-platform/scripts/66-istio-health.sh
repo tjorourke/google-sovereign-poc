@@ -169,9 +169,15 @@ BASE_D="$(curl_status health-denied)"
   || fail "baseline broken before any policy (allowed=$BASE_A denied=$BASE_D)"
 
 kubectl apply -f "$YAML_DIR/06-l4-test-policy.yaml" >/dev/null 2>&1
-sleep 8
-L4_A="$(curl_status health-allowed)"
-L4_D="$(curl_status health-denied)"
+# Poll rather than sleep: on GCD ztunnel can take well over 8s to receive a new
+# AuthorizationPolicy, and a fixed sleep reported a correct policy as broken
+# (allowed=200 denied=200), while the same policy denied correctly seconds later.
+for _ in $(seq 1 30); do
+  L4_A="$(curl_status health-allowed)"
+  L4_D="$(curl_status health-denied)"
+  [[ "$L4_A" == "200" && "$L4_D" != "200" ]] && break
+  sleep 2
+done
 if [[ "$L4_A" == "200" && "$L4_D" != "200" ]]; then
   pass "L4 ALLOW policy: health-allowed=$L4_A, health-denied=$L4_D (denied at L4)"
 else

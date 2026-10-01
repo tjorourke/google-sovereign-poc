@@ -88,6 +88,15 @@ login)
   [[ -x "$VENV/bin/python" ]] || { red "venv missing — ./scripts/gcd-auth-assist.sh start"; exit 1; }
   [[ -f "$LOGIN_CFG" ]] || { red "no login config at $LOGIN_CFG — run ./scripts/gcd-auth.sh once"; exit 1; }
 
+  # On macOS Chrome keeps running after its last window is closed, and with no
+  # page open Playwright cannot attach over CDP at all:
+  #   connect_over_cdp: Protocol error (Browser.setDownloadBehavior):
+  #   Browser context management is not supported.
+  # The helper reports that on stderr and exits 0 (see gcd-consent-click.py),
+  # so gcloud waits on its localhost listener for ever. Open a blank tab first.
+  [[ "$(curl -s --max-time 5 "$CDP/json/list" | tr -d '[:space:]')" == "[]" ]] \
+    && curl -s --max-time 5 -X PUT "$CDP/json/new?about:blank" >/dev/null
+
   HELPER="$(mktemp)"; trap 'rm -f "$HELPER"' EXIT
   cat > "$HELPER" <<EOF
 #!/usr/bin/env bash
