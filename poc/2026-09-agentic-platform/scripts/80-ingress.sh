@@ -34,6 +34,10 @@ metadata:
   namespace: ${NS}
 spec:
   gatewayClassName: enterprise-agentgateway
+  # Lets ListenerSets in this namespace add listeners to this one data plane
+  # (87-vsr-routes.sh adds agw.* that way) instead of a second Gateway.
+  allowedListeners:
+    namespaces: { from: Same }
   listeners:
     - name: http
       protocol: HTTP

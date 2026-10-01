@@ -1,0 +1,32 @@
+# The model endpoint is a ListenerSet on the ONE agentgateway, not a second
+# Gateway. One Deployment, one internal LB, one external address; the model
+# traffic just gets its own listener, scoped to its own hostname.
+#
+# Why a listener of its own at all: the semantic router is an extProc with
+# Buffered bodies at PreRouting. PreRouting runs before a route is chosen, so the
+# policy cannot target an HTTPRoute -- only a Gateway or a ListenerSet. Aimed at
+# the Gateway it would buffer the MCP Streamable HTTP / SSE responses too, and
+# tool calls would hang. Aimed at this ListenerSet it sees agw.* and nothing else.
+#
+# ListenerSet is the Gateway API's standard way to add listeners to a shared
+# Gateway (v1, standard channel, since Gateway API 1.5). The Gateway opts in with
+# spec.allowedListeners; 80-ingress.sh and 87-vsr-routes.sh both set it.
+#
+# 87-vsr-routes.sh adds an https listener here when agentic-edge-tls exists.
+apiVersion: gateway.networking.k8s.io/v1
+kind: ListenerSet
+metadata:
+  name: agentgateway-models
+  namespace: agentgateway-system
+spec:
+  parentRef:
+    group: gateway.networking.k8s.io
+    kind: Gateway
+    name: agentgateway-proxy
+  listeners:
+    - name: http
+      protocol: HTTP
+      port: 80
+      hostname: agw.__BASE_DOMAIN__
+      allowedRoutes:
+        namespaces: { from: Same }

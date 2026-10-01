@@ -8,12 +8,15 @@
 #   gemini  Gemini 2.5 Flash, Google's frontier model, for non-sensitive general
 #           questions. Leaves the boundary through Cloud NAT, by policy.
 #
-# It all lives on a SECOND Gateway, agentgateway-models, at models.$BASE_DOMAIN.
-# VSR is an extProc with buffered bodies; on agentgateway-proxy it would buffer
-# the MCP SSE streams too. See yaml/vsr/gateway.yaml.
+# One agentgateway, one Deployment, one address. The model endpoint is a
+# ListenerSet on agentgateway-proxy (yaml/vsr/listenerset.yaml): its own listener
+# for agw.$BASE_DOMAIN, so the VSR extProc (buffered bodies, PreRouting) can be
+# scoped to that listener and never touches the MCP SSE streams on mcp.*.
 #
 #   GEMINI_API_KEY=... ./scripts/87-vsr-routes.sh        install + test
-#   LB=1 ./scripts/87-vsr-routes.sh                      also an internal LB + DNS
+#
+# agw.$BASE_DOMAIN shares agentgateway-proxy's internal LB (private DNS points at
+# it) and its external one (./scripts/hosts.sh maps it on a laptop).
 #   ./scripts/87-vsr-routes.sh test                      just the three test calls
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -26,22 +29,24 @@ assert_universe
 
 BASE_DOMAIN="${BASE_DOMAIN:-agentic.eu0.internal}"
 NS="${AGW_NS:-agentgateway-system}"
-GW_NAME=agentgateway-models
-HOST="models.${BASE_DOMAIN}"
+GW="${AGW_GATEWAY:-agentgateway-proxy}"
+LS_NAME=agentgateway-models
+HOST="agw.${BASE_DOMAIN}"
 VSR_CHART="${VSR_CHART:-oci://ghcr.io/vllm-project/charts/semantic-router}"
 VSR_VERSION="${VSR_VERSION:-0.3.0}"
 VSR_DIR="$SCRIPT_DIR/../yaml/vsr"
 PORT="${VSR_PF_PORT:-18091}"
 
+# The gateway's own Service (its external twin carries the same label).
 gw_svc() {
-  kc -n "$NS" get svc -l "gateway.networking.k8s.io/gateway-name=$GW_NAME" \
-    -o jsonpath='{.items[0].metadata.name}' 2>/dev/null
+  kc -n "$NS" get svc -l "gateway.networking.k8s.io/gateway-name=$GW" \
+    -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}{end}' 2>/dev/null | grep -v -- '-external$' | head -1
 }
 
 # ── test: auto, then each route forced ───────────────────────────────────────
 run_tests() {
   local svc; svc="$(gw_svc)"
-  [[ -n "$svc" ]] || die "no Service for Gateway $NS/$GW_NAME — run this script without 'test' first"
+  [[ -n "$svc" ]] || die "no Service for Gateway $NS/$GW — run 80-ingress.sh first"
   kc -n "$NS" port-forward "svc/$svc" "${PORT}:80" >/dev/null 2>&1 &
   local pf=$!
   trap 'kill '"$pf"' 2>/dev/null || true' EXIT
@@ -104,41 +109,41 @@ log "waiting for the router (first start downloads its models; up to 30m)"
 kc -n "$NS" wait --for=condition=Available deploy/semantic-router --timeout=1800s
 ok "semantic-router Available"
 
-# ── 3. gateway, backends, policy, routes ─────────────────────────────────────
-step "Gateway $GW_NAME, backends gemma + gemini, extProc policy, HTTPRoute"
-for f in gateway backends extproc-policy routes; do
+# ── 3. listener, backends, policy, routes ────────────────────────────────────
+step "ListenerSet $LS_NAME on Gateway $GW, backends gemma + gemini, extProc policy, HTTPRoute"
+kc -n "$NS" get gateway "$GW" >/dev/null 2>&1 || die "Gateway $NS/$GW missing — run 80-ingress.sh first"
+# A Gateway accepts no ListenerSets until it opts in. 80-ingress.sh sets this
+# too; patching here keeps the phase working on a Gateway made before that.
+kc -n "$NS" patch gateway "$GW" --type=merge \
+  -p '{"spec":{"allowedListeners":{"namespaces":{"from":"Same"}}}}' >/dev/null
+for f in listenerset backends extproc-policy routes; do
   sed "s/__BASE_DOMAIN__/${BASE_DOMAIN}/g" "$VSR_DIR/$f.yaml" | kc apply -f - >/dev/null
 done
-kc -n "$NS" wait --for=condition=Programmed "gateway/$GW_NAME" --timeout=300s
-ok "Gateway programmed"
+# https alongside http once 85-tls.sh has issued the edge certificate (whose
+# HOSTS include agw). Added by patch so a rerun of the apply above, which
+# declares http only, is followed by putting it straight back.
+if kc -n "$NS" get secret agentic-edge-tls >/dev/null 2>&1; then
+  kc -n "$NS" get listenerset "$LS_NAME" -o jsonpath='{.spec.listeners[*].name}' | grep -qw https \
+    || kc -n "$NS" patch listenerset "$LS_NAME" --type=json -p '[{
+      "op":"add","path":"/spec/listeners/-","value":{
+        "name":"https","protocol":"HTTPS","port":443,"hostname":"'"$HOST"'",
+        "tls":{"mode":"Terminate","certificateRefs":[{"kind":"Secret","name":"agentic-edge-tls"}]},
+        "allowedRoutes":{"namespaces":{"from":"Same"}}}}]' >/dev/null
+fi
+kc -n "$NS" wait --for=condition=Accepted "listenerset/$LS_NAME" --timeout=120s >/dev/null \
+  || { kc -n "$NS" get listenerset "$LS_NAME" -o yaml >&2; die "ListenerSet $LS_NAME not accepted by $GW"; }
+kc -n "$NS" wait --for=condition=Programmed "listenerset/$LS_NAME" --timeout=300s >/dev/null
+ok "ListenerSet programmed: $(kc -n "$NS" get listenerset "$LS_NAME" -o jsonpath='{range .spec.listeners[*]}{.name}:{.port} {end}')"
 kc -n "$NS" get agentgatewaybackend gemma gemini >&2
 kc -n "$NS" get httproute models -o jsonpath='{range .status.parents[*].conditions[*]}  {.type}={.status} {.reason}{"\n"}{end}' >&2
 
-# ── 4. optional: an internal LB, same pattern as 80-ingress.sh ──────────────
-if [[ "${LB:-0}" == 1 ]]; then
-  step "internal LoadBalancer for $HOST"
-  SVC="$(gw_svc)"
-  kc -n "$NS" annotate svc "$SVC" --overwrite \
-    'cloud.google.com/neg={"exposed_ports":{"80":{}}}' \
-    'networking.gke.io/load-balancer-type=Internal' >/dev/null
-  kc -n "$NS" patch svc "$SVC" -p '{"spec":{"type":"LoadBalancer"}}' >/dev/null
-  is_private_ip() {
-    case "$1" in
-      10.*|192.168.*|172.1[6-9].*|172.2[0-9].*|172.3[01].*) return 0 ;;
-      *) return 1 ;;
-    esac
-  }
-  LB_IP=""
-  for _ in $(seq 1 60); do
-    CAND="$(kc -n "$NS" get svc "$SVC" -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null || true)"
-    # Skip a transient external address; see 80-ingress.sh.
-    if [[ -n "$CAND" ]] && is_private_ip "$CAND"; then LB_IP="$CAND"; break; fi
-    sleep 5
-  done
-  [[ -n "$LB_IP" ]] || die "no internal LB address for svc/$SVC after 5m"
-  dns_upsert "$HOST" "$LB_IP"
-  ok "$HOST -> $LB_IP"
-fi
+# ── 4. private DNS: agw shares the gateway's internal LB ────────────────────
+LB_IP="$(kc -n "$NS" get svc "$(gw_svc)" -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null || true)"
+case "$LB_IP" in
+  10.*|192.168.*|172.1[6-9].*|172.2[0-9].*|172.3[01].*)
+    dns_upsert "$HOST" "$LB_IP"; ok "$HOST -> $LB_IP (private zone)" ;;
+  *) warn "no internal LB address on $GW yet; $HOST not in private DNS (rerun after 80-ingress.sh)" ;;
+esac
 
 run_tests
 

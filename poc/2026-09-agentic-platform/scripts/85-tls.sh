@@ -33,7 +33,7 @@ assert_kube_reachable
 BASE_DOMAIN="${BASE_DOMAIN:-agentic.eu0.internal}"
 GW_NS="${AGW_NS:-agentgateway-system}"
 GW="${AGW_GATEWAY:-agentgateway-proxy}"
-HOSTS="keycloak kagent agentregistry mcp llm"
+HOSTS="keycloak kagent agentregistry mcp llm agw"
 
 case "${1:-install}" in
 

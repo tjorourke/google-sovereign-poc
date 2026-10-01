@@ -1,3 +1,6 @@
+# Targets the agentgateway-models ListenerSet, NOT the Gateway: on the Gateway the
+# buffering would also apply to MCP streams (see listenerset.yaml).
+#
 # The router runs at PreRouting, so its x-selected-model header exists before the
 # HTTPRoute picks a rule. Buffered request bodies are mandatory: the router has to
 # read the prompt, and without them it classifies while its output is dropped.
@@ -13,7 +16,7 @@ metadata:
 spec:
   targetRefs:
     - group: gateway.networking.k8s.io
-      kind: Gateway
+      kind: ListenerSet
       name: agentgateway-models
   traffic:
     phase: PreRouting
