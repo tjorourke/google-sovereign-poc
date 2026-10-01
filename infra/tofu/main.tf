@@ -96,7 +96,8 @@ module "cluster_autopilot" {
   min_master_version  = var.min_master_version
   labels              = var.labels
 
-  enable_private_nodes = var.enable_private_nodes
+  enable_private_nodes           = var.enable_private_nodes
+  autopilot_privileged_admission = var.autopilot_privileged_admission
 }
 
 module "cloudsql" {

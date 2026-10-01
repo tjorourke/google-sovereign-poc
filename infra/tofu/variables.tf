@@ -216,6 +216,12 @@ variable "bind_workload_identity" {
   default     = false
 }
 
+variable "autopilot_privileged_admission" {
+  description = "Approved WorkloadAllowlist paths for Autopilot privileged workloads."
+  type        = list(string)
+  default     = ["gke://*"]
+}
+
 variable "enable_private_nodes" {
   description = "Autopilot nodes take no external IP and egress via Cloud NAT. See the module."
   type        = bool

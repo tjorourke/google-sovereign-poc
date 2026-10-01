@@ -40,3 +40,8 @@ variable "master_authorized_cidrs" {
   type        = list(string)
   default     = []
 }
+variable "autopilot_privileged_admission" {
+  description = "Approved WorkloadAllowlist paths, kept in state across normal applies."
+  type        = list(string)
+  default     = ["gke://*"]
+}

@@ -1,0 +1,30 @@
+# Who spent it: the dimensions agentgateway tags every priced LLM span with.
+#
+# The enterprise-agentgateway chart renders budgetDimensions.config into the
+# Gateway's standard attributes; the proxy resolves each CEL expression per
+# request, Cost Management breaks spend down by it, and an
+# EnterpriseAgentgatewayBudget can scope a limit to any of them.
+#
+# The JWT is the one 88-identity.sh mints: bob's token exchanged at the agent's
+# own Keycloak client, so one bearer names the person (preferred_username), the
+# team (team) and the agent (agent_id). Helm replaces lists wholesale, so the
+# chart defaults are restated after the claims we prefer.
+#
+# Applied by 70-agentgateway.sh with -f.
+budgetDimensions:
+  enabled: true
+  config:
+    hierarchy:
+    - id: group
+      expression: 'coalesce(jwt.team, jwt.group, apiKey.group)'
+      displayName: Team
+    - id: user
+      expression: 'coalesce(jwt.preferred_username, apiKey.user, apiKey.name, apiKey.owner, jwt.sub, jwt.email, basicAuth.username, source.identity.namespace + "/" + source.identity.serviceAccount, source.subjectCn)'
+      displayName: User
+    attributes:
+    - id: agent
+      expression: 'coalesce(jwt.agent_id, jwt.azp)'
+      displayName: Agent
+    - id: virtualKey
+      expression: apiKey.id
+      displayName: Virtual Key

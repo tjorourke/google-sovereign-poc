@@ -1,0 +1,21 @@
+# Gateway spans to the Solo Enterprise telemetry collector, so agentgateway shows
+# up in the UI's tracing next to the kagent agents. One EnterpriseAgentgatewayPolicy
+# per Gateway: a second one targeting the same Gateway replaces this one.
+apiVersion: enterpriseagentgateway.solo.io/v1alpha1
+kind: EnterpriseAgentgatewayPolicy
+metadata:
+  name: gateway-tracing
+  namespace: agentgateway-system
+spec:
+  targetRefs:
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: agentgateway-proxy
+  frontend:
+    tracing:
+      backendRef:
+        name: solo-enterprise-telemetry-collector
+        namespace: solo-enterprise
+        port: 4317
+      protocol: GRPC
+      randomSampling: "true"

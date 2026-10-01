@@ -1,0 +1,35 @@
+# What a token costs: prices for the two models the lab actually serves.
+#
+# agentgateway prices every LLM response from a model catalog, looked up by
+# provider and model name. The built-in catalog (ConfigMap
+# agentgateway-proxy-model-catalog) knows neither of ours: Gemma 3 27B is
+# self-hosted on the H100, and both backends speak the OpenAI API, so the proxy
+# looks them up as openai/<model> and finds nothing. Every live call then costs
+# $0 and Cost Management and the budgets have nothing to count.
+#
+# This catalog is merged over the built-in one through spec.modelCatalog on the
+# shared gateway's parameters (yaml/sizing/agentgateway-parameters.yaml).
+# Rates are USD per 1M tokens, the same illustrative chargeback rates
+# 89-cost.sh seeds history with: Gemma is the H100's hourly cost spread over its
+# tokens, Gemini roughly its public Flash rate.
+#
+# Applied by 70-agentgateway.sh.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: trustusbank-model-catalog
+  namespace: agentgateway-system
+  labels:
+    company: trustusbank
+data:
+  catalog.json: |
+    {
+      "providers": {
+        "openai": {
+          "models": {
+            "gemma-3-27b-it":   {"rates": {"input": "0.60", "output": "1.80"}},
+            "gemini-3.8-flash": {"rates": {"input": "0.50", "output": "3.00"}}
+          }
+        }
+      }
+    }

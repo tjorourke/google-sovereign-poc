@@ -1,0 +1,84 @@
+{#- Gemma 3 chat template with tool calling, for vLLM --tool-call-parser pythonic.
+
+Gemma 3 has no tool tokens. Its stock template has no tools section and raises
+on anything but strict user/model alternation, so a kagent agent (system prompt,
+tool results, several tool messages in a row) cannot use it at all. This one:
+
+  - folds the system prompt and the tool list into the first user turn, which is
+    where Gemma expects instructions;
+  - asks for calls as a bare Python list, [name(arg=value)], which is the only
+    shape the pythonic parser accepts: the output must START with "[", so a
+    code fence or a sentence in front of it turns the call into plain text;
+  - renders tool results as user turns and merges consecutive same-role
+    messages, so the alternation Gemma was trained on still holds.
+
+Tool names must be identifiers (snake_case): the parser's regex has no hyphen.
+-#}
+{{- bos_token -}}
+{%- set ns = namespace(prefix='', open='', first=true) -%}
+{%- if messages and messages[0]['role'] == 'system' -%}
+  {%- if messages[0]['content'] is string -%}
+    {%- set ns.prefix = messages[0]['content'] -%}
+  {%- else -%}
+    {%- set ns.prefix = messages[0]['content'] | map(attribute='text') | join('\n') -%}
+  {%- endif -%}
+  {%- set loop_messages = messages[1:] -%}
+{%- else -%}
+  {%- set loop_messages = messages -%}
+{%- endif -%}
+{%- if tools -%}
+  {%- set tool_text -%}
+You can call the functions listed below. To call one or more of them, reply with ONLY a Python list of calls and nothing else, exactly like this:
+[function_name(param_one="text", param_two=42), other_function(param="value")]
+Use keyword arguments and Python literals (True, False, None). No backticks, no code fences, no text before or after the list. After the results come back, answer the user in plain text. If no function is needed, answer in plain text straight away.
+
+Functions:
+{{ tools | map(attribute='function') | list | tojson(indent=2) }}
+  {%- endset -%}
+  {%- set ns.prefix = (ns.prefix ~ '\n\n' if ns.prefix else '') ~ tool_text -%}
+{%- endif -%}
+{%- for message in loop_messages -%}
+  {%- set role = 'model' if message['role'] == 'assistant' else 'user' -%}
+  {%- if role != ns.open -%}
+    {%- if ns.open -%}{{ '<end_of_turn>\n' }}{%- endif -%}
+    {{- '<start_of_turn>' ~ role ~ '\n' -}}
+    {%- set ns.open = role -%}
+  {%- else -%}
+    {{- '\n' -}}
+  {%- endif -%}
+  {%- if ns.first and ns.prefix -%}
+    {{- ns.prefix ~ '\n\n' -}}
+  {%- endif -%}
+  {%- set ns.first = false -%}
+  {%- if message['role'] == 'tool' -%}
+    {{- '```tool_output\n' -}}
+  {%- endif -%}
+  {%- if message['content'] is string -%}
+    {{- message['content'] | trim -}}
+  {%- elif message['content'] -%}
+    {%- for part in message['content'] -%}
+      {%- if part['type'] == 'text' -%}{{- part['text'] | trim -}}{%- endif -%}
+    {%- endfor -%}
+  {%- endif -%}
+  {%- if message['role'] == 'tool' -%}
+    {{- '\n```' -}}
+  {%- endif -%}
+  {%- if message['role'] == 'assistant' and message['tool_calls'] -%}
+    {{- '[' -}}
+    {%- for tc in message['tool_calls'] -%}
+      {%- set fn = tc['function'] if tc['function'] is defined else tc -%}
+      {{- fn['name'] ~ '(' -}}
+      {%- if fn['arguments'] is mapping -%}
+        {%- for k, v in fn['arguments'].items() -%}
+          {{- k ~ '=' ~ (v | tojson) -}}{%- if not loop.last -%}{{- ', ' -}}{%- endif -%}
+        {%- endfor -%}
+      {%- elif fn['arguments'] -%}
+        {{- fn['arguments'] -}}
+      {%- endif -%}
+      {{- ')' -}}{%- if not loop.last -%}{{- ', ' -}}{%- endif -%}
+    {%- endfor -%}
+    {{- ']' -}}
+  {%- endif -%}
+{%- endfor -%}
+{%- if ns.open -%}{{ '<end_of_turn>\n' }}{%- endif -%}
+{%- if add_generation_prompt -%}{{ '<start_of_turn>model\n' }}{%- endif -%}

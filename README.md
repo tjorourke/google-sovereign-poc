@@ -19,6 +19,11 @@ OSS components.
 
 ## Quick start
 
+For the current Google presentation, start with
+[`DEMO-READINESS.md`](poc/2026-09-agentic-platform/DEMO-READINESS.md): verified
+waypoint/JWT/tool-grant behavior, deployed versions, load balancers and the live
+inventory. The console UI lives in the companion `solo-demos` repository.
+
 In order. `deploy-e2e.sh` takes about 75 minutes.
 
 ```bash
@@ -153,6 +158,12 @@ all exist first or Prometheus has nothing to scrape.
 | `85-edge.sh` | applies the Tier 1 edge once agentgateway exists |
 | `95-authz-off.sh` | removes MCP tool authorization, back to all tools visible |
 | `98-gpu-evidence-capture.sh` | collects live evidence for the GPU case with Google |
+| `88-identity.sh` | console users and per-agent Keycloak token-exchange clients |
+| `89-cost.sh` | labelled illustrative cost history and budget configuration |
+| `91-console-kubeconfig.sh` | local demo-console cluster credential (never commit it) |
+| `92-mcp-lockdown.sh` | all agent waypoints, strict MCP workload JWTs and per-agent tool grants |
+| `verify_mcp_security.py` | live allow/deny probes, identity replay and pod-IP bypass checks |
+| `capture_infrastructure.py` | credential-free cloud, Helm, LB, image and policy inventory |
 | `99-teardown.sh` | in-cluster teardown in reverse dependency order |
 | `o11y-deploy.sh` | `install` / `--status` / `--open` / `--remove` |
 

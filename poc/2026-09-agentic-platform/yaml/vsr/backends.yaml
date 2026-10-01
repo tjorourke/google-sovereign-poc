@@ -25,11 +25,20 @@ metadata:
   name: gemini
   namespace: agentgateway-system
 spec:
+  # The openai provider against Gemini's OpenAI-compatible endpoint, not the
+  # gemini provider: that one calls the native generateContent API with the key
+  # as a Bearer token, which the native API refuses for the new AQ.-format keys
+  # ("Expected OAuth 2 access token"). This endpoint accepts them as Bearer.
   ai:
     provider:
-      gemini:
-        model: gemini-2.5-flash
+      openai:
+        model: gemini-3.8-flash
+      host: generativelanguage.googleapis.com
+      port: 443
+      path: /v1beta/openai/chat/completions
   policies:
+    tls:
+      sni: generativelanguage.googleapis.com
     auth:
       secretRef:
         name: gemini-secret

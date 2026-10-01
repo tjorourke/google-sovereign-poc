@@ -1,9 +1,8 @@
 # GKE Autopilot. On GCD this is the ONLY mode — Standard clusters do not exist.
 #
 # What that costs us, from /kubernetes-engine/docs/tpc-differences:
-#   - no privileged workloads, and no allowlist mechanism to grant them, so
-#     Istio ambient (istio-cni SYS_ADMIN + ztunnel SYS_ADMIN/NET_ADMIN) and
-#     sidecar istio-init (NET_ADMIN/NET_RAW) are both impossible
+#   - privileged workloads need approved WorkloadAllowlists. Phases 62/63
+#     install them; Solo Istio ambient is verified on this 1.36 preview cluster.
 #   - Cloud Service Mesh is unavailable, so there is no managed alternative
 #   - GKE network policies are unavailable
 #   - max 32 pods per node; Hyperdisk Balanced storage only
@@ -18,8 +17,9 @@ resource "google_container_cluster" "this" {
   name     = var.cluster_name
   location = var.region
 
-  enable_autopilot    = true
-  deletion_protection = false # POC; flip for anything long-lived
+  enable_autopilot               = true
+  autopilot_privileged_admission = var.autopilot_privileged_admission
+  deletion_protection            = false # POC; flip for anything long-lived
 
   network    = var.network_id
   subnetwork = var.subnet_id

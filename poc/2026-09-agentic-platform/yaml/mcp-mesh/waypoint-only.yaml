@@ -1,0 +1,23 @@
+# Reference for the per-server policies rendered by mcp_security.py.
+#
+# The per-agent policies are enforced by the waypoint, so a caller that reached
+# a pod some other way would skip them: the edge gateway (agentgateway-system
+# is not in the mesh), a pod dialling the pod IP, or a namespace outside ambient.
+# ztunnel enforces this on the MCP pods themselves: it admits only connections
+# from the waypoint's own identity. Applied last by 92-mcp-lockdown.sh, once the
+# agents dial the in-cluster Service names rather than the edge.
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: bank-payments-waypoint-only
+  namespace: mcp
+  labels: {company: trustusbank}
+spec:
+  selector:
+    matchLabels:
+      app: bank-payments
+  action: DENY
+  rules:
+  - from:
+    - source:
+        notPrincipals: ["cluster.local/ns/mcp/sa/mcp-waypoint"]

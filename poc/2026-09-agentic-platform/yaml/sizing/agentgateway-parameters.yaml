@@ -41,3 +41,10 @@ spec:
         metadata:
           labels:
             company: trustusbank
+  # Prices for Gemma and Gemini, which the built-in catalog lacks; without them
+  # every LLM call costs $0. See yaml/cost/model-catalog.yaml.
+  modelCatalog:
+    sources:
+    - configMap:
+        name: trustusbank-model-catalog
+        key: catalog.json

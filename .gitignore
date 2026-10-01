@@ -38,3 +38,7 @@ poc/**/deploy/.run-all-state
 # per-lab kubeconfig (see lib.sh: kubeconfig isolation)
 .kubeconfig
 *.kubeconfig
+.gstack/
+__pycache__/
+*.pyc
+gke_gcloud_auth_plugin_cache

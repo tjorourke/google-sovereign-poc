@@ -25,6 +25,8 @@ load_env
 assert_universe
 
 NS=agentregistry-system
+# 2026.9.0 needs a separate AR license and changes the kagent deployment API.
+# Keep the verified version until that migration is tested (see TASKS.md).
 VERSION="${AR_ENT_VERSION:-2026.6.1}"
 CHART="${AR_CHART:-oci://us-docker.pkg.dev/solo-public/agentregistry-enterprise/helm/agentregistry-enterprise}"
 

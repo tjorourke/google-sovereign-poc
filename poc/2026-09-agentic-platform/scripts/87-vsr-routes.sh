@@ -5,7 +5,7 @@
 #   gemma   Gemma 3 27B on the H100 in this cluster (60-model.sh). Computer
 #           science and finance (plus law, health, psychology) always land here.
 #           Never leaves Berlin.
-#   gemini  Gemini 2.5 Flash, Google's frontier model, for non-sensitive general
+#   gemini  Gemini 3.8 Flash, Google's frontier model, for non-sensitive general
 #           questions. Leaves the boundary through Cloud NAT, by policy.
 #
 # One agentgateway, one Deployment, one address. The model endpoint is a
@@ -55,7 +55,7 @@ run_tests() {
   ask() {  # label  model  header  prompt
     local hdr=() body resp
     [[ -n "$3" ]] && hdr=(-H "x-selected-model: $3")
-    body="$(jq -n --arg m "$2" --arg p "$4" '{model:$m, max_tokens:80, messages:[{role:"user",content:$p}]}')"
+    body="$(jq -n --arg m "$2" --arg p "$4" '{model:$m, max_tokens:1500, messages:[{role:"user",content:$p}]}')"
     resp="$(curl -sS -m 180 -D /tmp/vsr-h.$$ -H "Host: $HOST" -H 'Content-Type: application/json' \
               ${hdr[@]+"${hdr[@]}"} -d "$body" "http://127.0.0.1:$PORT/v1/chat/completions" || true)"
     printf '\n  %-7s %s\n' "$1" "$4" >&2
@@ -66,9 +66,9 @@ run_tests() {
   }
   step "four calls through $HOST"
   ask auto   auto "" "Write a Python function that merges overlapping intervals."
-  ask auto   auto "" "Plan a two-day programme for an international delegation visiting Berlin."
+  ask auto   auto "" "Plan a two-day cultural visit to Berlin for an international delegation: museums, a concert and a riverside walk."
   ask gemma  gemma-3-27b-it   gemma-3-27b-it   "Say hello from Berlin in one sentence."
-  ask gemini gemini-2.5-flash gemini-2.5-flash "Say hello from Gemini in one sentence."
+  ask gemini gemini-3.8-flash gemini-3.8-flash "Say hello from Gemini in one sentence."
   echo >&2
   ok "first auto call should be Gemma (computer science), second Gemini (other)"
 }
@@ -105,6 +105,13 @@ helm --kube-context "$(kube_context)" upgrade --install semantic-router "$VSR_CH
   -n "$NS" --version "$VSR_VERSION" \
   -f "$VSR_DIR/values.yaml" \
   $(company_labels)
+# Recreate, not the chart's RollingUpdate: the model cache is a ReadWriteOnce
+# disk, so a rolling update starts the new pod while the old one still holds the
+# volume, and it sits in Multi-Attach until the progress deadline. The chart has
+# no strategy value; patching straight after upgrade also unsticks a rollout
+# that is already waiting.
+kc -n "$NS" patch deploy semantic-router --type=merge \
+  -p '{"spec":{"strategy":{"type":"Recreate","rollingUpdate":null}}}' >/dev/null
 log "waiting for the router (first start downloads its models; up to 30m)"
 kc -n "$NS" wait --for=condition=Available deploy/semantic-router --timeout=1800s
 ok "semantic-router Available"

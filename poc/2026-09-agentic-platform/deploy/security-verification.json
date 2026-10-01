@@ -1,0 +1,592 @@
+{
+  "verifiedAt": "2026-10-01T22:15:07.246166+00:00",
+  "passed": 117,
+  "failed": 0,
+  "checks": [
+    {
+      "check": "mcp/bank-payments strict JWT",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "check": "mcp/bank-payments policy attached",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "check": "mcp/bank-compliance strict JWT",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "check": "mcp/bank-compliance policy attached",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "check": "mcp/bank-credit strict JWT",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "check": "mcp/bank-credit policy attached",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "check": "mcp/bank-gdpr strict JWT",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "check": "mcp/bank-gdpr policy attached",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "check": "mcp/sdlc-pm strict JWT",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "check": "mcp/sdlc-pm policy attached",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "check": "mcp/sdlc-dev strict JWT",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "check": "mcp/sdlc-dev policy attached",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "check": "mcp/everything-server strict JWT",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "check": "mcp/everything-server policy attached",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "check": "agents/everything-server strict JWT",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "check": "agents/everything-server policy attached",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "check": "kagent/kagent-tools strict JWT",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "check": "kagent/kagent-tools policy attached",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "check": "No edge MCP routes",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "check": "mcp/bank-payments missing",
+      "passed": true,
+      "detail": "HTTP 401"
+    },
+    {
+      "check": "mcp/bank-payments invalid",
+      "passed": true,
+      "detail": "HTTP 401"
+    },
+    {
+      "check": "mcp/bank-compliance missing",
+      "passed": true,
+      "detail": "HTTP 401"
+    },
+    {
+      "check": "mcp/bank-compliance invalid",
+      "passed": true,
+      "detail": "HTTP 401"
+    },
+    {
+      "check": "mcp/bank-credit missing",
+      "passed": true,
+      "detail": "HTTP 401"
+    },
+    {
+      "check": "mcp/bank-credit invalid",
+      "passed": true,
+      "detail": "HTTP 401"
+    },
+    {
+      "check": "mcp/bank-gdpr missing",
+      "passed": true,
+      "detail": "HTTP 401"
+    },
+    {
+      "check": "mcp/bank-gdpr invalid",
+      "passed": true,
+      "detail": "HTTP 401"
+    },
+    {
+      "check": "mcp/sdlc-pm missing",
+      "passed": true,
+      "detail": "HTTP 401"
+    },
+    {
+      "check": "mcp/sdlc-pm invalid",
+      "passed": true,
+      "detail": "HTTP 401"
+    },
+    {
+      "check": "mcp/sdlc-dev missing",
+      "passed": true,
+      "detail": "HTTP 401"
+    },
+    {
+      "check": "mcp/sdlc-dev invalid",
+      "passed": true,
+      "detail": "HTTP 401"
+    },
+    {
+      "check": "mcp/everything-server missing",
+      "passed": true,
+      "detail": "HTTP 401"
+    },
+    {
+      "check": "mcp/everything-server invalid",
+      "passed": true,
+      "detail": "HTTP 401"
+    },
+    {
+      "check": "agents/everything-server missing",
+      "passed": true,
+      "detail": "HTTP 401"
+    },
+    {
+      "check": "agents/everything-server invalid",
+      "passed": true,
+      "detail": "HTTP 401"
+    },
+    {
+      "check": "kagent/kagent-tools missing",
+      "passed": true,
+      "detail": "HTTP 401"
+    },
+    {
+      "check": "kagent/kagent-tools invalid",
+      "passed": true,
+      "detail": "HTTP 401"
+    },
+    {
+      "check": "bank-payments catalog",
+      "passed": true,
+      "detail": "4 tools"
+    },
+    {
+      "check": "bank-compliance catalog",
+      "passed": true,
+      "detail": "3 tools"
+    },
+    {
+      "check": "bank-credit catalog",
+      "passed": true,
+      "detail": "2 tools"
+    },
+    {
+      "check": "bank-gdpr catalog",
+      "passed": true,
+      "detail": "3 tools"
+    },
+    {
+      "check": "sdlc-pm catalog",
+      "passed": true,
+      "detail": "3 tools"
+    },
+    {
+      "check": "sdlc-dev catalog",
+      "passed": true,
+      "detail": "5 tools"
+    },
+    {
+      "check": "everything-server catalog",
+      "passed": true,
+      "detail": "5 tools"
+    },
+    {
+      "check": "agentregistry-system/fx-helper-latest-fx-helper-kagent waypoint",
+      "passed": true,
+      "detail": "agent-fx-helper-latest-fx-helper-kagent-waypoint"
+    },
+    {
+      "check": "fx-helper-latest-fx-helper-kagent rotating JWT",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "check": "fx-helper-latest-fx-helper-kagent controller pod-IP bypass denied",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "check": "fx-helper-latest-fx-helper-kagent mesh endpoint",
+      "passed": true,
+      "detail": "http://bank-payments.mcp.svc.cluster.local:3000/mcp"
+    },
+    {
+      "check": "fx-helper-latest-fx-helper-kagent exact tool grant",
+      "passed": true,
+      "detail": "get_ecb_fx_rate"
+    },
+    {
+      "check": "agentregistry-system/my-payments-2-latest-my-payments-2-ka waypoint",
+      "passed": true,
+      "detail": "agent-my-payments-2-latest-my-payments-2-ka-waypoint"
+    },
+    {
+      "check": "my-payments-2-latest-my-payments-2-ka rotating JWT",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "check": "my-payments-2-latest-my-payments-2-ka controller pod-IP bypass denied",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "check": "my-payments-2-latest-my-payments-2-ka mesh endpoint",
+      "passed": true,
+      "detail": "http://bank-payments.mcp.svc.cluster.local:3000/mcp"
+    },
+    {
+      "check": "my-payments-2-latest-my-payments-2-ka exact tool grant",
+      "passed": true,
+      "detail": "check_payment_limit, get_account_balance, get_ecb_fx_rate, list_transactions"
+    },
+    {
+      "check": "agentregistry-system/my-payments-latest-my-payments-kage waypoint",
+      "passed": true,
+      "detail": "agent-my-payments-latest-my-payments-kage-waypoint"
+    },
+    {
+      "check": "my-payments-latest-my-payments-kage rotating JWT",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "check": "my-payments-latest-my-payments-kage controller pod-IP bypass denied",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "check": "my-payments-latest-my-payments-kage mesh endpoint",
+      "passed": true,
+      "detail": "http://bank-payments.mcp.svc.cluster.local:3000/mcp"
+    },
+    {
+      "check": "my-payments-latest-my-payments-kage exact tool grant",
+      "passed": true,
+      "detail": "check_payment_limit, get_account_balance, get_ecb_fx_rate, list_transactions"
+    },
+    {
+      "check": "agentregistry-system/sovereignagent-latest-sovereignagent-k waypoint",
+      "passed": true,
+      "detail": "agent-sovereignagent-latest-sovereignagent-k-waypoint"
+    },
+    {
+      "check": "sovereignagent-latest-sovereignagent-k rotating JWT",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "check": "sovereignagent-latest-sovereignagent-k controller pod-IP bypass denied",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "check": "sovereignagent-latest-sovereignagent-k mesh endpoint",
+      "passed": true,
+      "detail": "http://everything-server.mcp.svc.cluster.local:3000/mcp"
+    },
+    {
+      "check": "sovereignagent-latest-sovereignagent-k exact tool grant",
+      "passed": true,
+      "detail": "echo, reverse_text, sum, to_uppercase"
+    },
+    {
+      "check": "agentregistry-system/trustusbank-compliance-latest-trustusbank-comp waypoint",
+      "passed": true,
+      "detail": "agent-trustusbank-compliance-latest-trustusbank-comp-waypoint"
+    },
+    {
+      "check": "trustusbank-compliance-latest-trustusbank-comp rotating JWT",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "check": "trustusbank-compliance-latest-trustusbank-comp controller pod-IP bypass denied",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "check": "trustusbank-compliance-latest-trustusbank-comp mesh endpoint",
+      "passed": true,
+      "detail": "http://bank-compliance.mcp.svc.cluster.local:3000/mcp"
+    },
+    {
+      "check": "trustusbank-compliance-latest-trustusbank-comp exact tool grant",
+      "passed": true,
+      "detail": "check_aml_threshold, get_transaction_alerts, screen_sanctions"
+    },
+    {
+      "check": "agentregistry-system/trustusbank-credit-latest-trustusbank-cred waypoint",
+      "passed": true,
+      "detail": "agent-trustusbank-credit-latest-trustusbank-cred-waypoint"
+    },
+    {
+      "check": "trustusbank-credit-latest-trustusbank-cred rotating JWT",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "check": "trustusbank-credit-latest-trustusbank-cred controller pod-IP bypass denied",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "check": "trustusbank-credit-latest-trustusbank-cred mesh endpoint",
+      "passed": true,
+      "detail": "http://bank-credit.mcp.svc.cluster.local:3000/mcp"
+    },
+    {
+      "check": "trustusbank-credit-latest-trustusbank-cred exact tool grant",
+      "passed": true,
+      "detail": "assess_affordability, get_customer_exposure"
+    },
+    {
+      "check": "agentregistry-system/trustusbank-gdpr-latest-trustusbank-gdpr waypoint",
+      "passed": true,
+      "detail": "agent-trustusbank-gdpr-latest-trustusbank-gdpr-waypoint"
+    },
+    {
+      "check": "trustusbank-gdpr-latest-trustusbank-gdpr rotating JWT",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "check": "trustusbank-gdpr-latest-trustusbank-gdpr controller pod-IP bypass denied",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "check": "trustusbank-gdpr-latest-trustusbank-gdpr mesh endpoint",
+      "passed": true,
+      "detail": "http://bank-gdpr.mcp.svc.cluster.local:3000/mcp"
+    },
+    {
+      "check": "trustusbank-gdpr-latest-trustusbank-gdpr exact tool grant",
+      "passed": true,
+      "detail": "draft_art15_response, find_personal_data, list_processing_purposes"
+    },
+    {
+      "check": "agentregistry-system/trustusbank-payments-latest-trustusbank-paym waypoint",
+      "passed": true,
+      "detail": "agent-trustusbank-payments-latest-trustusbank-paym-waypoint"
+    },
+    {
+      "check": "trustusbank-payments-latest-trustusbank-paym rotating JWT",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "check": "trustusbank-payments-latest-trustusbank-paym controller pod-IP bypass denied",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "check": "trustusbank-payments-latest-trustusbank-paym mesh endpoint",
+      "passed": true,
+      "detail": "http://bank-payments.mcp.svc.cluster.local:3000/mcp"
+    },
+    {
+      "check": "trustusbank-payments-latest-trustusbank-paym exact tool grant",
+      "passed": true,
+      "detail": "check_payment_limit, get_account_balance, get_ecb_fx_rate, list_transactions"
+    },
+    {
+      "check": "agentregistry-system/tub-sdlc-dev waypoint",
+      "passed": true,
+      "detail": "agent-tub-sdlc-dev-waypoint"
+    },
+    {
+      "check": "tub-sdlc-dev rotating JWT",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "check": "tub-sdlc-dev controller pod-IP bypass denied",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "check": "tub-sdlc-dev mesh endpoint",
+      "passed": true,
+      "detail": "http://sdlc-dev.mcp.svc.cluster.local:3000/mcp"
+    },
+    {
+      "check": "tub-sdlc-dev exact tool grant",
+      "passed": true,
+      "detail": "edit_file, get_next_issue, open_pull_request, read_file, update_setting"
+    },
+    {
+      "check": "agentregistry-system/tub-sdlc-pm waypoint",
+      "passed": true,
+      "detail": "agent-tub-sdlc-pm-waypoint"
+    },
+    {
+      "check": "tub-sdlc-pm rotating JWT",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "check": "tub-sdlc-pm controller pod-IP bypass denied",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "check": "tub-sdlc-pm mesh endpoint",
+      "passed": true,
+      "detail": "http://sdlc-pm.mcp.svc.cluster.local:3000/mcp"
+    },
+    {
+      "check": "tub-sdlc-pm exact tool grant",
+      "passed": true,
+      "detail": "create_issue, get_app_settings, list_issues"
+    },
+    {
+      "check": "agents/waypoint-calc waypoint",
+      "passed": true,
+      "detail": "agent-waypoint-calc-waypoint"
+    },
+    {
+      "check": "waypoint-calc rotating JWT",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "check": "waypoint-calc controller pod-IP bypass denied",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "check": "waypoint-calc mesh endpoint",
+      "passed": true,
+      "detail": "http://everything-server.agents.svc.cluster.local:3000/mcp"
+    },
+    {
+      "check": "waypoint-calc exact tool grant",
+      "passed": true,
+      "detail": "sum"
+    },
+    {
+      "check": "kagent/sovereign-calc waypoint",
+      "passed": true,
+      "detail": "agent-sovereign-calc-waypoint"
+    },
+    {
+      "check": "sovereign-calc rotating JWT",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "check": "sovereign-calc controller pod-IP bypass denied",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "check": "sovereign-calc mesh endpoint",
+      "passed": true,
+      "detail": "http://everything-server.mcp.svc.cluster.local:3000/mcp"
+    },
+    {
+      "check": "sovereign-calc exact tool grant",
+      "passed": true,
+      "detail": "sum"
+    },
+    {
+      "check": "Wrong audience denied",
+      "passed": true,
+      "detail": "HTTP 401"
+    },
+    {
+      "check": "JWT/mesh identity mismatch denied",
+      "passed": true,
+      "detail": "HTTP 403"
+    },
+    {
+      "check": "mcp/bank-payments pod-IP bypass denied",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "check": "mcp/bank-compliance pod-IP bypass denied",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "check": "mcp/bank-credit pod-IP bypass denied",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "check": "mcp/bank-gdpr pod-IP bypass denied",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "check": "mcp/sdlc-pm pod-IP bypass denied",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "check": "mcp/sdlc-dev pod-IP bypass denied",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "check": "mcp/everything-server pod-IP bypass denied",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "check": "agents/everything-server pod-IP bypass denied",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "check": "kagent/kagent-tools pod-IP bypass denied",
+      "passed": true,
+      "detail": ""
+    },
+    {
+      "check": "sovereign-calc sum",
+      "passed": true,
+      "detail": "allowed"
+    },
+    {
+      "check": "sovereign-calc echo",
+      "passed": true,
+      "detail": "denied"
+    }
+  ]
+}

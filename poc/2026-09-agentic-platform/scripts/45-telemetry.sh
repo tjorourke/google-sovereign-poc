@@ -19,7 +19,7 @@ load_env
 assert_universe
 
 NS=solo-enterprise
-VERSION="${SOLO_MGMT_ENT_VERSION:-0.4.3}"
+VERSION="${SOLO_MGMT_ENT_VERSION:-0.5.9}"
 CHART="${SOLO_MGMT_CHART:-oci://us-docker.pkg.dev/solo-public/solo-enterprise-helm/charts/management}"
 
 # The Enterprise UI surfaces one product per integration, and each is OFF by
@@ -75,6 +75,10 @@ fi
 CH_ARGS+=(
   --set clickhouse.resources.requests.ephemeral-storage=2Gi
   --set clickhouse.resources.limits.ephemeral-storage=8Gi
+  # 0.5.9 requests 3Gi but limits 12Gi, and ClickHouse sits at ~4.5Gi once the
+  # migrations run. Burst past the request on a busy Autopilot node and the
+  # kubelet evicts it for memory, mid-migration. Request what it really uses.
+  --set clickhouse.resources.requests.memory=8Gi
 )
 step "solo-enterprise management $VERSION"
 # Trust the internal CA, but only if it exists: on an http issuer there is
@@ -86,6 +90,10 @@ helm --kube-context "$(kube_context)" upgrade --install solo-mgmt "$CHART" \
   --set products.kagent.namespace=kagent \
   --set products.agentgateway.enabled=true \
   --set products.agentgateway.namespace=agentgateway-system \
+  `# Cost Management (/age/cost-management) is off by default; it reads the` \
+  `# priced gateway spans out of this chart's ClickHouse. 89-cost.sh feeds it.` \
+  --set products.agentgateway.features.cost-management=true \
+  --set products.agentgateway.features.cost-management-writes=true \
   --set products.mesh.enabled="$MGMT_MESH_ENABLED" \
   --set licensing.licenseKey="$SOLO_LICENSE_KEY" \
   "${CH_ARGS[@]}" \

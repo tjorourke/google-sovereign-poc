@@ -24,6 +24,16 @@ resources:
   requests: { cpu: "1", memory: 3Gi }
   limits:   { cpu: "2", memory: 7Gi }
 
+# That last document also mounts /tmp/ml-models as a hostPath, which Autopilot's
+# Warden refuses (autogke-no-write-mode-hostpath: only /var/log/ is allowed).
+# Nothing in this config reads it; an emptyDir of the same name satisfies the mount.
+extraVolumes:
+  - name: ml-models
+    emptyDir: {}
+extraVolumeMounts:
+  - name: ml-models
+    mountPath: /tmp/ml-models
+
 config:
   version: v0.3
   listeners: []
@@ -36,7 +46,7 @@ config:
       - name: gemma-3-27b-it
         backend_refs:
           - { name: gemma, endpoint: llm.model.svc.cluster.local:8080, weight: 1 }
-      - name: gemini-2.5-flash
+      - name: gemini-3.8-flash
         backend_refs:
           - { name: gemini, endpoint: generativelanguage.googleapis.com:443, weight: 1 }
 
@@ -89,11 +99,11 @@ config:
             - { type: domain, name: philosophy }
             - { type: domain, name: other }
         modelRefs:
-          - { model: gemini-2.5-flash, use_reasoning: false }
+          - { model: gemini-3.8-flash, use_reasoning: false }
 
     modelCards:
       - name: gemma-3-27b-it
-      - name: gemini-2.5-flash
+      - name: gemini-3.8-flash
 
   global:
     router:

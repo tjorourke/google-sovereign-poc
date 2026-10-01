@@ -152,6 +152,12 @@ spec:
       storage: ${HF_CACHE_SIZE:-200Gi}
 PVC
   ok "PVC hf-cache (${HF_CACHE_SIZE:-200Gi}, hyperdisk-balanced) for the weights"
+  # Gemma 3 ships no tool-calling template, and without one a kagent agent's
+  # tool calls come back as text. See model/gemma3-tools.jinja.
+  kubectl -n "$NS" create configmap gemma3-tools \
+    --from-file=gemma3-tools.jinja="$LAB_ROOT/model/gemma3-tools.jinja" \
+    --dry-run=client -o yaml | kubectl apply -f - >/dev/null 2>&1
+  ok "ConfigMap gemma3-tools (chat template with tool calling)"
   kubectl apply -f - >/dev/null 2>&1 <<YAML
 apiVersion: apps/v1
 kind: Deployment
@@ -161,6 +167,9 @@ metadata:
   labels: { app: llm }
 spec:
   replicas: 1
+  # Recreate: hf-cache is a ReadWriteOnce disk and the GPU is scarce, so a
+  # surge pod would sit Pending on both while the old one held them.
+  strategy: { type: Recreate }
   selector: { matchLabels: { app: llm } }
   template:
     metadata: { labels: { app: llm } }
@@ -175,6 +184,8 @@ spec:
         - name: hf-cache
           persistentVolumeClaim:
             claimName: hf-cache
+        - name: templates
+          configMap: { name: gemma3-tools }
       containers:
         - name: server
           image: ${IMAGE}
@@ -190,7 +201,22 @@ spec:
             # misread: the server is healthy, /v1/models answers, requests return
             # 200 with a token count, and message.content is an empty string.
             - --dtype=bfloat16
+            # Tool calling for kagent and AgentRegistry agents: Gemma writes calls
+            # as a Python list, which the pythonic parser turns into tool_calls.
+            - --enable-auto-tool-choice
+            - --tool-call-parser=pythonic
+            - --chat-template=/templates/gemma3-tools.jinja
           ports: [{ containerPort: 8000, name: http }]
+          # Without these the pod reads Ready while vLLM is still downloading,
+          # or crash-looping, and the rollout wait below passes on a dead model.
+          # The startup probe allows 30 minutes for a cold 54GB download.
+          startupProbe:
+            httpGet: { path: /health, port: 8000 }
+            periodSeconds: 10
+            failureThreshold: 180
+          readinessProbe:
+            httpGet: { path: /health, port: 8000 }
+            periodSeconds: 10
           env:
             - name: HUGGING_FACE_HUB_TOKEN
               valueFrom: { secretKeyRef: { name: hf-token, key: token } }
@@ -199,7 +225,13 @@ spec:
           volumeMounts:
             - name: hf-cache
               mountPath: /hf-cache
+            - name: templates
+              mountPath: /templates
           resources:
+            requests:
+              cpu: "8"
+              memory: ${MODEL_MEMORY:-128Gi}
+              nvidia.com/gpu: ${GPU_COUNT:-1}
             limits:
               # Gemma 3 27B is ~54GB in bf16 and fits a single 80GB H100.
               # Taking all eight would idle the rest of a scarce node for nothing.
@@ -225,7 +257,7 @@ fi
 
 step "Waiting for the model to serve"
 # A cold start downloads the weights, so this is minutes not seconds.
-if kubectl -n "$NS" rollout status deploy/llm --timeout=900s >/dev/null 2>&1; then
+if kubectl -n "$NS" rollout status deploy/llm --timeout=1800s >/dev/null 2>&1; then
   ok "llm is ready"
 else
   warn "llm did not become ready. Recent events:"

@@ -12,7 +12,7 @@ project_short            = "soloio-eval"
 project_number           = "560780937444745"
 region                   = "u-germany-northeast1"
 
-cluster_name    = "agentic"
+cluster_name = "agentic"
 # RAPID + an explicit 1.36 pin, to test Google's claim that ComputeClass is
 # served there. Their engineer reproduced our missing-CRD failure on 1.35.6 and
 # reported success on a 1.36 Rapid cluster (2026-09-11), so the version IS the
@@ -21,6 +21,17 @@ cluster_name    = "agentic"
 # customer-facing environment should live.
 release_channel    = "RAPID"
 min_master_version = "1.36.0-gke.4681000"
+
+# Keep the admission paths installed by phase 63. Omitting these makes an
+# ordinary plan remove the allowlists that Solo Istio ambient depends on.
+autopilot_privileged_admission = [
+  "gke://*",
+  "gs://agentic-allowlist/istio/1.30.4/istio-cni.yaml",
+  "gs://agentic-allowlist/istio/1.30.4/istio-ztunnel.yaml",
+]
+# The cluster exists and these five bindings are live. A default plan must not
+# propose deleting them just because the bootstrap second-pass flag was omitted.
+bind_workload_identity = true
 
 network_name  = "agentic"
 subnet_cidr   = "10.20.0.0/20"

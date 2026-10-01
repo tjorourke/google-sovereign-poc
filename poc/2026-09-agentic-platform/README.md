@@ -4,7 +4,9 @@ Port of `solo-demos/agentic-enterprise-platform-kind` onto real GKE in the
 Berlin GCD universe, provisioned with OpenTofu, built as a **customer reference
 template** rather than a minimal lab.
 
-Read `PLAN.md` for the reasoning. This file is just the order of operations.
+Read `DEMO-READINESS.md` for the current demo state and verification commands.
+`deploy/inventory.json` records the live cloud resources, load balancers, charts,
+images, storage, routes and policies. `PLAN.md` preserves the original reasoning.
 
 ---
 
@@ -102,8 +104,8 @@ cause.
 ./scripts/85-edge.sh           # Tier 1: regional external ALB + Cloud Armor + TLS
 ```
 
-There is no `60-mesh.sh`. On GCD that slot is `60-model.sh` instead, which is a
-fair summary of the whole engagement.
+Solo Istio ambient is installed by phases `62`, `63`, and `64` before kagent.
+The approved WorkloadAllowlists are required on this Autopilot cluster.
 
 **The DNS handover is the part to understand.** kagent, the Enterprise UI and
 AgentRegistry all do OIDC discovery at startup, and they install before the
@@ -121,8 +123,11 @@ changes, so no token ends up with a stale `iss`. This replaces the kind lab's
 ./scripts/60-model.sh                                   # self-hosted Gemma
 MODEL_PROVIDER=selfhosted ./scripts/40-kagent.sh        # re-point kagent at it
 ./scripts/90-mcp-agent.sh                               # MCP server + agent, baseline
-./scripts/95-authz-on.sh                                # tool-level authz at the gateway
-./scripts/95-authz-off.sh                               # revert
+./scripts/88-identity.sh                                # bob/alice and per-agent OIDC clients
+# Deploy the TrustUsBank bank and SDLC workloads, then:
+./scripts/92-mcp-lockdown.sh                            # waypoints + strict JWT + per-agent grants
+KUBECONFIG="$PWD/deploy/console.kubeconfig" \
+  python3 scripts/verify_mcp_security.py                # positive + negative live checks
 ```
 
 `60-model.sh` picks its profile from the GPU quota it finds. `gpu` is
@@ -133,30 +138,30 @@ thing Google's two published GCD blueprints do not do.
 
 ---
 
-## What cannot be built here, and why
+## Verified mesh and MCP enforcement
 
-Solo Enterprise for Istio, by any route. Not a configuration problem.
+The initial ambient blocker was resolved in this preview using approved
+WorkloadAllowlists. The live cluster runs Solo Istio `1.30.4-solo`, including
+istiod, CNI and ztunnel. Every agent has an enterprise agentgateway waypoint.
 
-| Route | Status |
-|---|---|
-| Istio ambient | `istio-cni` needs hostNetwork + `SYS_ADMIN`, `ztunnel` needs `SYS_ADMIN`/`NET_ADMIN`/`runAsUser: 0`. GKE on GCD is Autopilot-only and rejects both. |
-| Autopilot privileged allowlist | *"Creating and installing allowlists to run privileged workloads in Autopilot clusters is not supported."* The mechanism does not exist here. |
-| Istio sidecar | `istio-init` needs `NET_ADMIN`/`NET_RAW`. Same wall. |
-| Cloud Service Mesh | *"Cloud Service Mesh is unavailable."* |
-| GKE network policies | Listed as unavailable. Even the crude fallback is gone. |
+MCP traffic uses the in-cluster Services through ambient HBONE. All nine MCP
+Services require signed, expiring Kubernetes ServiceAccount JWTs with audience
+`trustusbank-mcp`. A Require policy binds the JWT subject to the source's mTLS
+namespace and ServiceAccount. Projected tokens rotate automatically.
 
-Tracked in `feedback/google/01-autopilot-ambient-blocker.md`.
+Each agent/backend pair has an `EnterpriseAgentgatewayPolicy` with an explicit
+tool allowlist. The catalog and controller may discover tools, not call them.
+The unused kagent administrative tools backend has no agent grants. Gateway
+policies hide unauthorized tools and reject direct calls to them.
 
-**The trap to avoid:** the `enterprise-agentgateway-waypoint` GatewayClass is
-registered by the chart and a waypoint Deployment *will* schedule. But nothing
-redirects traffic to it without ztunnel, so if you label an MCPServer
-`kagent.solo.io/waypoint=true` the resources apply, the policy reports
-`Accepted`, and **nothing is enforced**. Silent failure of a security control.
-Use `95-authz-on.sh`, which enforces at the standalone gateway instead.
+Per-server ztunnel DENY policies reject connections that do not come from the
+MCP waypoint. MCP backends use Service selectors, not static DNS targets:
+static targets lose workload mTLS on the waypoint-to-server hop. All old edge
+MCP routes are removed. Pod-IP bypasses are tested, not inferred from labels.
 
-What survives: MCP tool-level authorization, JSON-RPC-level policy, LLM traffic
-management, and the audit trail. What is lost: transparent interception and
-workload mTLS. Say both.
+`95-authz-on.sh` / `95-authz-off.sh` are historical standalone experiments.
+Use `92-mcp-lockdown.sh` for the Google demo. After any old deployment script is
+re-run, run lockdown and verification again before presenting.
 
 ---
 

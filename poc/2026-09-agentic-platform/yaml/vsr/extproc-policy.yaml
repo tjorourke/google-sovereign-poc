@@ -8,6 +8,11 @@
 # FailOpen, deliberately, and safe only because of routes.yaml: if the router is
 # down no header is set, the request falls to the last rule, and that rule is
 # Gemma. A router outage keeps traffic in Berlin rather than refusing it.
+#
+# Response bodies are NOT sent (None). The router decides on the request alone;
+# with Buffered responses agentgateway held the whole streamed answer until the
+# model finished (first token at ~5s instead of ~0.1s), so the demo's text arrived
+# in one lump. Response headers still go, so the router's x-vsr-* headers survive.
 apiVersion: agentgateway.dev/v1alpha1
 kind: AgentgatewayPolicy
 metadata:
@@ -29,6 +34,6 @@ spec:
         requestHeaderMode: Send
         requestBodyMode: Buffered
         responseHeaderMode: Send
-        responseBodyMode: Buffered
+        responseBodyMode: None
         allowModeOverride: true
       failureMode: FailOpen

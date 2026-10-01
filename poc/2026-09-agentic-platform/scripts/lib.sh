@@ -66,6 +66,23 @@ load_env() {
   if [[ -f "$HOME/code/solo/secrets/secrets-envs.sh" ]]; then
     # shellcheck disable=SC1091
     source "$HOME/code/solo/secrets/secrets-envs.sh" >/dev/null 2>&1 || true
+    # That file is shared across every Solo repo and also sets keys this repo
+    # sets (it carries an HF_TOKEN without Gemma access, which crash-looped vLLM
+    # on a 401 "gated repo"). This repo's own values win: read them again.
+    # But .env.local also carries empty placeholders (AGENTGATEWAY_LICENSE_KEY=),
+    # and an empty placeholder must not blank a real key from the shared file.
+    local k v keep=()
+    for k in AGENTGATEWAY_LICENSE_KEY ISTIO_LICENSE_KEY SOLO_LICENSE_KEY; do
+      [[ -n "${!k:-}" ]] && keep+=("$k")
+      [[ -n "${!k:-}" ]] && eval "local _saved_$k=\"\${$k}\""
+    done
+    # shellcheck disable=SC1091
+    source "$REPO_ROOT/.env.local"
+    for k in "${keep[@]+"${keep[@]}"}"; do
+      if [[ -z "${!k:-}" ]]; then
+        v="_saved_$k"; export "$k=${!v}"
+      fi
+    done
   fi
 }
 
@@ -87,6 +104,12 @@ tofu_out() { (cd "$TOFU_DIR" && tofu output -raw "$1" 2>/dev/null || true); }
 # eu0: prefix makes the usual gke_<project>_<location>_<name> shape unsafe to
 # hand-build, so read it back from kubeconfig instead.
 kube_context() {
+  if [[ -n "${KUBE_CONTEXT:-}" ]]; then
+    kubectl config get-contexts "$KUBE_CONTEXT" -o name 2>/dev/null | grep -Fxq "$KUBE_CONTEXT" \
+      || die "context '$KUBE_CONTEXT' is not in the isolated kubeconfig $KUBECONFIG"
+    printf '%s\n' "$KUBE_CONTEXT"
+    return
+  fi
   local name="${CLUSTER_NAME:-}"
   [[ -n "$name" ]] || name="$(tofu_out cluster_name)"
   [[ -n "$name" ]] || die "no cluster name — run 10-tofu.sh apply first"

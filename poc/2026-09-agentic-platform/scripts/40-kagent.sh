@@ -17,7 +17,7 @@ load_env
 assert_universe
 
 NS=kagent
-VERSION="${KAGENT_ENT_VERSION:-0.4.3}"
+VERSION="${KAGENT_ENT_VERSION:-0.5.9}"
 CHART_BASE="${SOLO_CHART_BASE:-oci://us-docker.pkg.dev/solo-public/kagent-enterprise-helm/charts}"
 OTEL_ENDPOINT="${OTEL_ENDPOINT:-http://solo-enterprise-telemetry-collector.solo-enterprise.svc.cluster.local:4317}"
 
@@ -173,8 +173,15 @@ helm --kube-context "$(kube_context)" upgrade --install kagent \
   `# labels covers chart resources only; agentDeployment.podLabels is what the` \
   `# controller stamps on every Agent pod it creates at runtime.` \
   $(company_labels labels controller.agentDeployment.podLabels) \
+  `# 60-model.sh re-points default-model-config with kubectl patch; Helm 4's` \
+  `# server-side apply refuses to take that field back without this.` \
+  --force-conflicts \
   >/dev/null
 ok "chart applied"
+# The upgrade just reset it to the chart's model name: point it back at Gemma.
+kc -n "$NS" patch modelconfig default-model-config --type=merge \
+  -p "{\"spec\":{\"model\":\"${SERVED_NAME:-gemma-3-27b-it}\",\"openAI\":{\"baseUrl\":\"http://llm.${BASE_DOMAIN:-agentic.eu0.internal}/v1\"}}}" \
+  >/dev/null 2>&1 && ok "default-model-config kept on ${SERVED_NAME:-gemma-3-27b-it}" || true
 
 step "waiting for the controller"
 if ! kc -n "$NS" rollout status deploy/kagent-controller --timeout=240s 2>/dev/null; then

@@ -142,6 +142,13 @@ done
   || { kc -n "$NS" describe gateway "$GW" >&2; die "Gateway did not reach Programmed"; }
 ok "Gateway Programmed"
 
+# Gateway spans go to the Solo Enterprise collector, so the UI's agentgateway
+# tracing is not empty next to the kagent agents. See yaml/telemetry/.
+step "gateway tracing to the Solo Enterprise telemetry collector"
+kc apply -f "$LAB_ROOT/yaml/telemetry/gateway-tracing.yaml" >/dev/null 2>&1 \
+  && ok "agentgateway spans → solo-enterprise-telemetry-collector:4317" \
+  || warn "could not apply the tracing policy; the UI shows agent traces only"
+
 # ── the Service the controller provisioned ───────────────────────────────────
 GW_SVC="$(kc -n "$NS" get svc -l "gateway.networking.k8s.io/gateway-name=${GW}" -o jsonpath='{.items[0].metadata.name}')"
 [[ -n "$GW_SVC" ]] || die "no Service for the Gateway"

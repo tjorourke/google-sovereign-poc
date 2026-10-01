@@ -22,7 +22,7 @@ load_env
 assert_universe
 
 NS=agentgateway-system
-VERSION="${AGW_ENT_VERSION:-v2026.8.2}"
+VERSION="${AGW_ENT_VERSION:-v2026.9.3}"
 CHART_BASE="${AGW_CHART_BASE:-oci://us-docker.pkg.dev/solo-public/enterprise-agentgateway/charts}"
 GW_API_VERSION="${GATEWAY_API_VERSION:-v1.6.1}"
 
@@ -63,6 +63,11 @@ kc apply -f "$LAB_ROOT/yaml/sizing/gatewayclass-parameters.yaml" >/dev/null \
   || die "could not apply yaml/sizing/gatewayclass-parameters.yaml"
 ok "EnterpriseAgentgatewayParameters company-labels + enterprise-agentgateway-waypoint-params"
 
+# The shared gateway's parameters (80-ingress.sh) point at this for model prices.
+kc apply -f "$LAB_ROOT/yaml/cost/model-catalog.yaml" >/dev/null \
+  || die "could not apply yaml/cost/model-catalog.yaml"
+ok "model catalog: Gemma and Gemini prices"
+
 step "enterprise-agentgateway $VERSION"
 EAGP_GROUP=enterpriseagentgateway.solo.io
 EAGP_KIND=EnterpriseAgentgatewayParameters
@@ -80,6 +85,9 @@ helm --kube-context "$(kube_context)" upgrade --install enterprise-agentgateway 
   --set gatewayClassParametersRefs.enterprise-agentgateway-waypoint.kind=$EAGP_KIND \
   --set gatewayClassParametersRefs.enterprise-agentgateway-waypoint.name=enterprise-agentgateway-waypoint-params \
   --set gatewayClassParametersRefs.enterprise-agentgateway-waypoint.namespace=istio-system \
+  `# Who spent it: user, team and agent from the JWT, for Cost Management and` \
+  `# budgets. 89-cost.sh seeds spend and sets bob's budget against these.` \
+  -f "$LAB_ROOT/yaml/cost/budget-dimensions.values.yaml" \
   `# Controller pods only; proxy pods get the label from the params above.` \
   $(company_labels commonLabels podLabels) \
   --wait --timeout 10m >/dev/null

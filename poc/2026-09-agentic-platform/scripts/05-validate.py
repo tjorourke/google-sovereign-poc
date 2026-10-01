@@ -25,6 +25,7 @@ DUMMIES = {
     "GPU_COUNT_ANN": 'cloud.google.com/gke-accelerator-count: "8"',
     "RESOURCES": 'requests: { cpu: "8", memory: 16Gi }',
     "EXTRA_ARGS": "--device=cpu",
+    "IMAGE": "reg.example/p/r/model:1", "SERVED_NAME": "gemma-3-27b-it",
 }
 
 # Heredocs that feed kubectl/arctl. Capture the delimiter so we know whether the
@@ -55,6 +56,8 @@ for path in sorted(glob.glob(os.path.join(HERE, "*.sh"))):
             continue
         if delim == "PYEOF":
             continue
+        if re.search(r"^name: organizations/", body, re.M):
+            continue  # gcloud OrgPolicy document, not a Kubernetes manifest
         line_no = src[: m.start()].count("\n") + 1
         label = f"{path}:{line_no}"
 
@@ -101,8 +104,8 @@ print()
 print(f"{checked} manifest document(s) parsed")
 
 # ── part 2: Autopilot admission ───────────────────────────────────────────────
-# Fields Autopilot refuses. GCD additionally does not support the
-# WorkloadAllowlist mechanism, so there is no way to grant any of these.
+# Fields ordinary Autopilot workloads cannot request. The separately rendered
+# Istio DaemonSets use the approved WorkloadAllowlists from phases 62/63.
 BANNED_POD = ["hostNetwork", "hostPID", "hostIPC", "hostPath"]
 BANNED_CTR_SEC = ["privileged", "allowPrivilegeEscalation"]
 BANNED_CAPS = {"SYS_ADMIN", "NET_ADMIN", "NET_RAW", "SYS_PTRACE"}
@@ -152,7 +155,10 @@ for path in sorted(glob.glob(os.path.join(HERE, "*.sh"))) + [os.path.join(HERE, 
             blocks.append((src[: m.start()].count("\n") + 1, m.group("body"), bool(m.group("q"))))
     for line_no, body, quoted in blocks:
         label = f"{path}:{line_no}"
-        text = body if quoted else subst(body)
+        try:
+            text = body if quoted else subst(body)
+        except KeyError:
+            continue  # already reported by the manifest pass above
         text = text.replace("\\$", "$")
         try:
             docs = [d for d in yaml.safe_load_all(text) if isinstance(d, dict)]
@@ -178,4 +184,3 @@ if all_errors:
     sys.exit(1)
 print("no banned fields; every container has cpu+memory requests")
 print("\nall clean")
-

@@ -1,0 +1,53 @@
+# mcp-catalog: the one workload allowed to LIST every MCP server's tools.
+#
+# The console's approval page shows an admin what a server offers before any
+# agent is granted it. With every backend locked to named identities, that
+# listing needs an identity of its own: this ServiceAccount, in the ambient mcp
+# namespace, which the per-backend policies allow tools/list and nothing else.
+# The console runs `kubectl exec deploy/mcp-catalog -- python3 - <url>` against
+# it; the image is the TrustUsBank MCP image only because it already has python3.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: mcp-catalog
+  namespace: mcp
+  labels: {company: trustusbank}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mcp-catalog
+  namespace: mcp
+  labels: {company: trustusbank, app: mcp-catalog}
+spec:
+  replicas: 1
+  selector: {matchLabels: {app: mcp-catalog}}
+  template:
+    metadata:
+      labels: {company: trustusbank, app: mcp-catalog}
+    spec:
+      serviceAccountName: mcp-catalog
+      volumes:
+      - name: mcp-workload-token
+        projected:
+          sources:
+          - serviceAccountToken:
+              audience: trustusbank-mcp
+              expirationSeconds: 3600
+              path: token
+      containers:
+      - name: catalog
+        image: __MCP_IMAGE__
+        command: ["sleep", "infinity"]
+        volumeMounts:
+        - name: mcp-workload-token
+          mountPath: /var/run/secrets/mcp
+          readOnly: true
+        resources:
+          requests: {cpu: 50m, memory: 64Mi}
+          limits: {memory: 128Mi}
+        securityContext:
+          allowPrivilegeEscalation: false
+          runAsNonRoot: true
+          runAsUser: 65532
+          capabilities: {drop: [ALL]}
