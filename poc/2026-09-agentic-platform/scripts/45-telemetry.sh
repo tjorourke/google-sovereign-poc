@@ -93,6 +93,8 @@ helm --kube-context "$(kube_context)" upgrade --install solo-mgmt "$CHART" \
   --set ui.frontend.oidc.clientId=kagent-ui \
   --set ui.backend.oidc.clientId=kagent-backend \
   --set-json 'rbac.roleMapping={"roleMapper":"claims.Groups.transformList(i, v, v in rolesMap, rolesMap[v])","roleMappings":{"admins":"global.Admin","readers":"global.Reader","writers":"global.Writer"}}' \
+  `# Subcharts each spell pod labels differently; the post-renderer covers them.` \
+  $(company_labels) \
   >/dev/null
 ok "chart applied"
 

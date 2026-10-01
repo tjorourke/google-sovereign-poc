@@ -1,0 +1,107 @@
+# vLLM Semantic Router for the Google demo: one question per prompt, does it stay
+# on Gemma in Berlin, or may it go to Gemini? The router writes its answer into
+# the request body's model field and into x-selected-model; the HTTPRoute in
+# routes.yaml turns that header into a backend. backend_refs below is required by
+# the schema and never dialled: agentgateway does the forwarding.
+#
+# Chart and image are pinned together, from the EKS identity-routing demo where
+# this pair was validated. A floating pair can start as a router that loads,
+# passes every health check, and classifies nothing.
+persistence:
+  storageClassName: hyperdisk-balanced    # the only class GCD Autopilot offers here
+  size: 20Gi
+
+image:
+  repository: ghcr.io/vllm-project/semantic-router/extproc@sha256
+  tag: c0519e91c9dfe69066b25766aef40a38b5474e17dcbb1b58c791c451646334e0
+  # Set, not inherited: the chart's values.yaml is multi-document and Helm takes
+  # the last document, an e2e fixture with pullPolicy Never and a 2Gi limit.
+  pullPolicy: IfNotPresent
+
+# Set explicitly for that reason too, and because Autopilot would otherwise pick.
+# The mmBERT classifier does not load in 2Gi.
+resources:
+  requests: { cpu: "1", memory: 3Gi }
+  limits:   { cpu: "2", memory: 7Gi }
+
+config:
+  version: v0.3
+  listeners: []
+
+  providers:
+    defaults:
+      # Anything the router cannot place stays inside the boundary.
+      default_model: gemma-3-27b-it
+    models:
+      - name: gemma-3-27b-it
+        backend_refs:
+          - { name: gemma, endpoint: llm.model.svc.cluster.local:8080, weight: 1 }
+      - name: gemini-2.5-flash
+        backend_refs:
+          - { name: gemini, endpoint: generativelanguage.googleapis.com:443, weight: 1 }
+
+  routing:
+    signals:
+      domains:
+        - { name: business,           description: "Business, corporate strategy, management, finance, banking, marketing" }
+        - { name: economics,          description: "Microeconomics, macroeconomics, financial markets, monetary policy, payments" }
+        - { name: law,                description: "Legal principles, regulation, compliance, statutory interpretation, contracts" }
+        - { name: health,             description: "Anatomy, physiology, diseases, treatments, patients, clinical care" }
+        - { name: psychology,         description: "Cognitive processes, behaviour, mental health" }
+        - { name: computer science,   description: "Algorithms, data structures, programming, software engineering" }
+        - { name: math,               description: "Mathematics, algebra, calculus, geometry, statistics, number theory" }
+        - { name: physics,            description: "Physical laws, mechanics, thermodynamics, electromagnetism, quantum physics" }
+        - { name: history,            description: "Historical events, periods, people and places" }
+        - { name: philosophy,         description: "Ethics, logic, metaphysics, philosophy of mind" }
+        - { name: other,              description: "General knowledge, travel, food, sport, trivia and miscellaneous topics" }
+
+    # The demo's classification: computer science and finance stay on Gemma, in
+    # Berlin; non-sensitive general questions may go to Gemini. Law, health and
+    # psychology are personal or regulated, so they stay too. The sovereign
+    # decision outranks the frontier one, so a prompt that is both (a payments
+    # question with a formula in it) stays in Berlin, and anything the router
+    # cannot classify falls back to Gemma (default_model).
+    decisions:
+      - name: sovereign
+        description: Computer science, finance and personal subjects stay on Gemma, inside the boundary
+        priority: 100
+        rules:
+          operator: OR
+          conditions:
+            - { type: domain, name: computer science }
+            - { type: domain, name: business }
+            - { type: domain, name: economics }
+            - { type: domain, name: law }
+            - { type: domain, name: health }
+            - { type: domain, name: psychology }
+        modelRefs:
+          - { model: gemma-3-27b-it, use_reasoning: false }
+
+      - name: frontier
+        description: Non-sensitive general questions may use Gemini
+        priority: 10
+        rules:
+          operator: OR
+          conditions:
+            - { type: domain, name: math }
+            - { type: domain, name: physics }
+            - { type: domain, name: history }
+            - { type: domain, name: philosophy }
+            - { type: domain, name: other }
+        modelRefs:
+          - { model: gemini-2.5-flash, use_reasoning: false }
+
+    modelCards:
+      - name: gemma-3-27b-it
+      - name: gemini-2.5-flash
+
+  global:
+    router:
+      strategy: priority
+    stores:
+      # Off: a cached answer logs no upstream and makes the routing look broken.
+      semantic_cache: { enabled: false }
+      memory:         { embedding_model: mmbert }
+      vector_store:   { embedding_model: mmbert }
+    observability:
+      tracing: { enabled: false }

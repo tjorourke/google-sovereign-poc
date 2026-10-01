@@ -1,0 +1,209 @@
+# Berlin GCD in-cluster probes — 2026-10-01T14:45:48Z
+# cluster=agentic project=eu0:soloio-eval
+
+
+----- $ kc get storageclass -o wide
+NAME                           PROVISIONER                        RECLAIMPOLICY   VOLUMEBINDINGMODE      ALLOWVOLUMEEXPANSION   AGE
+dynamic-rwo                    pd.csi.storage.gke.io              Delete          WaitForFirstConsumer   true                   49s
+gcsfusecsi-checkpointing       gcsfuse.csi.storage.gke.io         Delete          Immediate              false                  105s
+gcsfusecsi-serving             gcsfuse.csi.storage.gke.io         Delete          Immediate              false                  105s
+gcsfusecsi-training            gcsfuse.csi.storage.gke.io         Delete          Immediate              false                  105s
+hyperdisk-balanced (default)   pd.csi.storage.gke.io              Delete          WaitForFirstConsumer   true                   50s
+parallelstore-rwx              parallelstore.csi.storage.gke.io   Delete          WaitForFirstConsumer   false                  56s
+standard                       kubernetes.io/gce-pd               Delete          Immediate              true                   49s
+standard-rwo-regional          pd.csi.storage.gke.io              Delete          WaitForFirstConsumer   true                   102s
+0.5 storageclasses=[dynamic-rwo gcsfusecsi-checkpointing gcsfusecsi-serving gcsfusecsi-training hyperdisk-balanced parallelstore-rwx standard standard-rwo-regional ] default=hyperdisk-balanced
+
+----- $ kc get gatewayclass -o wide
+NAME                                            CONTROLLER                                   ACCEPTED   AGE   DESCRIPTION
+gke-passthrough-lb-external-managed             networking.gke.io/persistent-ip-controller   True       49s   
+gke-passthrough-lb-internal-managed             networking.gke.io/persistent-ip-controller   True       49s   
+gke-persistent-fast-regional-external-managed   networking.gke.io/persistent-ip-controller   True       49s   
+gke-persistent-fast-regional-internal-managed   networking.gke.io/persistent-ip-controller   True       48s   
+gke-persistent-regional-external-managed        networking.gke.io/persistent-ip-controller   True       50s   
+gke-persistent-regional-internal-managed        networking.gke.io/persistent-ip-controller   True       50s   
+0.13 GKE Gateway present: gke-passthrough-lb-external-managed gke-passthrough-lb-internal-managed gke-persistent-fast-regional-external-managed gke-persistent-fast-regional-internal-managed gke-persistent-regional-external-managed gke-persistent-regional-internal-managed  -> can front agentgateway with a GKE-managed ALB
+/Users/thomasorourke/code/google-sov/poc/2026-09-agentic-platform/scripts/lib-labels.sh: line 39: kusts[@]: unbound variable
+pod/probe-hostalias created
+0.9 hostAliases REJECTED -> localtest.me fallback is dead; private DNS zone becomes mandatory
+/Users/thomasorourke/code/google-sov/poc/2026-09-agentic-platform/scripts/lib-labels.sh: line 39: kusts[@]: unbound variable
+pod/probe-pull-ghcr created
+/Users/thomasorourke/code/google-sov/poc/2026-09-agentic-platform/scripts/lib-labels.sh: line 39: kusts[@]: unbound variable
+pod/probe-egress created
+/Users/thomasorourke/code/google-sov/poc/2026-09-agentic-platform/scripts/lib-labels.sh: line 39: kusts[@]: unbound variable
+service/probe-lb created
+/Users/thomasorourke/code/google-sov/poc/2026-09-agentic-platform/scripts/lib-labels.sh: line 39: kusts[@]: unbound variable
+statefulset.apps/probe-pg created (server dry run)
+0.6 StatefulSet+PVC REJECTED -> Cloud SQL for Postgres, ephemeral ClickHouse
+
+----- $ kc -n gcd-probe get pods -o wide
+NAME              READY   STATUS       RESTARTS   AGE   IP            NODE                                     NOMINATED NODE   READINESS GATES
+probe-egress      0/1     Completed    0          92s   10.32.0.144   gk3-agentic-nap-g373aakf-1969a990-h5gz   <none>           <none>
+probe-hostalias   0/1     Completed    0          93s   10.32.0.140   gk3-agentic-nap-g373aakf-1969a990-h5gz   <none>           <none>
+probe-pull-ghcr   0/1     StartError   0          93s   10.32.0.133   gk3-agentic-nap-g373aakf-1969a990-h5gz   <none>           <none>
+
+----- $ kc -n gcd-probe get svc probe-lb -o yaml
+apiVersion: v1
+kind: Service
+metadata:
+  annotations:
+    cloud.google.com/neg: '{"exposed_ports": {"80":{}}}'
+    cloud.google.com/neg-status: '{"network_endpoint_groups":{"80":"k8s1-97f1f714-gcd-probe-probe-lb-80-3e8c139d"}}'
+    kubectl.kubernetes.io/last-applied-configuration: |
+      {"apiVersion":"v1","kind":"Service","metadata":{"annotations":{"cloud.google.com/neg":"{\"exposed_ports\": {\"80\":{}}}"},"labels":{"company":"trustusbank"},"name":"probe-lb","namespace":"gcd-probe"},"spec":{"ports":[{"port":80,"targetPort":8080}],"selector":{"app":"probe-nothing"},"type":"LoadBalancer"}}
+    networking.gke.io/target-pool: a6bae737db6234bbdadca1cec2e228a0
+  creationTimestamp: "2026-10-01T14:45:53Z"
+  finalizers:
+  - gke.networking.io/l4-netlb-v1
+  - service.kubernetes.io/load-balancer-cleanup
+  labels:
+    company: trustusbank
+  name: probe-lb
+  namespace: gcd-probe
+  resourceVersion: "3380"
+  uid: 6bae737d-b623-4bbd-adca-1cec2e228a01
+spec:
+  allocateLoadBalancerNodePorts: true
+  clusterIP: 10.36.12.138
+  clusterIPs:
+  - 10.36.12.138
+  externalTrafficPolicy: Cluster
+  internalTrafficPolicy: Cluster
+  ipFamilies:
+  - IPv4
+  ipFamilyPolicy: SingleStack
+  ports:
+  - nodePort: 32750
+    port: 80
+    protocol: TCP
+    targetPort: 8080
+  selector:
+    app: probe-nothing
+  sessionAffinity: None
+  type: LoadBalancer
+status:
+  loadBalancer:
+    ingress:
+    - ip: 34.3.133.53
+      ipMode: VIP
+
+----- $ kc -n gcd-probe describe pod probe-pull-ghcr
+Name:             probe-pull-ghcr
+Namespace:        gcd-probe
+Priority:         0
+Service Account:  default
+Node:             gk3-agentic-nap-g373aakf-1969a990-h5gz/10.20.15.214
+Start Time:       Thu, 01 Oct 2026 15:47:03 +0100
+Labels:           company=trustusbank
+                  topology.kubernetes.io/region=u-germany-northeast1
+                  topology.kubernetes.io/zone=u-germany-northeast1-a
+Annotations:      autopilot.gke.io/resource-adjustment:
+                    {"input":{"containers":[{"requests":{"cpu":"250m","memory":"512Mi"},"name":"c"}]},"output":{"containers":[{"limits":{"ephemeral-storage":"...
+                  autopilot.gke.io/warden-version: 36.9.0-gke.3
+Status:           Failed
+SeccompProfile:   RuntimeDefault
+IP:               10.32.0.133
+IPs:
+  IP:  10.32.0.133
+Containers:
+  c:
+    Container ID:  containerd://b98487ecea1fa1c96833c8dd816074c71f34bcfcba838a34479ca54dfd6f40e8
+    Image:         ghcr.io/agentgateway/agentgateway:v1.5.0
+    Image ID:      ghcr.io/agentgateway/agentgateway@sha256:bf2f339ef326d32def2aaeb44b1b4549801293c19b89e764a4228667d97d9896
+    Port:          <none>
+    Host Port:     <none>
+    Command:
+      sh
+      -c
+      echo pulled; sleep 2
+    State:          Terminated
+      Reason:       StartError
+      Message:      failed to create containerd task: failed to create shim task: OCI runtime create failed: runc create failed: unable to start container process: error during container init: exec: "sh": executable file not found in $PATH
+      Exit Code:    128
+      Started:      Thu, 01 Jan 1970 01:00:00 +0100
+      Finished:     Thu, 01 Oct 2026 15:47:17 +0100
+    Ready:          False
+    Restart Count:  0
+    Limits:
+      ephemeral-storage:  1Gi
+    Requests:
+      cpu:                250m
+      ephemeral-storage:  1Gi
+      memory:             512Mi
+    Environment:          <none>
+    Mounts:
+      /var/run/secrets/kubernetes.io/serviceaccount from kube-api-access-sz25q (ro)
+Conditions:
+  Type                        Status
+  PodReadyToStartContainers   False 
+  Initialized                 True 
+  Ready                       False 
+  ContainersReady             False 
+  PodScheduled                True 
+Volumes:
+  kube-api-access-sz25q:
+    Type:                    Projected (a volume that contains injected data from multiple sources)
+    TokenExpirationSeconds:  3607
+    ConfigMapName:           kube-root-ca.crt
+    Optional:                false
+    DownwardAPI:             true
+QoS Class:                   Burstable
+Node-Selectors:              <none>
+Tolerations:                 kubernetes.io/arch=amd64:NoSchedule
+                             node.kubernetes.io/not-ready:NoExecute op=Exists for 300s
+                             node.kubernetes.io/unreachable:NoExecute op=Exists for 300s
+Events:
+  Type     Reason            Age   From                                   Message
+  ----     ------            ----  ----                                   -------
+  Warning  FailedScheduling  93s   gke.io/optimize-utilization-scheduler  0/1 nodes are available: 1 node(s) had untolerated taint(s). no new claims to deallocate, preemption: 0/1 nodes are available: 1 Preemption is not helpful for scheduling.
+  Normal   Scheduled         21s   gke.io/optimize-utilization-scheduler  Successfully assigned gcd-probe/probe-pull-ghcr to gk3-agentic-nap-g373aakf-1969a990-h5gz
+  Normal   Pulling           18s   kubelet                                Pulling image "ghcr.io/agentgateway/agentgateway:v1.5.0"
+  Normal   Pulled            10s   kubelet                                Successfully pulled image "ghcr.io/agentgateway/agentgateway:v1.5.0" in 3.893s (7.555s including waiting). Image size: 40134000 bytes.
+  Normal   Created           10s   kubelet                                Container created
+  Warning  Failed            8s    kubelet                                Error: failed to create containerd task: failed to create shim task: OCI runtime create failed: runc create failed: unable to start container process: error during container init: exec: "sh": executable file not found in $PATH
+
+----- $ kc -n gcd-probe logs probe-egress
+Error from server: Get "https://10.20.15.214:10250/containerLogs/gcd-probe/probe-egress/c": No agent available
+
+----- $ kc -n gcd-probe logs probe-hostalias
+Error from server: Get "https://10.20.15.214:10250/containerLogs/gcd-probe/probe-hostalias/c": No agent available
+
+----- $ kc -n gcd-probe get events --sort-by=.lastTimestamp
+LAST SEEN   TYPE      REASON                           OBJECT                MESSAGE
+94s         Warning   FailedScheduling                 pod/probe-hostalias   0/1 nodes are available: 1 node(s) had untolerated taint(s). no new claims to deallocate, preemption: 0/1 nodes are available: 1 Preemption is not helpful for scheduling.
+22s         Normal    Scheduled                        pod/probe-egress      Successfully assigned gcd-probe/probe-egress to gk3-agentic-nap-g373aakf-1969a990-h5gz
+22s         Normal    Scheduled                        pod/probe-pull-ghcr   Successfully assigned gcd-probe/probe-pull-ghcr to gk3-agentic-nap-g373aakf-1969a990-h5gz
+94s         Warning   FailedScheduling                 pod/probe-pull-ghcr   0/1 nodes are available: 1 node(s) had untolerated taint(s). no new claims to deallocate, preemption: 0/1 nodes are available: 1 Preemption is not helpful for scheduling.
+93s         Warning   FailedScheduling                 pod/probe-egress      0/1 nodes are available: 1 node(s) had untolerated taint(s). no new claims to deallocate, preemption: 0/1 nodes are available: 1 Preemption is not helpful for scheduling.
+22s         Normal    Scheduled                        pod/probe-hostalias   Successfully assigned gcd-probe/probe-hostalias to gk3-agentic-nap-g373aakf-1969a990-h5gz
+94s         Normal    TriggeredScaleUp                 pod/probe-hostalias   Pod triggered scale-up: [{https://compute.apis-berlin-build0.goog/compute/v1//projects/eu0:soloio-eval/zones/u-germany-northeast1-a/instanceGroups/nap-g373aakf-temporary-mig-px3khxbc-async-1 0->1 (max: 1000)}]
+93s         Normal    DNSRecordProvisioningSucceeded   service/probe-lb      DNS records updated
+86s         Normal    Create                           service/probe-lb      Created NEG "k8s1-97f1f714-gcd-probe-probe-lb-80-3e8c139d" for gcd-probe/probe-lb-k8s1-97f1f714-gcd-probe-probe-lb-80-3e8c139d-/80-8080-GCE_VM_IP_PORT-L7 in "u-germany-northeast1-a".
+61s         Normal    EnsuredLoadBalancer              service/probe-lb      Ensured load balancer
+36s         Warning   SyncLoadBalancerFailed           service/probe-lb      Error syncing load balancer: failed to ensure load balancer: cannot EnsureLoadBalancer() with no hosts
+36s         Warning   UnAvailableLoadBalancer          service/probe-lb      There are no available nodes for LoadBalancer
+36s         Normal    EnsuringLoadBalancer             service/probe-lb      Ensuring load balancer
+34s         Normal    ADD                              service/probe-lb      gcd-probe/probe-lb
+23s         Warning   SyncNetworkEndpointGroupFailed   service/probe-lb      Failed to sync NEG "k8s1-97f1f714-gcd-probe-probe-lb-80-3e8c139d" (will retry): endpoint count from endpointPodMap cannot be zero: Detect endpoint count goes to zero
+23s         Warning   EnterDegradedMode                service/probe-lb      Entering degraded mode for NEG gcd-probe/probe-lb-k8s1-97f1f714-gcd-probe-probe-lb-80-3e8c139d-/80-8080-GCE_VM_IP_PORT-L7 due to sync err: endpoint count from endpointPodMap cannot be zero
+19s         Normal    Pulling                          pod/probe-hostalias   Pulling image "gcr.io/google-containers/busybox:1.27.2"
+19s         Normal    Pulling                          pod/probe-egress      Pulling image "gcr.io/google-containers/busybox:1.27.2"
+19s         Normal    TaintManagerEviction             pod/probe-egress      Cancelling deletion of Pod gcd-probe/probe-egress
+19s         Normal    Pulling                          pod/probe-pull-ghcr   Pulling image "ghcr.io/agentgateway/agentgateway:v1.5.0"
+19s         Normal    TaintManagerEviction             pod/probe-hostalias   Cancelling deletion of Pod gcd-probe/probe-hostalias
+19s         Normal    TaintManagerEviction             pod/probe-pull-ghcr   Cancelling deletion of Pod gcd-probe/probe-pull-ghcr
+18s         Normal    ExitDegradedMode                 service/probe-lb      NEG gcd-probe/probe-lb-k8s1-97f1f714-gcd-probe-probe-lb-80-3e8c139d-/80-8080-GCE_VM_IP_PORT-L7 is no longer in degraded mode
+11s         Normal    Pulled                           pod/probe-pull-ghcr   Successfully pulled image "ghcr.io/agentgateway/agentgateway:v1.5.0" in 3.893s (7.555s including waiting). Image size: 40134000 bytes.
+11s         Normal    Created                          pod/probe-pull-ghcr   Container created
+9s          Normal    Started                          pod/probe-egress      Container started
+9s          Normal    Pulled                           pod/probe-egress      Successfully pulled image "gcr.io/google-containers/busybox:1.27.2" in 4.008s (9.268s including waiting). Image size: 694360 bytes.
+9s          Normal    Started                          pod/probe-hostalias   Container started
+9s          Normal    Created                          pod/probe-hostalias   Container created
+9s          Normal    Pulled                           pod/probe-hostalias   Successfully pulled image "gcr.io/google-containers/busybox:1.27.2" in 2.062s (9.237s including waiting). Image size: 694360 bytes.
+9s          Normal    Created                          pod/probe-egress      Container created
+9s          Warning   Failed                           pod/probe-pull-ghcr   Error: failed to create containerd task: failed to create shim task: OCI runtime create failed: runc create failed: unable to start container process: error during container init: exec: "sh": executable file not found in $PATH
+0.3 direct pull from ghcr.io FAILED (phase=Failed reason=?) -> mirror everything into Artifact Registry first
+0.2 INCONCLUSIVE — probe-egress produced no logs
+0.11 public DNS from a pod resolves
+0.12 Service type=LoadBalancer got external IP 34.3.133.53 -> Tier 1 edge is viable
+0.12b NEG annotation honoured: {"network_endpoint_groups":{"80":"k8s1-97f1f714-gcd-probe-probe-lb-80-3e8c139d"}} (this is how 85-edge.sh finds the NEGs)

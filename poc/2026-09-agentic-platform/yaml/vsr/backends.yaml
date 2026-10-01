@@ -1,0 +1,35 @@
+# The two places a prompt can go.
+#
+# gemma   the vLLM server 60-model.sh runs on an H100 in this cluster. Plain
+#         in-cluster HTTP, no credential: it never leaves Berlin.
+# gemini  Google's Gemini API, reached through Cloud NAT. The API key lives in a
+#         Kubernetes Secret because GCD has no Secret Manager; the client never
+#         sees it, the gateway adds it.
+apiVersion: agentgateway.dev/v1alpha1
+kind: AgentgatewayBackend
+metadata:
+  name: gemma
+  namespace: agentgateway-system
+spec:
+  ai:
+    provider:
+      openai:
+        model: gemma-3-27b-it
+      host: llm.model.svc.cluster.local
+      port: 8080
+      path: /v1/chat/completions
+---
+apiVersion: agentgateway.dev/v1alpha1
+kind: AgentgatewayBackend
+metadata:
+  name: gemini
+  namespace: agentgateway-system
+spec:
+  ai:
+    provider:
+      gemini:
+        model: gemini-2.5-flash
+  policies:
+    auth:
+      secretRef:
+        name: gemini-secret

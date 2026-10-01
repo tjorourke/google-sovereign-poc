@@ -3,8 +3,8 @@
 # WHY THIS IS A CRD AND NOT A HELM VALUE
 # The enterprise-agentgateway chart has exactly one `resources` key and it
 # applies to the CONTROLLER. The proxy pods are created by that controller from
-# Gateway resources, so no helm value reaches them. AgentgatewayParameters is
-# the only way to size them, attached via the Gateway's
+# Gateway resources, so no helm value reaches them. EnterpriseAgentgatewayParameters
+# is the only way to size them, attached via the Gateway's
 # spec.infrastructure.parametersRef.
 #
 # WHY IT MATTERS ON GCD
@@ -13,8 +13,17 @@
 # is C3-only with 24 vCPU in this project. Three unsized proxy pods (the shared
 # gateway plus two waypoints) held 1500m -- 6% of everything -- for processes
 # that idle near zero. Measured after applying this: 500m -> 100m each.
-apiVersion: agentgateway.dev/v1alpha1
-kind: AgentgatewayParameters
+#
+# THE COMPANY LABEL
+# Google asked that every pod carry a company identifier. The class-level
+# params (gatewayclass-parameters.yaml) already label every gateway; it is
+# repeated here so this Gateway's pods stay labelled even if it is moved to a
+# class without them. deployment.metadata labels the Deployment,
+# deployment.spec.template.metadata labels the pods. The apply wrapper in
+# scripts/lib-labels.sh would add both anyway; they are explicit so the file
+# reads correctly on its own.
+apiVersion: enterpriseagentgateway.solo.io/v1alpha1
+kind: EnterpriseAgentgatewayParameters
 metadata:
   name: right-sized
   namespace: agentgateway-system
@@ -23,3 +32,12 @@ spec:
     requests:
       cpu: 100m
       memory: 256Mi
+  deployment:
+    metadata:
+      labels:
+        company: trustusbank
+    spec:
+      template:
+        metadata:
+          labels:
+            company: trustusbank

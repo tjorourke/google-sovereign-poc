@@ -362,6 +362,41 @@ except Exception:
   esac
 }
 
+# ── company label ─────────────────────────────────────────────────────────────
+# Google's ask: every pod in the cluster carries a company identifier. Charts
+# disagree on how (commonLabels, podLabels, labels, customLabels, podMetadata,
+# or nothing at all -- kagent 0.4.3 has no pod-label value for its controller,
+# and mgmt/AR leave ClickHouse and OTel bare). So each install gets BOTH:
+#   - the chart's native keys, so the label is in the release's own values, and
+#   - the company-labels Helm post-renderer plugin, which stamps every rendered
+#     object and pod template and is what actually guarantees coverage.
+# Pods created at runtime (gateway proxies, waypoints, kagent agents) are not
+# rendered by helm at all; the CRs they are built from carry the label instead.
+# Pods from plain `kubectl apply` are labelled by the wrapper in lib-labels.sh,
+# which also defines COMPANY_LABEL_KEY / COMPANY_LABEL_VALUE.
+# shellcheck source=lib-labels.sh
+source "$(dirname "${BASH_SOURCE[0]}")/lib-labels.sh"
+
+ensure_label_plugin() {
+  helm plugin list 2>/dev/null | awk 'NR>1{print $1}' | grep -qx company-labels && return 0
+  # Helm 4 only accepts post-renderers packaged as postrenderer/v1 plugins.
+  helm plugin install "$REPO_ROOT/infra/helm/plugins/company-labels" >/dev/null 2>&1 \
+    || helm plugin install --verify=false "$REPO_ROOT/infra/helm/plugins/company-labels" >/dev/null 2>&1 \
+    || die "could not install the company-labels helm plugin"
+}
+
+# Helm flags for the company label. Arguments are the chart's native label map
+# paths; the post-renderer is always appended. Use unquoted:
+#   helm upgrade --install ... $(company_labels commonLabels podLabels)
+company_labels() {
+  ensure_label_plugin
+  local p
+  for p in "$@"; do
+    printf -- '--set-string %s.%s=%s ' "$p" "$COMPANY_LABEL_KEY" "$COMPANY_LABEL_VALUE"
+  done
+  printf -- '--post-renderer company-labels'
+}
+
 # ── evidence ──────────────────────────────────────────────────────────────────
 # Findings are the most valuable output of this repo, so record verbatim.
 evidence() {

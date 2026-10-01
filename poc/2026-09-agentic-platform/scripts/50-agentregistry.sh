@@ -89,6 +89,7 @@ helm --kube-context "$(kube_context)" upgrade --install agentregistry "$CHART" \
   --set kagent.outboundAuth.oidc.clientId=kagent-backend \
   --set kagent.outboundAuth.oidc.clientSecret="$KAGENT_BACKEND_SECRET" \
   "${DB_ARGS[@]}" \
+  $(company_labels commonLabels podLabels) \
   >/dev/null
 ok "chart applied"
 

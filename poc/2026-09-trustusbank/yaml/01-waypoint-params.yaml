@@ -1,5 +1,8 @@
 # Explicit Istio identity parameters for the enterprise-agentgateway waypoints.
 #
+# The platform lab applies and attaches this object in 70-agentgateway.sh, from
+# yaml/sizing/gatewayclass-parameters.yaml there. Keep the two identical.
+#
 # kagent-enterprise's own _docs/platform/agw-waypoint-params.md documents three
 # parameters and warns that if the waypoint's view of them is wrong, "ztunnel
 # bypasses the waypoint entirely and AccessPolicy enforcement is silently
@@ -46,3 +49,18 @@ spec:
   istioClusterId: "Kubernetes"
   ca:
     trustDomain: "cluster.local"
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+  # Google asked that every pod carry a company identifier. The top block
+  # labels the waypoint Deployment, the bottom one its pods.
+  deployment:
+    metadata:
+      labels:
+        company: trustusbank
+    spec:
+      template:
+        metadata:
+          labels:
+            company: trustusbank

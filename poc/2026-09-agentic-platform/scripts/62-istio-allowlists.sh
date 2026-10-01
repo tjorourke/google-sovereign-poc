@@ -105,6 +105,9 @@ for CHART in cni ztunnel; do
       --set cni.useAppArmorAnnotation="$ISTIO_APPARMOR_ANNOTATION" \
       --set-string cni.podAnnotations."cloud\.google\.com/generate-allowlist"=true \
       --set-string podAnnotations."cloud\.google\.com/generate-allowlist"=true \
+      `# Same post-renderer as 64, so the rendered pod is the installed pod. The` \
+      `# allowlist pins containers, not labels, but keep the two identical anyway.` \
+      $(company_labels) \
       > "$RENDER" 2> "$RENDER.err" || {
     warn "helm template failed for istio-$CHART:"
     sed 's/^/    /' "$RENDER.err" >&2

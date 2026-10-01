@@ -96,7 +96,7 @@ log "chart=$ISTIO_CHART_REPO  hub=$ISTIO_HUB  tag=$ISTIO_TAG"
 
 helm --kube-context "$CTX" upgrade -i istio-base "$(istio_chart base)" \
   --version "$ISTIO_CHART_VERSION" -n istio-system --create-namespace \
-  --set defaultRevision=default >/dev/null 2>&1 \
+  --set defaultRevision=default $(company_labels) >/dev/null 2>&1 \
   && ok "istio-base" || die "istio-base failed"
 
 # The Solo Enterprise licence goes on ISTIOD, as license.value. Without it the
@@ -111,7 +111,7 @@ fi
 
 helm --kube-context "$CTX" upgrade -i istiod "$(istio_chart istiod)" \
   --version "$ISTIO_CHART_VERSION" -n istio-system --wait --timeout 10m \
-  -f - >/dev/null 2>&1 <<EOF \
+  $(company_labels) -f - >/dev/null 2>&1 <<EOF \
   && ok "istiod (profile=$ISTIO_PROFILE, $ISTIO_EDITION)" || die "istiod failed"
 profile: ${ISTIO_PROFILE}
 global:
@@ -134,7 +134,8 @@ helm --kube-context "$CTX" upgrade -i istio-cni "$(istio_chart cni)" \
   --set global.hub="$ISTIO_HUB" \
   --set global.tag="$ISTIO_TAG" \
   --set cni.cniBinDir="$ISTIO_CNI_BIN_DIR" \
-  --set cni.useAppArmorAnnotation="$ISTIO_APPARMOR_ANNOTATION" >/dev/null 2>&1 \
+  --set cni.useAppArmorAnnotation="$ISTIO_APPARMOR_ANNOTATION" \
+  $(company_labels) >/dev/null 2>&1 \
   && ok "istio-cni" || die "istio-cni failed"
 
 # ztunnel takes hub/tag at the TOP LEVEL, not under global. Setting only
@@ -145,7 +146,8 @@ helm --kube-context "$CTX" upgrade -i ztunnel "$(istio_chart ztunnel)" \
   --set profile="$ISTIO_PROFILE" \
   --set global.platform="$ISTIO_PLATFORM" \
   --set hub="$ISTIO_HUB" \
-  --set tag="$ISTIO_TAG" >/dev/null 2>&1 \
+  --set tag="$ISTIO_TAG" \
+  $(company_labels) >/dev/null 2>&1 \
   && ok "ztunnel" || die "ztunnel failed"
 
 step "Waiting for both DaemonSets"

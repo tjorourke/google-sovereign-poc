@@ -1,0 +1,36 @@
+# Two routes, chosen by the header the router sets on the REQUEST. Do not match
+# x-vsr-selected-model: that is a response header, and nothing matches on it here.
+#
+# Rule order is the safety property. Gemini is reachable only when the header
+# says gemini; everything else, including no header at all, lands on Gemma.
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: models
+  namespace: agentgateway-system
+spec:
+  parentRefs:
+    - { group: gateway.networking.k8s.io, kind: Gateway, name: agentgateway-models, sectionName: http }
+  hostnames: ["models.__BASE_DOMAIN__"]
+  rules:
+    - matches:
+        - path: { type: PathPrefix, value: /v1/chat/completions }
+          headers: [{ type: RegularExpression, name: x-selected-model, value: "^gemini.*" }]
+      filters:
+        - type: RequestHeaderModifier
+          requestHeaderModifier: { remove: [x-selected-model] }
+      backendRefs:
+        - { name: gemini, group: agentgateway.dev, kind: AgentgatewayBackend }
+    - matches:
+        - path: { type: PathPrefix, value: /v1/chat/completions }
+          headers: [{ type: RegularExpression, name: x-selected-model, value: "^gemma.*" }]
+      filters:
+        - type: RequestHeaderModifier
+          requestHeaderModifier: { remove: [x-selected-model] }
+      backendRefs:
+        - { name: gemma, group: agentgateway.dev, kind: AgentgatewayBackend }
+    # Fail closed to the boundary: no header (router down, or never asked) is Gemma.
+    - matches:
+        - path: { type: PathPrefix, value: /v1/chat/completions }
+      backendRefs:
+        - { name: gemma, group: agentgateway.dev, kind: AgentgatewayBackend }

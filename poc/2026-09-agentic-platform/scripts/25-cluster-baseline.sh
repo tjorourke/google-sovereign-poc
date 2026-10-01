@@ -64,6 +64,7 @@ helm --kube-context "$(kube_context)" upgrade --install cert-manager cert-manage
   --set resources.requests.cpu=50m --set resources.requests.memory=128Mi \
   --set webhook.resources.requests.cpu=50m --set webhook.resources.requests.memory=128Mi \
   --set cainjector.resources.requests.cpu=50m --set cainjector.resources.requests.memory=128Mi \
+  $(company_labels global.commonLabels podLabels webhook.podLabels cainjector.podLabels startupapicheck.podLabels) \
   --wait --timeout 15m
 ok "cert-manager installed"
 
@@ -147,6 +148,7 @@ helm --kube-context "$(kube_context)" upgrade --install external-secrets externa
   --set resources.requests.cpu=50m --set resources.requests.memory=128Mi \
   --set webhook.resources.requests.cpu=50m --set webhook.resources.requests.memory=128Mi \
   --set certController.resources.requests.cpu=50m --set certController.resources.requests.memory=128Mi \
+  $(company_labels commonLabels podLabels webhook.podLabels certController.podLabels) \
   --wait --timeout 5m
 ok "ESO installed"
 
@@ -227,6 +229,11 @@ helm --kube-context "$(kube_context)" upgrade --install kube-prometheus-stack ku
   --set prometheus.prometheusSpec.serviceMonitorSelectorNilUsesHelmValues=false \
   --set prometheus.prometheusSpec.podMonitorSelectorNilUsesHelmValues=false \
   --set alertmanager.enabled=false \
+  `# The grafana test pod is a helm test hook that never runs here; drop it so` \
+  `# there is no unlabelled pod template left in the release at all.` \
+  --set grafana.testFramework.enabled=false \
+  $(company_labels commonLabels prometheusOperator.podLabels prometheus.prometheusSpec.podMetadata.labels \
+      grafana.podLabels kube-state-metrics.customLabels prometheusOperator.admissionWebhooks.patch.podLabels) \
   --wait --timeout 15m
 ok "Prometheus + Grafana installed in namespace observability"
 

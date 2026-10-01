@@ -1,0 +1,59 @@
+# Class-level EnterpriseAgentgatewayParameters: the company label on EVERY
+# agentgateway proxy pod, including the ones nobody writes a Gateway for.
+#
+# Google asked that all pods carry a company identifier. Helm's commonLabels
+# reach the controller, but proxy pods are created by that controller at
+# runtime: the shared gateway (80-ingress.sh) and every waypoint kagent or KMCP
+# provisions for an Agent or MCPServer labelled kagent.solo.io/waypoint=true.
+# Those waypoint Gateways are generated, so there is no Gateway of ours to
+# attach params to. Attaching at the GatewayClass covers them all.
+#
+# 70-agentgateway.sh attaches both of these through the chart value
+# gatewayClassParametersRefs, which the controller applies to its own classes
+# (enterprise-agentgateway and enterprise-agentgateway-waypoint). Overlays apply
+# class first, then Gateway, so the Gateway-level right-sized params still win.
+#
+# deployment.metadata labels the Deployment; deployment.spec.template.metadata
+# labels the pods.
+apiVersion: enterpriseagentgateway.solo.io/v1alpha1
+kind: EnterpriseAgentgatewayParameters
+metadata:
+  name: company-labels
+  namespace: agentgateway-system
+spec:
+  deployment:
+    metadata:
+      labels:
+        company: trustusbank
+    spec:
+      template:
+        metadata:
+          labels:
+            company: trustusbank
+---
+# The waypoint class's params. Istio identity first, see
+# poc/2026-09-trustusbank/yaml/01-waypoint-params.yaml for why istioClusterId
+# and trustDomain are pinned and why istioNetwork is deliberately unset. That
+# file and this object must stay identical; this one is what gets applied.
+apiVersion: enterpriseagentgateway.solo.io/v1alpha1
+kind: EnterpriseAgentgatewayParameters
+metadata:
+  name: enterprise-agentgateway-waypoint-params
+  namespace: istio-system
+spec:
+  istioClusterId: "Kubernetes"
+  ca:
+    trustDomain: "cluster.local"
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+  deployment:
+    metadata:
+      labels:
+        company: trustusbank
+    spec:
+      template:
+        metadata:
+          labels:
+            company: trustusbank

@@ -114,18 +114,19 @@ fi
 
 # Size the DATA PLANE before it is programmed. The chart's `resources` value
 # only reaches the controller; the proxy pods are controller-created, so
-# AgentgatewayParameters is the only knob. Unsized they are defaulted by
+# EnterpriseAgentgatewayParameters is the only knob. It also carries the company
+# label for these pods. Unsized they are defaulted by
 # Autopilot to 500m/2Gi each, which on a 24-vCPU quota is capacity the later
 # phases need. See yaml/sizing/agentgateway-parameters.yaml.
 step "right-sizing the gateway data plane"
 if kc apply -f "$LAB_ROOT/yaml/sizing/agentgateway-parameters.yaml" >/dev/null 2>&1; then
   kc -n "$NS" patch gateway "$GW" --type=merge -p \
-    '{"spec":{"infrastructure":{"parametersRef":{"group":"agentgateway.dev","kind":"AgentgatewayParameters","name":"right-sized"}}}}' \
+    '{"spec":{"infrastructure":{"parametersRef":{"group":"enterpriseagentgateway.solo.io","kind":"EnterpriseAgentgatewayParameters","name":"right-sized"}}}}' \
     >/dev/null 2>&1 \
-    && ok "proxy pods sized 100m/256Mi (Autopilot would default them to 500m/2Gi)" \
-    || warn "could not attach AgentgatewayParameters; proxies keep the Autopilot default"
+    && ok "proxy pods sized 100m/256Mi and labelled (Autopilot would default them to 500m/2Gi)" \
+    || warn "could not attach EnterpriseAgentgatewayParameters; proxies keep the Autopilot default"
 else
-  warn "could not apply AgentgatewayParameters; proxies keep the Autopilot default"
+  warn "could not apply EnterpriseAgentgatewayParameters; proxies keep the Autopilot default"
 fi
 
 step "waiting for the Gateway to be Programmed"

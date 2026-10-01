@@ -19,6 +19,9 @@ NS=trustusbank
 export KUBECONFIG="${GCD_KUBECONFIG:-$PLATFORM/deploy/.kubeconfig}"
 [[ -f "$REPO/.env.local" ]] && { set -a; source "$REPO/.env.local"; set +a; }
 export GOOGLE_CLOUD_UNIVERSE_DOMAIN="${UNIVERSE_API_DOMAIN:-}"
+# Every kubectl apply below stamps the company label on its objects and pods.
+# shellcheck source=../../2026-09-agentic-platform/scripts/lib-labels.sh
+source "$PLATFORM/scripts/lib-labels.sh"
 
 red(){ printf '\033[31m%s\033[0m\n' "$*" >&2; }
 grn(){ printf '  \033[32m✓\033[0m %s\n' "$*"; }

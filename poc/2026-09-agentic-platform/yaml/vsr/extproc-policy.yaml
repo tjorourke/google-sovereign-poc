@@ -1,0 +1,31 @@
+# The router runs at PreRouting, so its x-selected-model header exists before the
+# HTTPRoute picks a rule. Buffered request bodies are mandatory: the router has to
+# read the prompt, and without them it classifies while its output is dropped.
+#
+# FailOpen, deliberately, and safe only because of routes.yaml: if the router is
+# down no header is set, the request falls to the last rule, and that rule is
+# Gemma. A router outage keeps traffic in Berlin rather than refusing it.
+apiVersion: agentgateway.dev/v1alpha1
+kind: AgentgatewayPolicy
+metadata:
+  name: semantic-routing
+  namespace: agentgateway-system
+spec:
+  targetRefs:
+    - group: gateway.networking.k8s.io
+      kind: Gateway
+      name: agentgateway-models
+  traffic:
+    phase: PreRouting
+    extProc:
+      backendRef:
+        name: semantic-router
+        namespace: agentgateway-system
+        port: 50051
+      processingOptions:
+        requestHeaderMode: Send
+        requestBodyMode: Buffered
+        responseHeaderMode: Send
+        responseBodyMode: Buffered
+        allowModeOverride: true
+      failureMode: FailOpen

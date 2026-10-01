@@ -48,19 +48,55 @@ kc create ns "$NS" --dry-run=client -o yaml | kc apply -f - >/dev/null
 step "enterprise-agentgateway-crds $VERSION"
 helm --kube-context "$(kube_context)" upgrade --install enterprise-agentgateway-crds \
   "${CHART_BASE}/enterprise-agentgateway-crds" \
-  -n "$NS" --version "$VERSION" --wait --timeout 5m >/dev/null
+  -n "$NS" --version "$VERSION" $(company_labels) --wait --timeout 5m >/dev/null
 ok "CRDs installed"
 
+# Proxy pods are created by the controller at runtime, so Helm's labels never
+# reach them. Class-level EnterpriseAgentgatewayParameters do: one for the
+# shared gateway class, one for the waypoint class kagent and KMCP provision
+# waypoints from. Applied before the controller so the classes it creates point
+# at objects that already exist. istio-system exists because 64 ran first; the
+# waypoint object also pins the Istio identity the waypoints need.
+step "class-level gateway parameters (company label + waypoint Istio identity)"
+kc create ns istio-system --dry-run=client -o yaml | kc apply -f - >/dev/null
+kc apply -f "$LAB_ROOT/yaml/sizing/gatewayclass-parameters.yaml" >/dev/null \
+  || die "could not apply yaml/sizing/gatewayclass-parameters.yaml"
+ok "EnterpriseAgentgatewayParameters company-labels + enterprise-agentgateway-waypoint-params"
+
 step "enterprise-agentgateway $VERSION"
+EAGP_GROUP=enterpriseagentgateway.solo.io
+EAGP_KIND=EnterpriseAgentgatewayParameters
 helm --kube-context "$(kube_context)" upgrade --install enterprise-agentgateway \
   "${CHART_BASE}/enterprise-agentgateway" \
   -n "$NS" --version "$VERSION" \
   --set-string licensing.licenseKey="$AGENTGATEWAY_LICENSE_KEY" \
+  `# The controller sets these as spec.parametersRef on the GatewayClasses it` \
+  `# owns. group/kind must be explicit: they default to AgentgatewayParameters.` \
+  --set gatewayClassParametersRefs.enterprise-agentgateway.group=$EAGP_GROUP \
+  --set gatewayClassParametersRefs.enterprise-agentgateway.kind=$EAGP_KIND \
+  --set gatewayClassParametersRefs.enterprise-agentgateway.name=company-labels \
+  --set gatewayClassParametersRefs.enterprise-agentgateway.namespace="$NS" \
+  --set gatewayClassParametersRefs.enterprise-agentgateway-waypoint.group=$EAGP_GROUP \
+  --set gatewayClassParametersRefs.enterprise-agentgateway-waypoint.kind=$EAGP_KIND \
+  --set gatewayClassParametersRefs.enterprise-agentgateway-waypoint.name=enterprise-agentgateway-waypoint-params \
+  --set gatewayClassParametersRefs.enterprise-agentgateway-waypoint.namespace=istio-system \
+  `# Controller pods only; proxy pods get the label from the params above.` \
+  $(company_labels commonLabels podLabels) \
   --wait --timeout 10m >/dev/null
 ok "controller installed"
 
 step "GatewayClasses"
 kc get gatewayclass -o wide >&2
+for gc in enterprise-agentgateway enterprise-agentgateway-waypoint; do
+  ref=""
+  for _ in $(seq 1 24); do
+    ref="$(kc get gatewayclass "$gc" -o jsonpath='{.spec.parametersRef.kind}/{.spec.parametersRef.name}' 2>/dev/null || true)"
+    [[ "$ref" == "$EAGP_KIND/"?* ]] && break
+    sleep 5
+  done
+  [[ "$ref" == "$EAGP_KIND/"?* ]] && ok "GatewayClass $gc -> $ref" \
+    || warn "GatewayClass $gc has parametersRef [$ref]; its proxy pods will not carry the company label"
+done
 
 # This block used to say the waypoint GatewayClass was "UNUSABLE on GCD" and
 # that MCPServers must NOT be labelled kagent.solo.io/waypoint=true, because

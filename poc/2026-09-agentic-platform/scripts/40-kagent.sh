@@ -102,7 +102,7 @@ fi
 step "kagent-enterprise-crds $VERSION"
 helm --kube-context "$(kube_context)" upgrade --install kagent-crds \
   "${CHART_BASE}/kagent-enterprise-crds" \
-  -n "$NS" --version "$VERSION" --wait --timeout 5m >/dev/null
+  -n "$NS" --version "$VERSION" $(company_labels) --wait --timeout 5m >/dev/null
 ok "CRDs installed"
 
 # ── model provider ───────────────────────────────────────────────────────────
@@ -170,6 +170,9 @@ helm --kube-context "$(kube_context)" upgrade --install kagent \
   --set otel.tracing.enabled=true \
   --set otel.tracing.exporter.otlp.endpoint="$OTEL_ENDPOINT" \
   --set-json 'rbac.roleMapping={"roleMapper":"claims.Groups.transformList(i, v, v in rolesMap, rolesMap[v])","roleMappings":{"admins":"global.Admin","readers":"global.Reader","writers":"global.Writer"}}' \
+  `# labels covers chart resources only; agentDeployment.podLabels is what the` \
+  `# controller stamps on every Agent pod it creates at runtime.` \
+  $(company_labels labels controller.agentDeployment.podLabels) \
   >/dev/null
 ok "chart applied"
 
