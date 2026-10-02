@@ -150,9 +150,9 @@ kubectl -n "$AGENTS_NS" get enterpriseagentgatewaypolicy,authorizationpolicy 2>/
 step "Agent rollout"
 # The agent caches its tool list at start-up, so it must come up AFTER the
 # policies are in force or it will hold a stale list.
-kubectl -n "$AGENTS_NS" rollout restart deploy/waypoint-calc >/dev/null 2>&1
-kubectl -n "$AGENTS_NS" rollout status deploy/waypoint-calc --timeout=300s >/dev/null 2>&1 \
-  && ok "waypoint-calc rolled out" || warn "waypoint-calc rollout did not complete"
+kubectl -n "$AGENTS_NS" rollout restart deploy/trustusbank-waypoint-calc >/dev/null 2>&1
+kubectl -n "$AGENTS_NS" rollout status deploy/trustusbank-waypoint-calc --timeout=300s >/dev/null 2>&1 \
+  && ok "trustusbank-waypoint-calc rolled out" || warn "trustusbank-waypoint-calc rollout did not complete"
 
 step "Done"
 log "verify with: ./scripts/69-accesspolicy-health.sh"

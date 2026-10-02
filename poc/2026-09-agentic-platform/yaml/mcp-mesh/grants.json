@@ -26,13 +26,13 @@
      "tools": ["get_customer_exposure", "assess_affordability"]},
     {"service": "bank-gdpr",       "namespace": "agentregistry-system", "agent": "trustusbank-gdpr",
      "tools": ["find_personal_data", "list_processing_purposes", "draft_art15_response"]},
-    {"service": "sdlc-pm",         "namespace": "agentregistry-system", "agent": "tub-sdlc-pm",
+    {"service": "sdlc-pm",         "namespace": "agentregistry-system", "agent": "trustusbank-pm-agent",
      "tools": ["list_issues", "get_app_settings", "create_issue"]},
-    {"service": "sdlc-dev",        "namespace": "agentregistry-system", "agent": "tub-sdlc-dev",
+    {"service": "sdlc-dev",        "namespace": "agentregistry-system", "agent": "trustusbank-dev-agent",
      "tools": ["get_next_issue", "update_setting", "read_file", "edit_file", "open_pull_request"]},
-    {"service": "everything-server", "namespace": "agentregistry-system", "agent": "sovereignagent",
+    {"service": "everything-server", "namespace": "agentregistry-system", "agent": "trustusbank-sovereign",
      "tools": ["sum", "echo", "reverse_text", "to_uppercase"]},
-    {"service": "everything-server", "namespace": "kagent", "agent": "sovereign-calc",
+    {"service": "everything-server", "namespace": "kagent", "agent": "trustusbank-sovereign-calc",
      "tools": ["sum"]}
   ]
 }

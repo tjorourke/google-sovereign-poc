@@ -60,7 +60,7 @@ spec:
 apiVersion: kagent.dev/v1alpha2
 kind: Agent
 metadata:
-  name: waypoint-calc
+  name: trustusbank-waypoint-calc
   namespace: agents
   labels:
     kagent.solo.io/waypoint: "true"
@@ -68,7 +68,7 @@ spec:
   type: Declarative
   description: >-
     Tests AccessPolicy enforcement at the enterprise agentgateway waypoint. Same
-    model and tools as sovereign-calc, but reached through the waypoint rather
+    model and tools as trustusbank-sovereign-calc, but reached through the waypoint rather
     than the standalone gateway.
   declarative:
     modelConfig: selfhosted

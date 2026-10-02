@@ -1,16 +1,16 @@
 # Path A: a DECLARATIVE kagent Agent reaching its tools through the STANDALONE
-# agentgateway. The counterpart to waypoint-calc, and distinct from it in two
+# agentgateway. The counterpart to trustusbank-waypoint-calc, and distinct from it in two
 # ways worth keeping separate in a demo:
 #
-#  * waypoint-calc resolves a kagent MCPServer that kmcp owns, so Solo's
+#  * trustusbank-waypoint-calc resolves a kagent MCPServer that kmcp owns, so Solo's
 #    AccessPolicy can attach to it and enforce at the waypoint.
-#  * sovereign-calc resolves a RemoteMCPServer, which is only a URL. Nothing can
+#  * trustusbank-sovereign-calc resolves a RemoteMCPServer, which is only a URL. Nothing can
 #    attach to it, so policy has to live ON THE GATEWAY -- that is what
 #    95-authz-on.sh restricts, and it is the only shape available on a cluster
 #    with no mesh. Both paths matter on GCD: the second is what a customer had
 #    before ambient worked here.
 #
-# It is also distinct from path B (sovereignagent), which AgentRegistry deploys.
+# It is also distinct from path B (trustusbank-sovereign), which AgentRegistry deploys.
 # This one is plain kagent CRDs applied directly.
 apiVersion: kagent.dev/v1alpha2
 kind: RemoteMCPServer
@@ -29,7 +29,7 @@ spec:
 apiVersion: kagent.dev/v1alpha2
 kind: Agent
 metadata:
-  name: sovereign-calc
+  name: trustusbank-sovereign-calc
   namespace: kagent
 spec:
   type: Declarative

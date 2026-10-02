@@ -37,7 +37,7 @@ agent-waypoint   istio-waypoint   10.36.10.51   True
 
 The `kagent` and `model` namespaces are enrolled in ambient. All their workloads
 were captured in place, with no pod restarts. The agent platform continues to
-work: `sovereign-calc` still answers and still calls its MCP tool through
+work: `trustusbank-sovereign-calc` still answers and still calls its MCP tool through
 agentgateway, now over mTLS.
 
 Enforcement is verified by `scripts/66-istio-health.sh`, ten checks, all passing:
@@ -232,7 +232,7 @@ metadata: { name: allow-sum-only, namespace: agents }
 spec:
   action: ALLOW
   from:
-    subjects: [{ kind: Agent, name: waypoint-calc, namespace: agents }]
+    subjects: [{ kind: Agent, name: trustusbank-waypoint-calc, namespace: agents }]
   targetRef:
     kind: MCPServer
     name: everything-server
@@ -243,10 +243,10 @@ compiles into two:
 
 ```
 L7, at the waypoint   (source.identity.namespace == "agents" &&
-                       source.identity.serviceAccount == "waypoint-calc") &&
+                       source.identity.serviceAccount == "trustusbank-waypoint-calc") &&
                       (mcp.tool.name == "sum")
 
-L4, at the mesh       principals: [cluster.local/ns/agents/sa/waypoint-calc]
+L4, at the mesh       principals: [cluster.local/ns/agents/sa/trustusbank-waypoint-calc]
                       selector:   app.kubernetes.io/name: everything-server
 ```
 
@@ -260,7 +260,7 @@ identity-aware:
 
 ```
 gateway=agents/mcpserver-everything-server-waypoint
-src.identity=spiffe://cluster.local/ns/agents/sa/waypoint-calc
+src.identity=spiffe://cluster.local/ns/agents/sa/trustusbank-waypoint-calc
 protocol=mcp mcp.method.name=tools/list http.status=200
 ```
 

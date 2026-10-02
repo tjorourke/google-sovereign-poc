@@ -5,15 +5,15 @@
 # There are three agent paths in this cluster and they use different machinery.
 # All three must keep working, so all three are checked here:
 #
-#   A. sovereign-calc          kagent ns              standalone agentgateway
+#   A. trustusbank-sovereign-calc   kagent ns              standalone agentgateway
 #                              hand-written, policy authored directly as
 #                              AgentgatewayPolicy. Works with no mesh at all.
 #
-#   B. sovereignagent          agentregistry-system   standalone agentgateway
+#   B. trustusbank-sovereign  agentregistry-system   standalone agentgateway
 #                              published to the AgentRegistry catalogue and
 #                              deployed by the registry.
 #
-#   C. waypoint-calc           agents ns              enterprise waypoint
+#   C. trustusbank-waypoint-calc    agents ns              enterprise waypoint
 #                              governed by AccessPolicy, which compiles into an
 #                              EnterpriseAgentgatewayPolicy (L7, per tool) and
 #                              an Istio AuthorizationPolicy (L4, per identity).
@@ -88,10 +88,10 @@ ask_until_tool() {  # ask_until_tool <ns> <pod> <tool> <prompt>
   printf '%s' "$out"; return 1
 }
 
-step "A. sovereign-calc, standalone agentgateway"
-SC="$(pod_in kagent sovereign-calc)"
+step "A. trustusbank-sovereign-calc, standalone agentgateway"
+SC="$(pod_in kagent trustusbank-sovereign-calc)"
 if [[ -z "$SC" ]]; then
-  fail "no sovereign-calc pod"
+  fail "no trustusbank-sovereign-calc pod"
 else
   OUT="$(ask_until_tool kagent "$SC" sum 'Add 17 and 25 using your sum tool.')" || true
   echo "$OUT" | grep -q 'TOOLS=.*sum' && pass "called sum through the standalone gateway" \
@@ -102,8 +102,8 @@ TOOLS="$(kubectl -n kagent get remotemcpserver everything-server \
 [[ "$TOOLS" == *sum* ]] && pass "gateway tool filtering intact: $TOOLS" \
                         || fail "unexpected discovered tools: ${TOOLS:-none}"
 
-step "B. sovereignagent, deployed by AgentRegistry"
-SA="$(pod_in agentregistry-system sovereignagent-latest-sovereignagent-k)"
+step "B. trustusbank-sovereign, deployed by AgentRegistry"
+SA="$(pod_in agentregistry-system trustusbank-sovereign-latest)"
 if [[ -z "$SA" ]]; then
   fail "no AgentRegistry-deployed agent pod"
 else
@@ -112,7 +112,7 @@ else
     || fail "did not call sum ($(echo "$OUT" | grep '^TOOLS='))"
 fi
 
-step "C. waypoint-calc, governed by AccessPolicy at the waypoint"
+step "C. trustusbank-waypoint-calc, governed by AccessPolicy at the waypoint"
 STATE="$(kubectl -n "$AGENTS_NS" get accesspolicy allow-sum-only \
   -o jsonpath='{.status.state}' 2>/dev/null)"
 [[ "$STATE" == "Applied" ]] && pass "AccessPolicy state=Applied" \
@@ -137,9 +137,9 @@ kubectl -n "$AGENTS_NS" get authorizationpolicy allow-waypoint-to-toolserver \
   && pass "companion policy present for the waypoint hop" \
   || fail "companion policy missing; tool discovery will silently return nothing"
 
-WC="$(pod_in "$AGENTS_NS" waypoint-calc)"
+WC="$(pod_in "$AGENTS_NS" trustusbank-waypoint-calc)"
 if [[ -z "$WC" ]]; then
-  fail "no waypoint-calc pod"
+  fail "no trustusbank-waypoint-calc pod"
 else
   OUT="$(ask_until_tool "$AGENTS_NS" "$WC" sum 'Add 17 and 25 using your sum tool.')" || true
   if echo "$OUT" | grep -q 'TOOLS=.*sum'; then

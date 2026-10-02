@@ -10,13 +10,15 @@
 apiVersion: ar.dev/v1alpha1
 kind: Deployment
 metadata:
-  name: sovereignagent-kagent
+  name: trustusbank-sovereign-kagent
 spec:
-  targetRef:  { kind: Agent,   name: sovereignagent }
+  targetRef:  { kind: Agent,   name: trustusbank-sovereign }
   runtimeRef: { kind: Runtime, name: kubernetes-default }
   # No model key and no tool URL are baked into the image. Both arrive here, at
   # deploy time, so the same image is portable to any runtime the registry knows.
   env:
     OPENAI_BASE_URL: http://llm.agentic.eu0.internal/v1
     OPENAI_API_KEY: sovereign-local-noauth
+    # The image says sovereignagent; traces should say the agent's name.
+    OTEL_SERVICE_NAME: trustusbank-sovereign
     MCP_SERVERS_CONFIG: '[{"name":"sovereign-tools","type":"remote","url":"http://mcp.agentic.eu0.internal/mcp"}]'

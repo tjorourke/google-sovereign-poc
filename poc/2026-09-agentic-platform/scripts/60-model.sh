@@ -153,9 +153,11 @@ spec:
 PVC
   ok "PVC hf-cache (${HF_CACHE_SIZE:-200Gi}, hyperdisk-balanced) for the weights"
   # Gemma 3 ships no tool-calling template, and without one a kagent agent's
-  # tool calls come back as text. See model/gemma3-tools.jinja.
+  # tool calls come back as text. See model/gemma3-tools.jinja. The same
+  # ConfigMap carries the tool parser plugin, model/gemma_pythonic.py.
   kubectl -n "$NS" create configmap gemma3-tools \
     --from-file=gemma3-tools.jinja="$LAB_ROOT/model/gemma3-tools.jinja" \
+    --from-file=gemma_pythonic.py="$LAB_ROOT/model/gemma_pythonic.py" \
     --dry-run=client -o yaml | kubectl apply -f - >/dev/null 2>&1
   ok "ConfigMap gemma3-tools (chat template with tool calling)"
   kubectl apply -f - >/dev/null 2>&1 <<YAML
@@ -203,8 +205,11 @@ spec:
             - --dtype=bfloat16
             # Tool calling for kagent and AgentRegistry agents: Gemma writes calls
             # as a Python list, which the pythonic parser turns into tool_calls.
+            # gemma_pythonic is that parser plus a repair for Gemma's bracket
+            # slips ("))]"), which otherwise turn a call into chat text.
             - --enable-auto-tool-choice
-            - --tool-call-parser=pythonic
+            - --tool-parser-plugin=/templates/gemma_pythonic.py
+            - --tool-call-parser=gemma_pythonic
             - --chat-template=/templates/gemma3-tools.jinja
           ports: [{ containerPort: 8000, name: http }]
           # Without these the pod reads Ready while vLLM is still downloading,

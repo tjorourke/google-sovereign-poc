@@ -6,7 +6,7 @@
 # SUBJECT's identity to reach the tool server:
 #
 #   rules: [{from: [{source: {principals:
-#     ["cluster.local/ns/agents/sa/waypoint-calc"]}}]}]
+#     ["cluster.local/ns/agents/sa/trustusbank-waypoint-calc"]}}]}]
 #   selector: {matchLabels: {app.kubernetes.io/name: everything-server}}
 #
 # But when the tool server is fronted by a waypoint, the agent does not connect
@@ -33,7 +33,7 @@
 # waypoint by the EnterpriseAgentgatewayPolicy the same AccessPolicy generates,
 # on the agent's proven identity:
 #   (source.identity.namespace == "agents" &&
-#    source.identity.serviceAccount == "waypoint-calc") &&
+#    source.identity.serviceAccount == "trustusbank-waypoint-calc") &&
 #   (mcp.tool.name == "sum")
 #
 # Worth raising with Solo: the translator should emit the waypoint identity

@@ -1,4 +1,4 @@
-# sovereignagent Agent
+# trustusbank-sovereign Agent
 
 This project was scaffolded with the AgentRegistry CLI. It gives you a working
 ADK Python agent wired for MCP tools and ready to publish through AgentRegistry.

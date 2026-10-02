@@ -12,15 +12,15 @@ Verified working 2026-09-03 21:00 UTC:
 | Enterprise UI | <http://34.3.139.105> HTTP 200 from a laptop |
 | Keycloak login | `34.3.137.194`, needs one hosts entry (step 1) |
 | Gateway, external | `34.3.140.230` fronts the same HTTPRoutes as the internal LB |
-| Hand-written agent | `sovereign-calc` in `kagent`, 1/1 |
-| Registry-deployed agent | `sovereignagent` in `agentregistry-system`, 1/1, pushed by AgentRegistry |
+| Hand-written agent | `trustusbank-sovereign-calc` in `kagent`, 1/1 |
+| Registry-deployed agent | `trustusbank-sovereign` in `agentregistry-system`, 1/1, pushed by AgentRegistry |
 | Model | Qwen2.5-3B-Instruct on CPU, in-cluster, 1/1 |
 | Gateway data plane | 3 pods, 3 nodes, 3 zones, behind a PDB |
 | MCP tool invocation | proven by nonce, and visible in the trace tree |
 | Tracing | working. It is the strongest thing you can put on screen. |
 
-There are two agents on purpose. `sovereign-calc` was written by hand with
-`kubectl`. `sovereignagent` was built from a scaffold, catalogued, and then
+There are two agents on purpose. `trustusbank-sovereign-calc` was written by hand with
+`kubectl`. `trustusbank-sovereign` was built from a scaffold, catalogued, and then
 deployed into the cluster **by AgentRegistry**, with no kubectl at any point.
 Showing both is what makes the governance argument land: the same gateway policy
 governs both, whoever created them.
@@ -57,7 +57,7 @@ mint inside the cluster for exactly this reason. See step 5.
 Open <http://34.3.139.105>, log in as `admin-user` / `password`. Confirm three
 things and then close it:
 
-1. The **Agents** tab lists `sovereign-calc` and `sovereignagent`.
+1. The **Agents** tab lists `trustusbank-sovereign-calc` and `trustusbank-sovereign`.
 2. The **Tracing** tab loads and shows rows.
 3. Clicking a trace opens a tree with named spans.
 
@@ -196,7 +196,7 @@ Then watch what appeared, in the cluster, created by the registry:
 ```bash
 kubectl get agents.kagent.dev -A
 kubectl get remotemcpservers.kagent.dev -A | grep sovereign-tools
-kubectl -n agentregistry-system get deploy,pods | grep sovereignagent
+kubectl -n agentregistry-system get deploy,pods | grep trustusbank-sovereign
 ```
 
 Say: *I did not run kubectl to create any of that. AgentRegistry resolved the
@@ -238,7 +238,7 @@ Answer: The sum of 17 and 25 is 42.
 
 **This is the strongest thing on screen. Do not skip it.**
 
-In the browser: **Agents**, open `sovereign-calc`, and prompt:
+In the browser: **Agents**, open `trustusbank-sovereign-calc`, and prompt:
 
 ```
 Add 17 and 25 using your sum tool.
@@ -452,8 +452,8 @@ kubectl -n mcp patch agentgatewaypolicy mcp-tool-authz --type=json -p '[
 # hand-written agent's tool binding
 kubectl -n kagent delete remotemcpserver everything-server --ignore-not-found
 kubectl apply -f docs/demo/remotemcpserver.yaml
-kubectl -n kagent rollout restart deploy/sovereign-calc
-kubectl -n kagent rollout status deploy/sovereign-calc --timeout=180s
+kubectl -n kagent rollout restart deploy/trustusbank-sovereign-calc
+kubectl -n kagent rollout status deploy/trustusbank-sovereign-calc --timeout=180s
 
 # registry-deployed agent, rebuilt from the catalogue (skips the image build)
 cd poc/2026-09-agentic-platform

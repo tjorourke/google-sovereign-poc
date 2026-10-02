@@ -64,11 +64,11 @@ step "Let AgentRegistry push the agent onto kagent"
 # If a record exists but its workload does not, recreate the record. Deleting
 # only the record is safe: the catalogue Agent and MCPServer entries, which are
 # the governance data worth keeping, are separate objects.
-if arctl get deployments 2>/dev/null | grep -q 'sovereignagent-kagent'; then
-  if ! kubectl -n agentregistry-system get deploy 2>/dev/null | grep -q sovereignagent; then
+if arctl get deployments 2>/dev/null | grep -q 'trustusbank-sovereign-kagent'; then
+  if ! kubectl -n agentregistry-system get deploy 2>/dev/null | grep -q trustusbank-sovereign; then
     warn "a Deployment record exists but its workload does not — this is the"
     warn "registry's Cloud SQL state surviving a cluster rebuild. Recreating it."
-    arctl delete deployment sovereignagent-kagent >/dev/null 2>&1 || true
+    arctl delete deployment trustusbank-sovereign-kagent >/dev/null 2>&1 || true
     sleep 3
   fi
 fi
@@ -79,7 +79,7 @@ step "Wait for the workload the registry created"
 DEPLOY=""
 for _ in $(seq 1 60); do
   DEPLOY="$(kubectl -n agentregistry-system get deploy -o name 2>/dev/null \
-            | grep -m1 sovereignagent || true)"
+            | grep -m1 trustusbank-sovereign || true)"
   [[ -n "$DEPLOY" ]] && break
   sleep 5
 done
@@ -88,12 +88,12 @@ done
       arctl get deployments -o yaml
     If a record exists while the workload does not, the record is stale from a
     previous cluster; delete it and re-run:
-      arctl delete deployment sovereignagent-kagent"
+      arctl delete deployment trustusbank-sovereign-kagent"
 kubectl -n agentregistry-system rollout status "$DEPLOY" --timeout=300s \
   || die "the pushed agent did not become ready"
 
 step "What the registry created, without anyone running kubectl"
-kubectl get agents.kagent.dev -A            | grep -E 'NAME|sovereignagent' || true
+kubectl get agents.kagent.dev -A            | grep -E 'NAME|trustusbank-sovereign' || true
 kubectl get remotemcpservers.kagent.dev -A  | grep -E 'NAME|sovereign-tools'       || true
 ok "AgentRegistry deployed the agent onto kagent"
 

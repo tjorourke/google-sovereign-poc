@@ -22,4 +22,4 @@ spec:
         - source:
             principals:
               # only the agent's ServiceAccount may reach the model
-              - cluster.local/ns/kagent/sa/sovereign-calc
+              - cluster.local/ns/kagent/sa/trustusbank-sovereign-calc

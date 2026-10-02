@@ -29,7 +29,7 @@ KEYCLOAK_ADMIN_PASSWORD="${KEYCLOAK_ADMIN_PASSWORD:-admin}"
 DEMO_PASSWORD="${TRUSTUSBANK_USER_PASSWORD:-password}"
 DOMAINS=(payments compliance credit gdpr)
 # The SDLC demo's PM and engineer agents (demo-console/trustusbank-sdlc) act for bob too.
-SDLC_CLIENTS=(tub-sdlc-pm tub-sdlc-dev)
+SDLC_CLIENTS=(trustusbank-pm-agent trustusbank-dev-agent)
 USERS=("bob:Bob:Becker:bob@trustusbank.example:payments-ops" "alice:Alice:Albers:alice@trustusbank.example:compliance")
 
 step "Keycloak admin API (port-forward :$PF_PORT)"

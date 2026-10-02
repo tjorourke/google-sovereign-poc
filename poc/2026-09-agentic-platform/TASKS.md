@@ -4,6 +4,16 @@ One page, `localhost:8900/google` (demo-console `pages/google-sovereign.html`), 
 
 Status key: `[ ]` todo · `[~]` in progress · `[x]` done and verified
 
+## 2026-10-02 every agent is trustusbank-*
+
+- [x] All 12 kagent Agents renamed: trustusbank-pm-agent, trustusbank-dev-agent (SDLC);
+  trustusbank-fx-helper, trustusbank-my-payments, trustusbank-my-payments2 (builder, approvals
+  kept); trustusbank-sovereign-calc, trustusbank-waypoint-calc, trustusbank-sovereign (platform).
+  Grants, ServiceAccount policies and Keycloak clients follow; old agents and grants removed.
+- [x] The builder adds the trustusbank- prefix and caps names at 24 characters (kagent's
+  agent-<name>-waypoint label must fit in 63 bytes).
+- [x] 117/117 verify_mcp_security.py checks; builder agents chat as bob with their tools.
+
 ## 2026-10-01 security and infrastructure audit
 
 - [x] All 12 agents enrolled through programmed enterprise waypoints.
@@ -48,10 +58,10 @@ imply the LLM budget/identity work is complete.
 - [ ] Previewed in the Demo 3 panel
 
 ## 3. Demo 3 end to end (owned by the Demo 3 agent)
-- [ ] PM bot writes the spec, then approve/deny in the console
-- [ ] Dev bot opens a PR against the site, then approve/deny
+- [x] PM bot writes the spec, then approve/deny in the console (2026-10-02: #4 approved; #6 turned down with a reason, closed `spec-rejected`)
+- [x] Dev bot opens a PR against the site, then approve/deny (2026-10-02: PR #5 staged, denied with a reason, revised by the agent on the same PR, restaged, approved → merged, prod runs d1660042f136, #4 closed `live`). Needed the gemma_pythonic fix for a tool call followed by prose
 - [x] Both paths tested for real against GitHub (issue #1 → PR #2 → live; issue now closes labelled `live`)
-- [x] SDLC agents applied as plain kagent Agents with clean names: tub-sdlc-pm, tub-sdlc-dev (chat verified as bob)
+- [x] SDLC agents renamed to trustusbank-pm-agent, trustusbank-dev-agent (kagent, AgentRegistry, Keycloak clients, MCP grants, console); chat verified as bob through each agent's own client
 
 ## 4. Every agent has its own identity
 - [x] One Keycloak client per agent, with an `agent_id` claim (88-identity.sh)
@@ -64,15 +74,15 @@ imply the LLM budget/identity work is complete.
 - [ ] The Demo 3 and builder agents chat as bob
 
 ## 6. Seeded data visible in AGW (89-cost.sh)
-- [x] ClickHouse seed: bob/alice × 4 agents over 7 days (`89-cost.sh seed`; bob $13.64, alice $7.88)
+- [x] ClickHouse seed v2 (`seed_costs.py`, run by `89-cost.sh seed`): 14 days, six users (bob, carol, david, emma, alice, frank), four teams, eight agents, Gemma 3 27B + Gemini 3.8 Flash; deterministic 5-minute batches, so re-runs only fill new ones. $227 / 76K requests over 14 days. The v1 `seed-*` rows (bob/alice, 7 days) stay in the rollups and cannot be removed
 - [x] Live calls priced: Gemma and Gemini added to the model catalog (yaml/cost/model-catalog.yaml via the right-sized parameters); before this every live call cost $0
 
 ## 7. A budget in AGW, settable for bob
 - [x] budgetDimensions (user, agent, team) from JWT claims: verified, a bob-token call on the models route lands with user=bob, group=payments-ops, agent=trustusbank-console
 - [~] JWT auth (Permissive) and entBudgetEnforcement on both the llm and models routes (`89-cost.sh enforce`). Permissive, not Optional: the agents send a non-JWT API-key bearer that Optional rejects. Gaps: the llm route points at a plain Service, so it has no model, tokens or cost (the agents' traffic is invisible to cost and budgets until llm points at an AgentgatewayBackend); the agents do not forward bob's token yet (item 4); and enforcement ignores the seeded ClickHouse spend (bob at a $1 limit still gets 200), so Block only bites on live spend
-- [x] EnterpriseAgentgatewayBudget `trustusbank`: bob $12/week Block (about 85% used by the seed), payments-ops $25/week Audit; Accepted and Enforced
+- [x] Five EnterpriseAgentgatewayBudgets (yaml/cost/demo-budgets.yaml), all Accepted and Enforced: developer-daily $5/day Block (subject user=bob, the demo sign-in; renamed so the demo doesn't single bob out), finance-team (payments-ops) $90, development-team $75, compliance-team $40, platform-team $25 (Audit). Old `trustusbank` budget removed. Bob's seeded spend on 2026-10-02 projects to about $2.70 for the day
 - [x] Seen in the UI (kagent.agentic.eu0.internal/age/cost-management, admin-user): $21.53 / 30.1M tokens / 8.8K requests, the trustusbank budget, Dimensions and Virtual Keys. A browser tab opened before the 19:43 UTC UI upgrade needs a hard refresh to see the Cost nav
-- [ ] Budget usage bars render empty (ui-backend → cost API on :7777 errors)
+- [ ] Budget usage bars render empty: the UI proxies to enterprise-agentgateway:7777, but the controller (2026.9.3) Service and pod expose only 9978/9093/9092, so the connection is reset. Budget usage comes from the controller's live counters, not ClickHouse, which is also why seeded spend is never enforced
 
 ## 8. kagent traces complete
 - [ ] Demo 2 runs show the agent, LLM and MCP tool spans in the kagent UI

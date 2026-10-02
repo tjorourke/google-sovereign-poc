@@ -25,7 +25,7 @@ each other at all.
 ## The path under test
 
 ```
-kagent Agent (sovereign-calc)
+kagent Agent (trustusbank-sovereign-calc)
       │
       ├── model traffic ──► agentgateway ──► llama.cpp / Qwen2.5-3B-Instruct
       │                     (LLM policy)     self-hosted on C3 CPU, in-universe
@@ -304,7 +304,7 @@ spec:
 apiVersion: kagent.dev/v1alpha2
 kind: Agent
 metadata:
-  name: sovereign-calc
+  name: trustusbank-sovereign-calc
   namespace: kagent
 spec:
   type: Declarative
@@ -437,7 +437,7 @@ catalogued tool server by name. It carries no endpoint and no credential:
 apiVersion: ar.dev/v1alpha1
 kind: Agent
 metadata:
-  name: sovereignagent
+  name: trustusbank-sovereign
 spec:
   description: 'Sovereign demo agent: pushed to kagent from AgentRegistry, reaches
     its model and tools only through agentgateway.'
@@ -455,7 +455,7 @@ apply: `--platform linux/amd64`, because GCD has no Arm compute, and a token-bas
 rather than the gcloud credential helper, which rejects this registry host (finding 05).
 
 ```bash
-arctl build sovereignagent --push --platform linux/amd64   --image docker.pkg-berlin-build0.goog/eu0/soloio-eval/solo/sovereignagent:0.1.0
+arctl build trustusbank-sovereign --push --platform linux/amd64   --image docker.pkg-berlin-build0.goog/eu0/soloio-eval/solo/sovereignagent:0.1.0
 ```
 
 ### The push
@@ -467,9 +467,9 @@ catalogued agent, `runtimeRef` to a registered runtime:
 apiVersion: ar.dev/v1alpha1
 kind: Deployment
 metadata:
-  name: sovereignagent-kagent
+  name: trustusbank-sovereign-kagent
 spec:
-  targetRef:  { kind: Agent,   name: sovereignagent }
+  targetRef:  { kind: Agent,   name: trustusbank-sovereign }
   runtimeRef: { kind: Runtime, name: kubernetes-default }
   env:
     OPENAI_BASE_URL: http://llm.agentic.eu0.internal/v1
@@ -497,8 +497,8 @@ It can create kagent resources and cannot create raw workloads. kagent's control
 ```
 $ kubectl get agents.kagent.dev -A
 NAMESPACE              NAME                                     TYPE          READY   ACCEPTED
-agentregistry-system   sovereignagent-latest-sovereignagent-k   BYO           True    True
-kagent                 sovereign-calc                           Declarative   True    True
+agentregistry-system   trustusbank-sovereign-latest-sovereignagent-k   BYO           True    True
+kagent                 trustusbank-sovereign-calc                           Declarative   True    True
 
 $ kubectl get remotemcpservers.kagent.dev -A
 NAMESPACE              NAME                               PROTOCOL          URL                                   ACCEPTED
@@ -506,8 +506,8 @@ agentregistry-system   sovereign-tools-sovereignagent-k   STREAMABLE_HTTP   http
 kagent                 everything-server                  STREAMABLE_HTTP   http://mcp.agentic.eu0.internal/mcp   True
 ```
 
-Two agents now exist by two different routes. `sovereign-calc` was written by hand with `kubectl`.
-`sovereignagent` was catalogued and then deployed by the registry, which also created its tool
+Two agents now exist by two different routes. `trustusbank-sovereign-calc` was written by hand with `kubectl`.
+`trustusbank-sovereign` was catalogued and then deployed by the registry, which also created its tool
 binding and its workload.
 
 The registry injects the deploy-time configuration, which is why the image is portable:
@@ -527,7 +527,7 @@ add. Confirmed landing in ClickHouse:
 
 ```
 $ clickhouse-client -q "SELECT ServiceName, count() FROM platformdb.otel_traces_json GROUP BY ServiceName"
-sovereignagent   18
+trustusbank-sovereign   18
 ```
 
 ### The governed call

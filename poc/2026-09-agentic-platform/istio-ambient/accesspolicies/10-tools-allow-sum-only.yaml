@@ -14,7 +14,7 @@
 # "which agent may call which tool" is stated once, in one object, and enforced
 # on proven workload identity.
 #
-# Note the asymmetry with the agent definition: waypoint-calc asks for three
+# Note the asymmetry with the agent definition: trustusbank-waypoint-calc asks for three
 # tools (sum, reverse_text, echo). This grants one. The agent should end up able
 # to see and call only `sum`.
 apiVersion: policy.kagent-enterprise.solo.io/v1alpha1
@@ -27,7 +27,7 @@ spec:
   from:
     subjects:
       - kind: Agent
-        name: waypoint-calc
+        name: trustusbank-waypoint-calc
         namespace: agents
   targetRef:
     kind: MCPServer

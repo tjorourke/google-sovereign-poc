@@ -168,7 +168,7 @@ kms_decrypt() {
 # nor safely POST to Keycloak. Several scripts therefore exec into some pod to
 # mint a token or call a Service.
 #
-# They each used to hardcode `-l app.kubernetes.io/name=sovereign-calc` in the
+# They each used to hardcode `-l app.kubernetes.io/name=trustusbank-sovereign-calc` in the
 # kagent namespace. That workload moved -- the MCP tool server is now
 # `everything-server` in `mcp` -- and both scripts then died with "no pod
 # available", which reads like the cluster is broken rather than the selector
@@ -177,7 +177,7 @@ python_pod() {
   local cand cns cname cpod
   for cand in "${MCP_NS:-mcp}/everything-server" \
               "${AR_NS:-agentregistry-system}/agentregistry-enterprise-server" \
-              "kagent/sovereign-calc"; do
+              "kagent/trustusbank-sovereign-calc"; do
     cns="${cand%%/*}"; cname="${cand##*/}"
     cpod="$(kubectl -n "$cns" get pods --no-headers 2>/dev/null \
             | awk -v d="$cname" '$1 ~ d && $3 == "Running" {print $1; exit}')"

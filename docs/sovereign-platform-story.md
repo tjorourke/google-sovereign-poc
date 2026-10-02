@@ -41,7 +41,7 @@ concept" and "a platform."
 The cluster runs three agents at once, on purpose, so the same demo can show
 escalating layers of control without changing the story:
 
-| | Path A — `sovereign-calc` | Path B — `sovereignagent` | Path C — `waypoint-calc` |
+| | Path A — `trustusbank-sovereign-calc` | Path B — `trustusbank-sovereign` | Path C — `trustusbank-waypoint-calc` |
 |---|---|---|---|
 | Namespace | `kagent` | `agentregistry-system` | `agents` |
 | How it got there | Hand-written, `kubectl apply` | **AgentRegistry deployed it — no kubectl** | Behind an Istio ambient waypoint |
@@ -72,9 +72,9 @@ Ours is an `ar.dev/v1alpha1 Deployment` object:
 apiVersion: ar.dev/v1alpha1
 kind: Deployment
 metadata:
-  name: sovereignagent-kagent
+  name: trustusbank-sovereign-kagent
 spec:
-  targetRef:  { kind: Agent,   name: sovereignagent }
+  targetRef:  { kind: Agent,   name: trustusbank-sovereign }
   runtimeRef: { kind: Runtime, name: kubernetes-default }
   env:
     OPENAI_BASE_URL: http://llm.agentic.eu0.internal/v1

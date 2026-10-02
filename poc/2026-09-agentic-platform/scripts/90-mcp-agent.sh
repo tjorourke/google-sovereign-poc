@@ -232,16 +232,16 @@ LB_IP="$(kc -n "$AGW_NS" get svc "$GW_SVC" -o jsonpath='{.status.loadBalancer.in
 # ── 6b. the declarative agent that USES it ──────────────────────────────────
 # The header above has always promised "deploy an agent that uses it", and the
 # numbered flow never did -- so 69-accesspolicy-health.sh path A tested a
-# sovereign-calc workload nothing created. Deploy it here, where the gateway
+# trustusbank-sovereign-calc workload nothing created. Deploy it here, where the gateway
 # route it depends on has just been made.
-step "declarative agent sovereign-calc, tools via the standalone gateway"
+step "declarative agent trustusbank-sovereign-calc, tools via the standalone gateway"
 if kubectl -n "$KAGENT_NS" get modelconfig selfhosted >/dev/null 2>&1; then
-  sed "s|__BASE_DOMAIN__|${BASE_DOMAIN}|g" "$LAB_ROOT/mcp/sovereign-calc-agent.yaml" \
+  sed "s|__BASE_DOMAIN__|${BASE_DOMAIN}|g" "$LAB_ROOT/mcp/trustusbank-sovereign-calc-agent.yaml" \
     | kc apply -f - >/dev/null \
-    && ok "RemoteMCPServer/everything-server and Agent/sovereign-calc applied" \
-    || warn "could not apply the sovereign-calc agent"
-  kc -n "$KAGENT_NS" rollout status deploy/sovereign-calc --timeout=180s >/dev/null 2>&1 \
-    && ok "sovereign-calc ready" || warn "sovereign-calc did not become ready"
+    && ok "RemoteMCPServer/everything-server and Agent/trustusbank-sovereign-calc applied" \
+    || warn "could not apply the trustusbank-sovereign-calc agent"
+  kc -n "$KAGENT_NS" rollout status deploy/trustusbank-sovereign-calc --timeout=180s >/dev/null 2>&1 \
+    && ok "trustusbank-sovereign-calc ready" || warn "trustusbank-sovereign-calc did not become ready"
 else
   warn "ModelConfig/selfhosted missing in $KAGENT_NS — run 60-model.sh, then re-run this phase"
 fi

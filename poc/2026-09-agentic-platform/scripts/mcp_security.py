@@ -225,9 +225,9 @@ def reconcile_servers(env=None):
         apply(document("EnterpriseAgentgatewayPolicy", name + "-discovery-only", ns,
               mcp_policies._allow([s["backend"]], [mcp_policies.clause("kagent", "kagent-controller", None)])), env)
         if ns == "agents":
-            grant = mcp_policies._doc(mcp_policies._meta("waypoint-calc--everything-server", "grants",
-                agent="waypoint-calc", **{"agent-namespace": ns}, backend=s["backend"]),
-                mcp_policies._allow([s["backend"]], [mcp_policies.clause(ns, "waypoint-calc", ["sum"])]))
+            grant = mcp_policies._doc(mcp_policies._meta("trustusbank-waypoint-calc--everything-server", "grants",
+                agent="trustusbank-waypoint-calc", **{"agent-namespace": ns}, backend=s["backend"]),
+                mcp_policies._allow([s["backend"]], [mcp_policies.clause(ns, "trustusbank-waypoint-calc", ["sum"])]))
             grant["metadata"]["namespace"] = ns
             apply(grant, env)
             # The old AccessPolicy translator adds an unrestricted controller
@@ -286,7 +286,7 @@ def reconcile_discovery(env=None):
             headers.append({"name": "Authorization", "valueFrom": {
                 "type": "Secret", "name": "mcp-discovery-identity", "key": "Authorization"}})
             patch("remotemcpserver", r["metadata"]["namespace"], r["metadata"]["name"], {"spec": {"headersFrom": headers}}, env)
-    patch("agent", "agents", "waypoint-calc", {"spec": {"declarative": {"tools": [{"type": "McpServer",
+    patch("agent", "agents", "trustusbank-waypoint-calc", {"spec": {"declarative": {"tools": [{"type": "McpServer",
         "mcpServer": {"apiGroup": "kagent.dev", "kind": "RemoteMCPServer", "name": "waypoint-tools",
                       "namespace": "agents", "toolNames": ["sum"]}}]}}}, env)
 

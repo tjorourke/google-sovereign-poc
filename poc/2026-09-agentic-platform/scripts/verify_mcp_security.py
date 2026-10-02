@@ -153,9 +153,9 @@ def main():
         check(s["namespace"] + "/" + s["name"] + " pod-IP bypass denied", r["status"] == 0)
     endpoint = "http://everything-server.mcp.svc.cluster.local:3000/mcp"
     for tool, args, denied in [("sum", {"a": 17, "b": 25}, False), ("echo", {"message": "security-audit"}, True)]:
-        r = probe("kagent", "sovereign-calc", [{"name": tool, "url": endpoint,
+        r = probe("kagent", "trustusbank-sovereign-calc", [{"name": tool, "url": endpoint,
             "call": {"name": tool, "arguments": args}}])[0]
-        check("sovereign-calc " + tool, (r["status"] in (200, 400) if denied else r["status"] == 200) and r.get("denied") == denied,
+        check("trustusbank-sovereign-calc " + tool, (r["status"] in (200, 400) if denied else r["status"] == 200) and r.get("denied") == denied,
               "denied" if r.get("denied") else "allowed")
     failed = sum(not c["passed"] for c in checks)
     print(f"\n{len(checks)-failed}/{len(checks)} checks passed")

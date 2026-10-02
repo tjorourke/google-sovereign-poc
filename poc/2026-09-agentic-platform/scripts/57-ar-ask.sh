@@ -18,7 +18,7 @@ assert_kube_reachable
 PROMPT="${*:-Add 17 and 25 using your sum tool.}"
 
 SVC="$(kubectl -n agentregistry-system get svc -o name 2>/dev/null \
-       | grep -m1 sovereignagent | cut -d/ -f2)"
+       | grep -m1 trustusbank-sovereign | cut -d/ -f2)"
 [[ -n "$SVC" ]] || die "no AgentRegistry-deployed agent Service found — run 56-ar-push-agent.sh"
 
 # Any in-cluster pod with python3; see python_pod() in lib.sh for why this is

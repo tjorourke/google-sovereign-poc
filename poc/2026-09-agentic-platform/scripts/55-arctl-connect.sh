@@ -64,10 +64,10 @@ _arctl_connect() {
   # (GCD has no certificatemanager/privateca, so the issuer is HTTP, and
   # endpoint protection reads the password POST as credential phishing).
   #
-  # This used to hardcode `-l app.kubernetes.io/name=sovereign-calc` in kagent.
+  # This used to hardcode `-l app.kubernetes.io/name=trustusbank-sovereign-calc` in kagent.
   # That workload moved: the MCP tool server is now `everything-server` in the
   # `mcp` namespace, so the lookup returned nothing and the failure read as
-  # "no sovereign-calc pod" rather than "the selector is stale". Probe a list of
+  # "no trustusbank-sovereign-calc pod" rather than "the selector is stale". Probe a list of
   # candidates and take the first that genuinely has python3.
   _mp="$(python_pod)" || { _bail "no in-cluster pod with python3 to mint a token from"; return 1; }
   _minter_ns="${_mp%%/*}"; _minter="${_mp##*/}"
