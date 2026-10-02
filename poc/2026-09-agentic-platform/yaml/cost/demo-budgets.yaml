@@ -1,0 +1,72 @@
+# Five independently editable rows in AGW Cost Management.
+# Seeded ClickHouse history is distinct from live enforcement-counter usage.
+apiVersion: enterpriseagentgateway.solo.io/v1alpha1
+kind: EnterpriseAgentgatewayBudget
+metadata:
+  name: developer-daily
+  namespace: agentgateway-system
+  labels: {company: trustusbank, demo.solo.io/scenario: cost-management}
+spec:
+  budgets:
+  # A per-developer daily cap. The subject is the demo sign-in user.
+  - name: developer-daily
+    subject: {user: bob}
+    limit: {amount: 5, unit: USD}
+    window: {unit: Day}
+    onBudgetExceeded: Block
+---
+apiVersion: enterpriseagentgateway.solo.io/v1alpha1
+kind: EnterpriseAgentgatewayBudget
+metadata:
+  name: finance-team
+  namespace: agentgateway-system
+  labels: {company: trustusbank, demo.solo.io/scenario: cost-management}
+spec:
+  budgets:
+  - name: finance-payments-operations
+    subject: {group: payments-ops}
+    limit: {amount: 90, unit: USD}
+    window: {unit: Week}
+    onBudgetExceeded: Audit
+---
+apiVersion: enterpriseagentgateway.solo.io/v1alpha1
+kind: EnterpriseAgentgatewayBudget
+metadata:
+  name: development-team
+  namespace: agentgateway-system
+  labels: {company: trustusbank, demo.solo.io/scenario: cost-management}
+spec:
+  budgets:
+  - name: development
+    subject: {group: development}
+    limit: {amount: 75, unit: USD}
+    window: {unit: Week}
+    onBudgetExceeded: Audit
+---
+apiVersion: enterpriseagentgateway.solo.io/v1alpha1
+kind: EnterpriseAgentgatewayBudget
+metadata:
+  name: compliance-team
+  namespace: agentgateway-system
+  labels: {company: trustusbank, demo.solo.io/scenario: cost-management}
+spec:
+  budgets:
+  - name: compliance
+    subject: {group: compliance}
+    limit: {amount: 40, unit: USD}
+    window: {unit: Week}
+    onBudgetExceeded: Audit
+---
+apiVersion: enterpriseagentgateway.solo.io/v1alpha1
+kind: EnterpriseAgentgatewayBudget
+metadata:
+  name: platform-team
+  namespace: agentgateway-system
+  labels: {company: trustusbank, demo.solo.io/scenario: cost-management}
+spec:
+  budgets:
+  - name: platform
+    subject: {group: platform}
+    limit: {amount: 25, unit: USD}
+    window: {unit: Week}
+    onBudgetExceeded: Audit
