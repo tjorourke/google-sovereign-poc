@@ -1,0 +1,331 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Data protection · TrustUsBank · Solo.io</title>
+  <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
+  <link rel="icon" type="image/png" href="/static/favicon.png">
+  <link rel="stylesheet" href="/static/css/app.css">
+  <link rel="stylesheet" href="/static/css/stage.css">
+  <style>
+    .gd-ask, .gd-upload { border-radius: 24px; background: #fff; border: 1px solid #e8e2d8; padding: 24px 26px; }
+    .gd-grid { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); gap: 16px; }
+    .gd-ask textarea { width: 100%; box-sizing: border-box; min-height: 120px; border: 1px solid #e0d9ce; border-radius: 14px; padding: 14px 16px; font: 15px/1.5 inherit; resize: vertical; background: #fbfaf7; }
+    .gd-ask textarea:focus, .gd-upload input:focus { outline: 2px solid #c4b5fd; border-color: #c4b5fd; }
+    .gd-samples { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 12px; }
+    .gd-samples button { border: 1px solid #e0d9ce; background: #f7f4ef; color: #3f3a4a; border-radius: 999px; padding: 6px 12px; font: 700 13px/1 inherit; cursor: pointer; }
+    .gd-samples button:hover { border-color: #c4b5fd; }
+    .gd-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-top: 12px; }
+    .gd-routes { display: inline-flex; border: 1px solid #e0d9ce; border-radius: 999px; overflow: hidden; }
+    .gd-routes button { border: 0; background: #fff; padding: 9px 16px; font: 700 13px/1 inherit; color: #5d5669; cursor: pointer; }
+    .gd-routes button + button { border-left: 1px solid #e0d9ce; }
+    .gd-routes button[aria-pressed="true"] { background: #120d1f; color: #fff; }
+    .gd-send { border: 0; background: #120d1f; color: #fff; border-radius: 999px; padding: 11px 22px; font: 800 15px/1 inherit; cursor: pointer; }
+    .gd-send:disabled { opacity: .5; cursor: wait; }
+    .gd-upload input[type=file] { font: 600 13px/1.4 inherit; color: #3f3a4a; }
+    .gd-upload input[type=text] { width: 100%; box-sizing: border-box; margin-top: 10px; border: 1px solid #e0d9ce; border-radius: 12px; padding: 11px 14px; font: 14px/1.4 inherit; background: #fbfaf7; }
+    .gd-drop { border: 2px dashed #e0d9ce; border-radius: 14px; padding: 16px; color: #6b6478; font-size: 13.5px; }
+    .gd-answer { margin-top: 16px; border-radius: 24px; background: #fff; border: 1px solid #e8e2d8; padding: 22px 24px; }
+    .gd-answer[hidden] { display: none; }
+    .gd-answer .txt { white-space: pre-wrap; font-size: 15px; line-height: 1.6; color: #221c30; max-height: 300px; overflow-y: auto; }
+    .gd-answer .who { font-size: 13px; font-weight: 750; color: #14532d; margin-bottom: 8px; }
+
+    .gd-log { margin: 26px 0 70px; }
+    .gd-log-head { display: flex; justify-content: space-between; align-items: baseline; margin: 0 0 10px; }
+    .gd-log-head small { color: #6b6478; font-size: 12.5px; }
+    .gd-clear { border: 1px solid #cbd5e1; border-radius: 8px; background: #fff; padding: 8px 14px; color: #334155; font: inherit; cursor: pointer; }
+    .gd-clear:disabled { opacity: .5; cursor: wait; }
+    .gd-log-head { flex-wrap: wrap; gap: 12px; }
+    .gd-card { background: #fff; border: 1px solid #d8e0ea; border-left-width: 5px; border-radius: 10px; padding: 14px 16px; margin: 0 0 12px; }
+    .gd-card.customer { border-left-color: #16a34a; }
+    .gd-card.restricted { border-left-color: #7c3aed; }
+    .gd-card.general { border-left-color: #d97706; }
+    .gd-card.refused { border-left-color: #dc2626; }
+    .gd-card .top { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+    .gd-card .who { font-weight: 700; margin-right: 4px; }
+    .gd-card .when { margin-left: auto; font: 12px ui-monospace, SFMono-Regular, Menlo, monospace; color: #64748b; }
+    .gd-pill { font: 12px ui-monospace, SFMono-Regular, Menlo, monospace; border: 1px solid #cbd5e1; border-radius: 999px; padding: 2px 9px; color: #334155; background: #f8fafc; white-space: nowrap; }
+    .gd-pill.customer { color: #15803d; border-color: #bbf7d0; background: #f0fdf4; }
+    .gd-pill.restricted { color: #6d28d9; border-color: #ddd6fe; background: #f5f3ff; }
+    .gd-pill.general { color: #b45309; border-color: #fde68a; background: #fffbeb; }
+    .gd-pill.bad { color: #b91c1c; border-color: #fecaca; background: #fef2f2; }
+    .gd-pill.masked { color: #0e7490; border-color: #a5f3fc; background: #ecfeff; }
+    .gd-prompt { font: 13px ui-monospace, SFMono-Regular, Menlo, monospace; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 9px 11px; margin: 10px 0 6px; white-space: pre-wrap; word-break: break-word; color: #1e293b; }
+    .gd-prompt mark { background: #cffafe; color: #155e75; border-radius: 4px; padding: 0 3px; }
+    .gd-card details summary { cursor: pointer; list-style: none; font-size: 12.5px; color: #475569; }
+    .gd-card details summary::-webkit-details-marker { display: none; }
+    .gd-card details summary::before { content: '▸ '; }
+    .gd-card details[open] summary::before { content: '▾ '; }
+    .gd-meta { display: flex; flex-wrap: wrap; gap: 6px 8px; align-items: center; border-left: 3px solid #e2e8f0; padding: 6px 0 6px 10px; margin: 8px 0 0; font-size: 12.5px; color: #475569; }
+    .gd-meta .lbl { color: #94a3b8; }
+    .gd-empty { color: #6b6478; font-size: 13.5px; background: #fff; border: 1px dashed #d8e0ea; border-radius: 10px; padding: 14px 16px; }
+    @media (max-width: 1000px) { .gd-grid { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body class="stage">
+<nav class="console-nav">
+  <a class="brand" href="/">
+    <svg width="22" height="22" viewBox="0 0 48 48" aria-hidden="true">
+      <g stroke="#a78bfa" stroke-width="2.4" opacity="0.6" stroke-linecap="round">
+        <line x1="24" y1="7" x2="7" y2="24"/><line x1="24" y1="7" x2="41" y2="24"/>
+        <line x1="7" y1="24" x2="24" y2="41"/><line x1="7" y1="24" x2="24" y2="41"/>
+        <line x1="41" y1="24" x2="24" y2="41"/>
+      </g>
+      <circle cx="24" cy="7" r="5" fill="#a78bfa"/>
+      <circle cx="7" cy="24" r="5" fill="#7c3aed"/>
+      <circle cx="41" cy="24" r="5" fill="#7c3aed"/>
+      <circle cx="24" cy="41" r="5" fill="#5b21b6"/>
+    </svg>
+    Solo.io
+  </a>
+  <div class="nav-links"></div>
+  <span class="nav-status"><i class="dot" id="dot"></i><span id="status-label">checking Berlin</span></span>
+</nav>
+
+<header class="st-hero">
+  <div class="st-wrap">
+    <a class="st-crumb" href="/google">← Google Sovereign Cloud</a>
+    <div class="st-eyebrow">Data protection · TrustUsBank · Berlin</div>
+    <h1>Checked <em>before</em> any model sees it.</h1>
+    <p class="lead">TrustUsBank's data policy runs on the gateway, not in the app. Every prompt is classified before routing: customer and restricted data is masked by the open-source Presidio service inside the cluster and only ever answered by Gemma in Berlin. Secrets and attempts to override the model are refused outright. Clean questions may still use Gemini.</p>
+    <p><b>Claude Desktop also appears below.</b> Connect it to
+      <code>https://agw.agentic.eu0.internal/trustusbank</code>, chat or attach a PDF,
+      then watch <b>What the gateway did</b>. Desktop summaries use Gemma; the files
+      are opened inside Berlin. The cards follow gateway logs, not just this page's buttons.</p>
+  </div>
+</header>
+
+<section class="st-section">
+  <div class="st-wrap">
+    <div class="st-head"><div><div class="st-eyebrow">Try it</div><h2>Ask, or upload a document</h2></div></div>
+    <div class="gd-grid">
+      <div class="gd-ask">
+        <div class="gd-samples" id="samples"></div>
+        <textarea id="prompt" placeholder="Ask something… try the fraud case with Gemini forced: the data class wins."></textarea>
+        <div class="gd-row">
+          <div class="gd-routes" id="routes">
+            <button data-r="auto" aria-pressed="true">router decides</button>
+            <button data-r="gemma" aria-pressed="false">force Gemma</button>
+            <button data-r="gemini" aria-pressed="false">force Gemini</button>
+          </div>
+          <button class="gd-send" id="send">Send through the gateway</button>
+        </div>
+      </div>
+      <div class="gd-upload">
+        <div class="st-eyebrow" style="margin-bottom:10px">Upload for summary</div>
+        <div class="gd-drop">
+          <input type="file" id="file" accept=".pdf,.txt,.md,.csv">
+          <div style="margin-top:8px">Opened inside the Berlin cluster. Summarised by <b>Gemma</b> — the file never leaves the boundary, and the call is masked like any other.</div>
+        </div>
+        <input type="text" id="uprompt" value="Summarise this document in five bullet points.">
+        <div class="gd-row">
+          <span style="font-size:12.5px;color:#6b6478" id="ufl">no file chosen</span>
+          <button class="gd-send" id="usend" disabled>Upload &amp; summarise</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="gd-answer" id="answer" hidden>
+      <div class="who" id="a-who"></div>
+      <a id="a-audit" hidden target="_blank" rel="noopener">Inspect this call in AGW Tracing ↗</a>
+      <div class="txt" id="a-txt"></div>
+    </div>
+  </div>
+</section>
+
+<section class="st-section" style="padding-top:0">
+  <div class="st-wrap">
+    <div class="gd-log">
+      <div class="gd-log-head">
+        <h2 style="margin:0">What the gateway did</h2>
+        <small>one card per call · every card is a trace in the <a href="http://kagent.agentic.eu0.internal/age/gateways" target="_blank" rel="noopener">agentgateway UI ↗</a></small>
+        <button type="button" class="gd-clear" id="clear-history">Clear history</button>
+      </div>
+      <p id="history-status" role="status" style="font-size:13px;color:#6b6478"></p>
+      <div id="log"><div class="gd-empty" id="log-empty">Nothing yet. Send a prompt or upload a document above.</div></div>
+    </div>
+  </div>
+</section>
+
+<script>
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const markPH = s => esc(s).replace(/\{[A-Z_]+\}/g, m => `<mark>${m}</mark>`);
+let route = 'auto';
+
+async function loadSamples() {
+  try {
+    const rows = await (await fetch('/api/google/dlp/samples')).json();
+    $('samples').innerHTML = rows.map(r => `<button data-k="${r.key}">${esc(r.label)}</button>`).join('');
+    document.querySelectorAll('#samples button').forEach(b => b.onclick = () => {
+      $('prompt').value = rows.find(x => x.key === b.dataset.k).prompt;
+      $('prompt').focus();
+    });
+  } catch (e) {}
+}
+
+document.querySelectorAll('#routes button').forEach(b => b.onclick = () => {
+  route = b.dataset.r;
+  document.querySelectorAll('#routes button').forEach(x => x.setAttribute('aria-pressed', x === b));
+});
+
+async function send() {
+  const prompt = $('prompt').value.trim(); if (!prompt) return;
+  $('send').disabled = true; $('send').textContent = 'Answering…';
+  $('answer').hidden = false; $('a-who').textContent = 'through the gateway…'; $('a-txt').textContent = ''; $('a-audit').hidden = true;
+  try {
+    const r = await (await fetch('/api/google/dlp/ask', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ prompt, route }) })).json();
+    const where = r.target === 'gemma' ? 'stayed in Berlin' : 'left the boundary via Cloud NAT';
+    $('a-who').textContent = r.status === 200 ? `${r.model || r.target} · ${where}` : `Refused · HTTP ${r.status}`;
+    $('a-audit').hidden = !r.trace_url;
+    if (r.trace_url) $('a-audit').href = r.trace_url;
+    $('a-txt').textContent = r.status === 200 ? (r.content || '(empty answer)')
+      : (typeof r.error === 'object' ? (r.error.message || r.error.raw || JSON.stringify(r.error)) : String(r.error || r.status));
+  } catch (e) { $('a-who').textContent = 'Error'; $('a-txt').textContent = String(e); }
+  $('send').disabled = false; $('send').textContent = 'Send through the gateway';
+  loadEvents();
+}
+$('send').onclick = send;
+$('prompt').addEventListener('keydown', e => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) send(); });
+
+let file = null;
+$('file').onchange = () => {
+  file = $('file').files[0] || null;
+  $('ufl').textContent = file ? `${file.name} · ${(file.size / 1024).toFixed(0)} KB` : 'no file chosen';
+  $('usend').disabled = !file;
+};
+async function usend() {
+  if (!file) return;
+  $('usend').disabled = true; $('usend').textContent = 'Reading in Berlin…';
+  $('answer').hidden = false; $('a-who').textContent = 'opening the document inside the cluster…'; $('a-txt').textContent = ''; $('a-audit').hidden = true;
+  if (file.size > 5 * 1024 * 1024) {
+    $('a-txt').textContent = 'Choose a file up to 5 MiB.';
+    $('usend').disabled = false; $('usend').textContent = 'Upload & summarise'; return;
+  }
+  try {
+  const data = await new Promise((res, rej) => {
+    const rd = new FileReader();
+    rd.onload = () => res(String(rd.result).split(',', 2)[1]);
+    rd.onerror = rej;
+    rd.readAsDataURL(file);
+  });
+    const r = await (await fetch('/api/google/dlp/upload', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: file.name, data, prompt: $('uprompt').value }) })).json();
+    $('a-who').textContent = r.status === 200
+      ? `${r.model || 'Gemma'} · ${r.elapsed}s · the document never left Berlin`
+      : `Refused · HTTP ${r.status}`;
+    $('a-audit').hidden = !r.trace_url;
+    if (r.trace_url) $('a-audit').href = r.trace_url;
+    $('a-txt').textContent = r.answer || (typeof r.error === 'object' ? (r.error.message || r.error.error || r.error.raw || JSON.stringify(r.error)) : String(r.error || 'no answer'));
+  } catch (e) { $('a-who').textContent = 'Error'; $('a-txt').textContent = String(e); }
+  $('usend').disabled = false; $('usend').textContent = 'Upload & summarise';
+  loadEvents();
+}
+$('usend').onclick = usend;
+
+const CLS_TXT = { customer: 'customer data · stayed in Berlin', restricted: 'restricted · stayed in Berlin', general: 'general' };
+function card(r) {
+  const refused = r.status === 403 || (r.status && r.status >= 400);
+  const cls = refused ? 'refused' : (r.cls || (r.prompt ? 'general' : 'refused'));
+  const gemma = (r.model || '').startsWith('gemma');
+  const when = new Date(r.ts * 1000).toLocaleTimeString([], { hour12: false });
+  const pill = (c, t) => `<span class="gd-pill ${c}">${esc(t)}</span>`;
+  const who = r.upload ? `Upload · ${esc(r.file || 'document')}`
+           : refused ? 'Not answered'
+           : (r.model ? esc(r.model) : '…');
+  const meta = [];
+  if (/^[0-9a-f]{32}$/.test(r.trace || '')) meta.push(`<a href="http://kagent.agentic.eu0.internal/age/tracing/${r.trace}" target="_blank" rel="noopener">Inspect call in AGW ↗</a> <code>${esc(r.trace.slice(0, 16))}</code>`);
+  if (r.tokens_in) meta.push(`<span class="lbl">tokens</span> ${r.tokens_in}→${r.tokens_out}`);
+  if (r.cost) meta.push(`<span class="lbl">cost</span> $${Number(r.cost).toFixed(5)}`);
+  if (r.ms != null) meta.push(`<span class="lbl">took</span> ${(r.ms / 1000).toFixed(1)}s`);
+  if (r.reason) meta.push(`<span class="lbl">reason</span> ${esc(r.reason)}`);
+  const maskedBlock = r.masked && r.masked !== r.prompt
+    ? `<div class="gd-prompt">${markPH(r.masked)}</div>` : '';
+  const origBlock = r.prompt ? `<div class="gd-prompt">${esc(r.prompt)}</div>` : '';
+  const answerBlock = r.answer ? `<div class="gd-prompt">${esc(r.answer)}</div>` : '';
+  const el = document.createElement('div');
+  el.className = 'gd-card ' + cls;
+  el.innerHTML = `
+    <div class="top">
+      <span class="who">${who}</span>
+      ${r.client === 'claude-desktop' ? pill('', 'Claude Desktop') : ''}
+      ${r.cls ? pill(r.cls, CLS_TXT[r.cls] || r.cls) : ''}
+      ${r.upload ? pill('restricted', `upload · ${r.pages || 1} page(s)`) : ''}
+      ${r.replaced ? pill('masked', `${r.replaced} replaced before the model`) : ''}
+      ${r.answer_replaced ? pill('masked', `${r.answer_replaced} replaced in the answer`) : ''}
+      ${r.status ? pill(refused ? 'bad' : '', 'HTTP ' + r.status) : ''}
+      ${gemma && !refused ? pill('customer', 'Gemma · Berlin') : ''}
+      ${(r.model || '').startsWith('gemini') ? pill('general', 'Gemini · via Cloud NAT') : ''}
+      <span class="when">${when}</span>
+    </div>
+    ${maskedBlock || (r.prompt ? origBlock : '')}
+    <details>
+      <summary>what the gateway saw${r.masked && r.masked !== r.prompt ? ', what it sent on' : ''}</summary>
+      <div class="gd-meta">${meta.join(' ')}</div>
+      ${maskedBlock ? `<div class="gd-meta"><span class="lbl">as sent</span></div>${origBlock}` : ''}
+      ${answerBlock ? `<div class="gd-meta"><span class="lbl">answer</span></div>${answerBlock}` : ''}
+    </details>`;
+  return el;
+}
+
+let seen = new Map(), historyCutoff = 0, renderEpoch = 0, clearing = false;
+let pollSerial = 0, appliedSerial = 0;
+function resetHistoryView() {
+  seen.clear();
+  $('log').innerHTML = '<div class="gd-empty" id="log-empty">No calls yet. New requests will appear here.</div>';
+}
+$('clear-history').onclick = async () => {
+  clearing = true; renderEpoch++;
+  $('clear-history').disabled = true;
+  try {
+    const result = await (await fetch('/api/google/dlp/clear', {method: 'POST'})).json();
+    if (!result.ok) throw new Error(result.error || 'Could not clear history');
+    historyCutoff = result.cleared_after;
+    resetHistoryView();
+    $('history-status').textContent = 'History cleared. Waiting for new calls. AGW audit traces remain available.';
+  } catch (error) { $('history-status').textContent = String(error); }
+  finally { clearing = false; $('clear-history').disabled = false; }
+  loadEvents();
+};
+async function loadEvents() {
+  if (clearing) return;
+  const epoch = renderEpoch, serial = ++pollSerial;
+  let d;
+  try { d = await (await fetch('/api/google/dlp/events')).json(); } catch (e) { return; }
+  if (clearing || epoch !== renderEpoch || serial < appliedSerial) return;
+  const cutoff = Number(d.cleared_after || 0);
+  if (cutoff < historyCutoff) return;
+  appliedSerial = serial;
+  if (cutoff > historyCutoff) {
+    historyCutoff = cutoff; renderEpoch++;
+    resetHistoryView();
+  }
+  const log = $('log');
+  [...(d.decisions || [])].reverse().forEach(r => {
+    const key = JSON.stringify(r);
+    if (seen.get(r.id) === key) return;
+    const old = log.querySelector(`[data-id="${r.id}"]`);
+    const el = card(r); el.dataset.id = r.id;
+    if (old) old.replaceWith(el); else log.prepend(el);
+    seen.set(r.id, key);
+  });
+  const empty = $('log-empty'); if (empty && (d.decisions || []).length) empty.remove();
+}
+
+async function loadStatus() {
+  try {
+    const s = await (await fetch('/api/google/dlp/status')).json();
+    const on = s.gateway && s.pii_ready;
+    $('dot').className = 'dot ' + (on ? 'live' : 'off');
+    $('status-label').textContent = on ? 'DLP live on the Berlin gateway' : 'DLP not following — is 96-dlp.sh installed?';
+  } catch (e) { $('dot').className = 'dot off'; $('status-label').textContent = 'console only'; }
+}
+
+loadSamples(); loadStatus(); loadEvents();
+setInterval(loadEvents, 4000);
+setInterval(loadStatus, 30000);
+</script>
+</body>
+</html>

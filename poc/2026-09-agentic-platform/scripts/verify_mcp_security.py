@@ -115,7 +115,9 @@ def main():
         if field == "byo":
             endpoints = [v["url"] for v in json.loads(env.get("MCP_SERVERS_CONFIG") or "[]")]
         else:
-            endpoints = ["http://everything-server." + ("agents" if ns == "agents" else "mcp") + ".svc.cluster.local:3000/mcp"]
+            # A declarative agent with no MCP config has no tool path to verify;
+            # the fixed demo agents are all BYO images with explicit config.
+            endpoints = []
         for endpoint in endpoints:
             srv = next((s for s in servers if security.url(s) == endpoint), None)
             check(name + " mesh endpoint", srv is not None, endpoint)
@@ -151,12 +153,6 @@ def main():
         r = probe("mcp", "mcp-catalog", [{"name": "pod bypass", "url":
             f'http://{pod["status"]["podIP"]}:{s["port"]}{s["path"]}'}])[0]
         check(s["namespace"] + "/" + s["name"] + " pod-IP bypass denied", r["status"] == 0)
-    endpoint = "http://everything-server.mcp.svc.cluster.local:3000/mcp"
-    for tool, args, denied in [("sum", {"a": 17, "b": 25}, False), ("echo", {"message": "security-audit"}, True)]:
-        r = probe("kagent", "trustusbank-sovereign-calc", [{"name": tool, "url": endpoint,
-            "call": {"name": tool, "arguments": args}}])[0]
-        check("trustusbank-sovereign-calc " + tool, (r["status"] in (200, 400) if denied else r["status"] == 200) and r.get("denied") == denied,
-              "denied" if r.get("denied") else "allowed")
     failed = sum(not c["passed"] for c in checks)
     print(f"\n{len(checks)-failed}/{len(checks)} checks passed")
     if options.output:

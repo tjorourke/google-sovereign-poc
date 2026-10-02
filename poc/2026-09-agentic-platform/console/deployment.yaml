@@ -1,0 +1,102 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: trustusbank-console
+  labels: {company: trustusbank}
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: google-console
+  namespace: trustusbank-console
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: berlin-kubeconfig
+  namespace: trustusbank-console
+data:
+  kubeconfig: |
+    apiVersion: v1
+    kind: Config
+    current-context: berlin-in-cluster
+    clusters:
+    - name: berlin
+      cluster:
+        server: https://kubernetes.default.svc
+        certificate-authority: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+    users:
+    - name: console
+      user:
+        tokenFile: /var/run/secrets/kubernetes.io/serviceaccount/token
+    contexts:
+    - name: berlin-in-cluster
+      context: {cluster: berlin, user: console}
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: console-state
+  namespace: trustusbank-console
+spec:
+  accessModes: [ReadWriteOnce]
+  storageClassName: hyperdisk-balanced
+  resources:
+    requests: {storage: 4Gi}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: google-console
+  namespace: trustusbank-console
+spec:
+  replicas: 1
+  strategy: {type: Recreate}
+  selector:
+    matchLabels: {app: google-console}
+  template:
+    metadata:
+      labels: {app: google-console, company: trustusbank}
+    spec:
+      serviceAccountName: google-console
+      securityContext: {runAsNonRoot: true, runAsUser: 10001, fsGroup: 10001}
+      containers:
+      - name: console
+        image: __CONSOLE_IMAGE__
+        ports: [{name: http, containerPort: 8900}]
+        env:
+        - {name: GCD_AGW_URL, value: "http://agentgateway-proxy.agentgateway-system.svc.cluster.local"}
+        - {name: TUB_KAGENT_URL, value: "http://kagent-controller.kagent.svc.cluster.local:8083"}
+        - {name: TUB_KEYCLOAK, value: "http://keycloak.keycloak.svc.cluster.local"}
+        - {name: GB_AR_URL, value: "http://agentregistry-enterprise-server.agentregistry-system.svc.cluster.local:12121"}
+        - name: GH_TOKEN
+          valueFrom: {secretKeyRef: {name: console-integrations, key: GITHUB_TOKEN}}
+        - name: TUB_USER_PASSWORD
+          valueFrom: {secretKeyRef: {name: console-integrations, key: TUB_USER_PASSWORD}}
+        - name: TUB_KEYCLOAK_ADMIN_PASSWORD
+          valueFrom: {secretKeyRef: {name: console-integrations, key: TUB_KEYCLOAK_ADMIN_PASSWORD}}
+        - name: GB_AR_PASSWORD
+          valueFrom: {secretKeyRef: {name: console-integrations, key: GB_AR_PASSWORD}}
+        resources:
+          requests: {cpu: 250m, memory: 512Mi, ephemeral-storage: 1Gi}
+          limits: {memory: 1Gi, ephemeral-storage: 2Gi}
+        securityContext: {allowPrivilegeEscalation: false, capabilities: {drop: [ALL]}}
+        readinessProbe: {httpGet: {path: /healthz, port: http}, periodSeconds: 5}
+        livenessProbe: {httpGet: {path: /healthz, port: http}, initialDelaySeconds: 20, periodSeconds: 15}
+        volumeMounts:
+        - {name: kubeconfig, mountPath: /etc/berlin, readOnly: true}
+        - {name: access, mountPath: /etc/console-auth, readOnly: true}
+        - {name: state, mountPath: /data}
+      volumes:
+      - {name: kubeconfig, configMap: {name: berlin-kubeconfig}}
+      - {name: access, secret: {secretName: console-access}}
+      - {name: state, persistentVolumeClaim: {claimName: console-state}}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: google-console
+  namespace: trustusbank-console
+spec:
+  selector: {app: google-console}
+  ports: [{name: http, port: 8900, targetPort: http}]

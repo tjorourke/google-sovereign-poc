@@ -195,7 +195,9 @@ spec:
             - --model=${MODEL_ID}
             - --served-model-name=${SERVED_NAME}
             - --tensor-parallel-size=${GPU_COUNT:-1}
-            - --max-model-len=${MAX_MODEL_LEN:-8192}
+            # Native Desktop includes ~19k tokens of instructions before the
+            # document. 24k fits the H100's measured ~31k-token KV cache.
+            - --max-model-len=${MAX_MODEL_LEN:-24576}
             # Gemma is trained in bfloat16 and MUST be served in it. vLLM
             # otherwise downcasts to float16 ("Downcasting torch.float32 to
             # torch.float16" in the startup log), whose narrower exponent range

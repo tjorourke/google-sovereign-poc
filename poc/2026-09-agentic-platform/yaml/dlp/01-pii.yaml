@@ -1,0 +1,313 @@
+# TrustUsBank data protection: the personal-data check, running inside the
+# sovereign boundary. This is the same open-source DLP the EKS demo runs for
+# Kernwerk (Microsoft Presidio, MIT, github.com/data-privacy-stack/presidio),
+# with TrustUsBank recognizers and TrustUsBank policy.
+#
+# pii.py speaks the agentgateway guardrail webhook contract: POST /request and
+# POST /response, answering pass or mask with the placeholders filled in. It is
+# called by the promptGuard policy in 03-data-policy.yaml on the models route.
+#
+# It also opens uploads. POST /tub/summarize on port 8081 (reached through the
+# gateway, 04-upload.yaml) reads an attached PDF/text file HERE, in the cluster,
+# then sends it to the models route forcing Gemma, so a document a user uploads
+# is summarised without its contents ever leaving Berlin.
+#
+# The image is mirrored into the in-universe registry by 96-dlp.sh: GCD cannot
+# pull from mcr.microsoft.com.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: trustusbank-pii
+  namespace: agentgateway-system
+data:
+  pii.py: |
+    import base64
+    import http.client
+    import io
+    import json
+    import os
+    import threading
+    import time
+    from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+    from presidio_analyzer import AnalyzerEngine, Pattern, PatternRecognizer
+
+    engine = AnalyzerEngine()
+    for entity, regex, score in [
+        # TrustUsBank customer number, as core-banking returns it (CUS-20194).
+        ("TUB_CUSTOMER_ID", r"\bCUS-\d{5}\b", 0.95),
+        # German tax number (DE263412887) and the 11-digit Steuer-IdNr.
+        ("GERMAN_TAX_NUMBER", r"\bDE\d{9}\b", 0.8),
+        ("GERMAN_TAX_ID", r"\b[1-9]\d{10}\b", 0.7),
+        ("GERMAN_PHONE", r"(?:\+49 ?|\b0)[1-9]\d{1,4}(?:[ /-]?\d{2,8}){1,3}\b", 0.85),
+        ("IBAN", r"\b[A-Z]{2}\d{2}(?: ?[0-9A-Z]{4}){3,7}(?: ?[0-9A-Z]{1,4})?\b", 0.95),
+        ("ADDRESS", r"\b[A-ZÄÖÜ][a-zäöüß]+(?:straße|strasse|str\.|weg|platz|allee|gasse|ring|damm)"
+                    r" \d+[a-z]?(?:, \d{5} [A-ZÄÖÜ][a-zäöüß]+)?", 0.9),
+    ]:
+        engine.registry.add_recognizer(PatternRecognizer(
+            supported_entity=entity, name=entity.lower(), patterns=[Pattern(entity, regex, score)]))
+
+    # Presidio's names for things, mapped to the placeholders a banker reads.
+    LABEL = {"PERSON": "NAME", "EMAIL_ADDRESS": "EMAIL", "PHONE_NUMBER": "PHONE",
+             "IBAN_CODE": "IBAN", "IBAN": "IBAN", "CREDIT_CARD": "CARD",
+             "TUB_CUSTOMER_ID": "CUSTOMER_ID", "GERMAN_TAX_ID": "TAX_ID",
+             "GERMAN_TAX_NUMBER": "TAX_ID", "GERMAN_PHONE": "PHONE",
+             "ADDRESS": "ADDRESS"}
+    # Institution and scheme names are not personal data. The NER model tags
+    # spans such as "TrustUsBank" as a person, so any span holding one is kept.
+    KEEP = ["TrustUsBank", "SEPA", "BaFin", "Bundesbank", "GwG"]
+
+    def mask(text):
+        found = [r for r in engine.analyze(text=text, language="en", entities=list(LABEL),
+                                           score_threshold=0.5)
+                 if not any(k in text[r.start:r.end] for k in KEEP)]
+        found.sort(key=lambda r: (r.start, -(r.end - r.start), -r.score))
+        out, pos, n = [], 0, 0
+        for r in found:
+            if r.start < pos:
+                continue
+            out.append(text[pos:r.start] + "{" + LABEL[r.entity_type] + "}")
+            pos, n = r.end, n + 1
+        return "".join(out) + text[pos:], n
+
+    def mask_content(content):
+        """Chat completions content is a string or a list of parts."""
+        if isinstance(content, list):
+            total = 0
+            for part in content:
+                if isinstance(part, dict) and isinstance(part.get("text"), str):
+                    part["text"], n = mask(part["text"])
+                    total += n
+            return content, total
+        return mask(content or "")
+
+    def text_of(content):
+        if isinstance(content, list):
+            return "\n".join(p.get("text", "[attachment]") for p in content if isinstance(p, dict))
+        return content or ""
+
+    # One JSON line per prompt and per answer, for the demo console to follow
+    # with kubectl logs. "request"/"response" are written by the webhook and
+    # carry the gateway's trace id; "incoming"/"answer" are written by the
+    # upload reader and share one id.
+    def record(**event):
+        print(json.dumps({"ts": time.time(), **event}), flush=True)
+
+    class H(BaseHTTPRequestHandler):
+        def do_GET(self):
+            self.reply({"ok": True})
+
+        def do_POST(self):
+            payload = json.loads(self.rfile.read(int(self.headers.get("Content-Length") or 0)) or b"{}")
+            body = payload["body"]
+            # The data class the PreRouting policy (02) computed, forwarded by
+            # the gateway. Masking does not depend on it: an unclassified
+            # request is still masked, the class only colours the record.
+            dclass = self.headers.get("x-tub-data", "")
+            trace = self.headers.get("traceparent", "").split("-")
+            trace = trace[1] if len(trace) == 4 else ""
+            total = 0
+            if self.path.startswith("/request"):
+                # A coding agent's conversation carries tool results, and the gateway
+                # hands back a masked body without each tool message's tool_call_id.
+                # The masked request then fails to parse and the turn is rejected with
+                # a 400. This human document-summary route fails closed for tool
+                # conversations instead of silently passing personal data through.
+                if any(m.get("role") == "tool" for m in body["messages"]):
+                    return self.reply({"action": {"status_code": 422,
+                        "body": "Tool conversations are not supported on the document DLP path"}})
+                last = None
+                for m in body["messages"]:
+                    # An assistant turn that is only tool calls carries no content key.
+                    if not isinstance(m.get("content"), (str, list)):
+                        continue
+                    before = text_of(m.get("content"))
+                    m["content"], n = mask_content(m.get("content"))
+                    total += n
+                    if m.get("role") == "user":
+                        last = (before, text_of(m["content"]), n)
+                if last:
+                    record(kind="request", **{"class": dclass}, trace=trace, original=last[0],
+                           masked=last[1], replaced=last[2],
+                           turns=sum(1 for m in body["messages"] if m.get("role") == "user"))
+                # CEL recognises deterministic banking markers before routing.
+                # Presidio can find additional names/addresses afterwards. Do not
+                # let that broader detection silently send personal data abroad.
+                # The route overwrites x-tub-target, so clients cannot forge it.
+                if total and self.headers.get("x-tub-target") == "gemini":
+                    return self.reply({"action": {"status_code": 409,
+                        "body": "TrustUsBank residency: personal data detected. Resubmit to Gemma.",
+                        "reason": "personal data requires the in-boundary model"}})
+            else:
+                for c in body["choices"]:
+                    if not isinstance(c.get("message", {}).get("content"), (str, list)):
+                        continue
+                    before = text_of(c["message"].get("content"))
+                    c["message"]["content"], n = mask_content(c["message"].get("content"))
+                    total += n
+                    record(kind="response", **{"class": dclass}, trace=trace, original=before,
+                           masked=text_of(c["message"]["content"]), replaced=n)
+            if total:
+                self.reply({"action": {"body": body, "reason": f"{total} personal data items replaced"}})
+            else:
+                self.reply({"action": {"reason": "no personal data"}})
+
+        def reply(self, d):
+            out = json.dumps(d).encode()
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(out)))
+            self.end_headers()
+            self.wfile.write(out)
+
+        def log_message(self, *a):
+            pass
+
+
+    # ---- the upload reader ---------------------------------------------------
+    #
+    # The console POSTs {"name": "case.pdf", "data": "<base64>", "prompt": "..."}
+    # here. The file is opened in this pod, its text goes to the models route
+    # with Gemma forced, and the gateway's own DLP webhook masks that call like
+    # any other. The answer is fetched whole so the response webhook can check
+    # it before anything comes back.
+
+    GW = (os.environ.get("GW_HOST", "agentgateway-proxy.agentgateway-system.svc.cluster.local"), 80)
+    LLM_HOST = os.environ.get("LLM_HOST", "agw.agentic.eu0.internal")
+    MODEL = os.environ.get("UPLOAD_MODEL", "gemma-3-27b-it")
+
+    def read_file(name, data):
+        if not isinstance(name, str) or not name.lower().endswith((".pdf", ".txt", ".md", ".csv")):
+            raise ValueError("Choose a PDF, TXT, Markdown or CSV file")
+        raw = base64.b64decode(data, validate=True)
+        if not raw or len(raw) > 5 * 1024 * 1024:
+            raise ValueError("Choose a non-empty file up to 5 MiB")
+        if name.lower().endswith(".pdf"):
+            from pypdf import PdfReader
+            pdf = PdfReader(io.BytesIO(raw))
+            if pdf.is_encrypted or len(pdf.pages) > 30:
+                raise ValueError("Use an unencrypted PDF of at most 30 pages")
+            text, pages = "\n".join((page.extract_text() or "") for page in pdf.pages).strip(), len(pdf.pages)
+        else:
+            text, pages = raw.decode("utf-8"), 1
+        if not text.strip():
+            raise ValueError("No selectable text found; scanned PDFs need OCR before upload")
+        if len(text) > 24000:
+            raise ValueError("Document exceeds the demo's 24,000-character limit; upload a shorter excerpt")
+        return text, pages
+
+    class Reader(BaseHTTPRequestHandler):
+        def do_GET(self):
+            self.send_response(200)
+            self.end_headers()
+
+        def do_POST(self):
+            if self.path.startswith("/trustusbank/"):
+                from desktop_adapter import handle
+                return handle(self, read_file, record, GW, LLM_HOST)
+            size = int(self.headers.get("Content-Length") or 0)
+            if size <= 0 or size > 7 * 1024 * 1024:
+                self.send_error(413, "Upload body must be between 1 byte and 7 MiB")
+                return
+            raw = self.rfile.read(size)
+            rid, t0 = f"{time.time():.6f}", time.time()
+            status, data = 500, b"{}"
+            try:
+                up = json.loads(raw)
+                name, prompt = up.get("name") or "document", up.get("prompt") or "Summarise this document."
+                text, pages = read_file(name, up.get("data") or "")
+                trace_parts = self.headers.get("traceparent", "").split("-")
+                upload_trace = trace_parts[1] if len(trace_parts) == 4 else ""
+                record(kind="incoming", id=rid, text=prompt, file=name, pages=pages,
+                       chars=len(text), trace=upload_trace, doc=text[:2000])
+                msg = {"model": MODEL, "max_tokens": 1500,
+                       "messages": [{"role": "user", "content":
+                                     f"{prompt}\n\n[{name}, {pages} page(s)]\n{text}"}]}
+                conn = http.client.HTTPConnection(*GW, timeout=300)
+                conn.request("POST", "/v1/chat/completions", json.dumps(msg).encode(), {
+                    "Host": LLM_HOST, "Content-Type": "application/json",
+                    # Preserve the verified caller and trace across the reader hop.
+                    **{k: self.headers[k] for k in ("Authorization", "traceparent") if self.headers.get(k)},
+                    # Uploads always take the in-boundary model; the data-class
+                    # rule then pins it there whatever the text looks like.
+                    "x-selected-model": MODEL})
+                resp = conn.getresponse()
+                status, data = resp.status, resp.read()
+                conn.close()
+                answer, model = "", ""
+                try:
+                    d = json.loads(data)
+                    model = d.get("model", "")
+                    answer = d["choices"][0]["message"].get("content", "")
+                except Exception:
+                    pass
+                record(kind="answer", id=rid, status=status, text=answer, model=model,
+                       elapsed=round(time.time() - t0, 2))
+            except Exception as e:
+                record(kind="upload-error", error=str(e)[:200])
+                status, data = 400, json.dumps({"error": str(e)[:400]}).encode()
+            self.send_response(status)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(data)))
+            self.end_headers()
+            self.wfile.write(data)
+
+        def log_message(self, *a):
+            pass
+
+    threading.Thread(target=ThreadingHTTPServer(("0.0.0.0", 8081), Reader).serve_forever, daemon=True).start()
+    ThreadingHTTPServer(("0.0.0.0", 8080), H).serve_forever()
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: trustusbank-pii
+  namespace: agentgateway-system
+spec:
+  replicas: 1
+  strategy: {type: Recreate}
+  selector:
+    matchLabels: {app: trustusbank-pii}
+  template:
+    metadata:
+      labels: {app: trustusbank-pii}
+    spec:
+      containers:
+      - name: pii
+        image: ${DLP_IMAGE}
+        command: ["python", "-u", "/opt/trustusbank/pii.py"]
+        env:
+        - {name: PYTHONPATH, value: /app:/opt/pylib:/opt/desktop}
+        - {name: LLM_HOST, value: agw.__BASE_DOMAIN__}
+        ports: [{containerPort: 8080}, {containerPort: 8081}]
+        readinessProbe:
+          httpGet: {path: /, port: 8080}
+          periodSeconds: 5
+        resources:
+          requests: {cpu: 250m, memory: 1Gi}
+          limits: {memory: 2Gi}
+        volumeMounts: [{name: app, mountPath: /opt/trustusbank}, {name: pylib, mountPath: /opt/pylib}, {name: desktop, mountPath: /opt/desktop}]
+      # pypdf, for reading uploaded PDFs. The Presidio image does not carry it.
+      initContainers:
+      - name: pypdf
+        image: ${DLP_IMAGE}
+        command: ["pip", "install", "--quiet", "--target", "/opt/pylib", "pypdf==6.1.1"]
+        resources:
+          requests: {cpu: 250m, memory: 1Gi}
+          limits: {memory: 2Gi}
+        volumeMounts: [{name: pylib, mountPath: /opt/pylib}]
+      volumes:
+      - name: app
+        configMap: {name: trustusbank-pii}
+      - name: pylib
+        emptyDir: {}
+      - name: desktop
+        configMap: {name: trustusbank-desktop-reader}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: trustusbank-pii
+  namespace: agentgateway-system
+spec:
+  selector: {app: trustusbank-pii}
+  ports: [{name: guardrail, port: 8080, targetPort: 8080}, {name: reader, port: 8081, targetPort: 8081}]

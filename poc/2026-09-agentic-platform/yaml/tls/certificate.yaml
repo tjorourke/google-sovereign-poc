@@ -31,5 +31,6 @@ spec:
     - agentregistry.agentic.eu0.internal
     - mcp.agentic.eu0.internal
     - llm.agentic.eu0.internal
+    - agw.agentic.eu0.internal
   duration: 8760h    # 1 year
   renewBefore: 720h  # 30 days

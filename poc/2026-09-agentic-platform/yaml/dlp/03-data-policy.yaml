@@ -1,0 +1,79 @@
+# TrustUsBank's data policy, on the models route. The class policy (02) has
+# already decided where a prompt may go; this decides what it may carry.
+#
+# First, what no model gets, not even TrustUsBank's own: secrets and attempts
+# to talk the model out of its rules. Then every personal detail is replaced
+# with a placeholder by trustusbank-pii, which runs in this cluster, so no
+# prompt is sent anywhere to be checked. The answer passes through
+# trustusbank-pii again on the way back.
+#
+# Only the backend/ai sections, so it composes with models-identity-budget
+# (89-cost.sh), which owns traffic.jwtAuthentication on the same route.
+apiVersion: enterpriseagentgateway.solo.io/v1alpha1
+kind: EnterpriseAgentgatewayPolicy
+metadata:
+  name: trustusbank-data-policy
+  namespace: agentgateway-system
+spec:
+  targetRefs:
+  - group: gateway.networking.k8s.io
+    kind: HTTPRoute
+    name: models
+  traffic:
+    transformation:
+      # Desktop's reader requests whole answers. Skip this body transformation
+      # for streaming clients so the Routing page's SSE is not buffered.
+      conditional:
+      - condition: '!has(json(request.body).stream) || json(request.body).stream != true'
+        policy:
+          response:
+            # vLLM 0.8 returns {object:error,message:...}, rather than an OpenAI
+            # error envelope. Preserve 400 and the useful upstream explanation.
+            body: >-
+              response.code >= 400 && string(response.body).startsWith("{")
+              ? json(response.body).with(b,
+                  has(b.error) || !has(b.message) ? response.body
+                  : toJson({"error": {"message": b.message, "type": "invalid_request_error", "code": "model_request_rejected"}}))
+              : response.body
+  backend:
+    ai:
+      prompt:
+        prepend:
+        - role: system
+          content: >-
+            TrustUsBank data policy: personal data below has been replaced with
+            placeholders like {NAME} and {IBAN}. Treat each placeholder as the
+            person or detail it stands for.
+      promptGuard:
+        request:
+        - regex:
+            action: Reject
+            matches:
+            - '\bAKIA[0-9A-Z]{16}\b'
+            - '(?i)\b(password|passwort|kennwort)\s*[:=]\s*\S+'
+            - '(?i)ignore (all |any )?(previous|prior|your) (instructions|rules)'
+            - '(?i)you (now )?have no (rules|restrictions)'
+            - '(?i)(print|reveal|show) (me )?your system prompt'
+          response:
+            statusCode: 403
+            # A valid OpenAI error also survives the Desktop Messages converter.
+            message: '{"error":{"type":"permission_error","code":"guardrail_rejected","message":"Stopped at the TrustUsBank gateway. This request carries a secret or tries to override the model rules, so no model received it."}}'
+        - webhook:
+            backendRef:
+              kind: Service
+              name: trustusbank-pii
+              port: 8080
+            failureMode: FailClosed
+            # So the DLP service can record which class each prompt was.
+            forwardHeaderMatches:
+            - {name: x-tub-data, type: RegularExpression, value: ".*"}
+            - {name: x-tub-target, type: RegularExpression, value: ".*"}
+        response:
+        - webhook:
+            backendRef:
+              kind: Service
+              name: trustusbank-pii
+              port: 8080
+            failureMode: FailClosed
+            forwardHeaderMatches:
+            - {name: x-tub-data, type: RegularExpression, value: ".*"}

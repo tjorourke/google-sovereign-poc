@@ -1,0 +1,274 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>My agents · Solo.io</title>
+  <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
+  <link rel="icon" type="image/png" href="/static/favicon.png">
+  <link rel="stylesheet" href="/static/css/app.css">
+  <link rel="stylesheet" href="/static/css/agents.css">
+</head>
+<body>
+<nav class="console-nav">
+  <a class="brand" href="/">
+    <svg width="22" height="22" viewBox="0 0 48 48" aria-hidden="true">
+      <g stroke="#a78bfa" stroke-width="2.4" opacity="0.6" stroke-linecap="round">
+        <line x1="24" y1="7" x2="7" y2="24"/><line x1="24" y1="7" x2="41" y2="24"/>
+        <line x1="7" y1="24" x2="41" y2="24"/><line x1="7" y1="24" x2="24" y2="41"/>
+        <line x1="41" y1="24" x2="24" y2="41"/>
+      </g>
+      <circle cx="24" cy="7" r="5" fill="#a78bfa"/>
+      <circle cx="7" cy="24" r="5" fill="#7c3aed"/>
+      <circle cx="41" cy="24" r="5" fill="#7c3aed"/>
+      <circle cx="24" cy="41" r="5" fill="#5b21b6"/>
+    </svg>
+    Solo.io
+  </a>
+  <div class="nav-links">
+    <a href="/desktop">Agentdesktop</a>
+    <a href="/decisions">Gateway decisions</a>
+    <a href="/economy">Token economics</a>
+    <a href="/cost">Cost</a>
+    <a href="/agents" class="active">My agents</a>
+    <a href="/approvals">Platform approval</a>
+    <a href="/petstore">Agent SDLC</a>
+    <a href="/substrate">Substrate</a>
+  </div>
+  <span class="nav-status"><i class="dot" id="dot"></i><span id="status-label"></span></span>
+</nav>
+
+<header class="hero">
+  <div class="wrap ag-wide">
+    <div class="crumb"><a href="/user-story-1">← Agentics Overview</a></div>
+    <div class="eyebrow">DEMO 06 · No-code</div>
+    <h1>My agents</h1>
+    <p>Walk through the wizard, then deploy. Tools marked Ready to use work straight away; the rest wait for a platform admin.</p>
+    <div class="btns" style="margin-top:14px">
+      <a class="btn primary" id="btn-kagent" href="#" target="_blank" rel="noreferrer">Open kagent</a>
+      <a class="btn" id="btn-registry" href="#" target="_blank" rel="noreferrer">Open AgentRegistry</a>
+    </div>
+  </div>
+</header>
+
+<div class="wrap ag ag-wide">
+  <p class="sub" id="platform-note"></p>
+
+  <div id="home-view">
+    <div id="list-view" class="loading">
+      <div class="ag-strip">
+        <div class="ag-count"><b id="count-total"><span class="ag-spinner sm"></span></b><span id="count-label">Loading your agents…</span></div>
+        <p class="ag-strip-sub" id="count-sub">Reading AgentRegistry and kagent.</p>
+        <button class="btn primary ag-new" id="new-agent" type="button">＋ New agent</button>
+      </div>
+      <div class="ag-grid" id="list">
+        <div class="ag-card skeleton"><i></i><i></i><i></i></div>
+        <div class="ag-card skeleton"><i></i><i></i><i></i></div>
+        <div class="ag-card skeleton"><i></i><i></i><i></i></div>
+      </div>
+    </div>
+
+    <div class="ag-detail" id="detail" style="display:none">
+      <button type="button" class="ag-back" id="detail-close">← All agents</button>
+      <div class="ag-detail-head">
+        <div class="ag-avatar lg" id="detail-avatar"></div>
+        <div class="ag-detail-title">
+          <span class="ag-state" id="detail-state"></span>
+          <h2 id="detail-name"></h2>
+          <p id="detail-desc"></p>
+        </div>
+        <div class="ag-detail-actions">
+          <button type="button" class="btn primary" id="detail-chat">Chat</button>
+          <a class="btn" id="open-chat" href="#" target="_blank" rel="noreferrer" style="display:none">Open in kagent ↗</a>
+          <button type="button" class="btn" id="detail-edit">Edit</button>
+          <button type="button" class="btn ag-danger" id="detail-del">Delete</button>
+        </div>
+      </div>
+
+      <div class="ag-celebrate" id="celebrate" style="display:none"></div>
+      <div class="ag-detail-grid">
+        <div class="ag-col">
+          <section class="ag-box">
+            <div class="ag-kicker">Rollout</div>
+            <ol class="ag-steps" id="life"></ol>
+            <p class="ag-status-line" id="detail-status"></p>
+          </section>
+          <div class="ag-approve auto" id="auto-card" style="display:none">
+            <div class="ag-kicker green">Access · granted automatically</div>
+            <h3>Ready to use, nothing to approve</h3>
+            <p id="auto-detail"></p>
+            <p class="ag-foot">Still enforced by agentgateway. The agent presents its own signed MCP token, the gateway checks it matches the agent's mesh identity, and only the tools it picked are allowed. Any other agent is turned away before it can open a session.</p>
+          </div>
+          <div class="ag-approve" id="approve-card" style="display:none">
+            <div class="ag-kicker amber">Security · waiting on a platform admin</div>
+            <h3>MCP tools need approval</h3>
+            <p>The agent is deployed. Tools stay closed until a platform admin allows this identity, and that is not your call from here.</p>
+            <a class="btn primary" href="/approvals">Open Platform approval</a>
+            <p class="ag-foot" id="approve-msg"></p>
+          </div>
+          <div class="ag-approve ok" id="approved-card" style="display:none">
+            <div class="ag-kicker green">Security · approved</div>
+            <h3>MCP tools allowed for this identity</h3>
+            <p id="approved-detail"></p>
+            <a class="btn" href="/approvals">Manage on Platform approval</a>
+            <p class="ag-foot" id="revoke-msg"></p>
+          </div>
+        </div>
+        <div class="ag-col">
+          <section class="ag-box">
+            <div class="ag-kicker">What it runs</div>
+            <div id="detail-runs"></div>
+          </section>
+          <details class="ag-code">
+            <summary>Manifests <span>AgentRegistry YAML, applied with arctl</span></summary>
+            <pre id="yaml-view"></pre>
+          </details>
+          <details class="ag-code" id="policy-details" style="display:none">
+            <summary>Approved policy <span>MCP allow for this ServiceAccount</span></summary>
+            <pre id="policy-view"></pre>
+          </details>
+          <details class="ag-code">
+            <summary>Runtime log <span>agent pod</span></summary>
+            <pre class="log" id="life-log"></pre>
+          </details>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="chat-view" class="ag-chat" style="display:none">
+    <div class="ag-chat-main">
+      <div class="ag-chat-head">
+        <button type="button" class="ag-back" id="chat-back">← All agents</button>
+        <div class="ag-avatar" id="chat-avatar"></div>
+        <div class="ag-chat-title"><strong id="chat-name"></strong><span id="chat-sub"></span></div>
+        <button type="button" class="btn" id="chat-new">＋ New chat</button>
+      </div>
+      <div class="ag-chat-log" id="chat-log"></div>
+      <div class="ag-answers" id="chat-answers"></div>
+      <form class="ag-chat-input" id="chat-form">
+        <div class="ag-composer">
+          <input id="chat-text" autocomplete="off" placeholder="Type an answer, or ask anything">
+          <button type="submit" id="chat-send" aria-label="Send">
+            <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M4 12h14M13 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </button>
+        </div>
+        <span class="ag-hint-key">Enter to send</span>
+      </form>
+    </div>
+    <aside class="ag-chat-side" id="chat-side"></aside>
+  </div>
+
+  <div id="wizard-view" class="ag-wiz" style="display:none">
+    <div class="ag-wiz-main">
+      <div class="ag-wiz-top">
+        <button type="button" class="ag-back" id="wiz-cancel">← Cancel</button>
+        <span class="ag-wiz-mode" id="form-title">New agent</span>
+      </div>
+      <ol class="ag-progress" id="wiz-nav">
+        <li data-goto="1" class="on"><i></i><span>Start</span></li>
+        <li data-goto="2"><i></i><span>Describe it</span></li>
+        <li data-goto="3"><i></i><span>Skill</span></li>
+        <li data-goto="4"><i></i><span>What it can use</span></li>
+        <li data-goto="5"><i></i><span>Deploy</span></li>
+      </ol>
+      <div class="ag-stepno" id="wiz-stepno">Step 1 of 5</div>
+
+      <section class="wiz-step on" data-step="1">
+        <h2 class="ag-step-title">What should your agent do?</h2>
+        <p class="ag-step-sub">Pick a starting point. Everything it fills in can be changed on the next steps.</p>
+        <div class="ag-templates" id="templates"></div>
+      </section>
+
+      <section class="wiz-step" data-step="2">
+        <h2 class="ag-step-title">Describe it in your own words</h2>
+        <p class="ag-step-sub">Give it a name and tell it how to behave. The instructions are the agent: no code.</p>
+        <div class="ag-row2">
+          <label class="ag-field"><span>Name</span>
+            <input id="name" placeholder="network-copilot" autocomplete="off">
+            <small class="ag-hint" id="name-hint">Lowercase letters, numbers and dashes. Type it any way and it is tidied for you.</small></label>
+          <label class="ag-field"><span>What it is for</span>
+            <input id="description" placeholder="Briefs incidents and open slice work"></label>
+        </div>
+        <div class="ag-pull">
+          <label class="ag-field grow"><span>Or start from a saved prompt in AgentRegistry</span>
+            <select id="prompt-pick"><option value="">Loading…</option></select></label>
+          <button class="btn" id="prompt-load" type="button">Pull</button>
+        </div>
+        <label class="ag-field"><span>Instructions</span>
+          <textarea id="prompt" class="ag-prompt" rows="16" placeholder="You help network engineers in EMEA. Be brief. Use only the tools you have been given."></textarea></label>
+      </section>
+
+      <section class="wiz-step" data-step="3">
+        <h2 class="ag-step-title">Give it a skill</h2>
+        <p class="ag-step-sub">One skill, or none. The prompt is enough on its own.</p>
+        <div id="skills"></div>
+      </section>
+
+      <section class="wiz-step" data-step="4">
+        <h2 class="ag-step-title">What can it use?</h2>
+        <p class="ag-step-sub">Pick a system, then tick what the agent may do there. Systems marked Ready to use work the moment it deploys; the others wait for a platform admin.</p>
+        <div id="mcp"></div>
+      </section>
+
+      <section class="wiz-step" data-step="5">
+        <h2 class="ag-step-title">Ready to deploy</h2>
+        <p class="ag-step-sub" id="review-sub"></p>
+        <div class="ag-plain" id="review-plain"></div>
+        <div id="review"></div>
+        <details class="ag-code ag-yaml-wrap" id="yaml-details">
+          <summary>Show the YAML <span>for engineers: exactly what AgentRegistry applies</span></summary>
+          <div class="ag-yaml-head"><span>AgentRegistry YAML</span><button type="button" class="ag-copy" id="yaml-copy">Copy</button></div>
+          <pre class="ag-yaml" id="review-yaml">Rendering…</pre>
+        </details>
+      </section>
+
+      <div class="ag-wiz-actions">
+        <button class="btn" id="wiz-back" type="button">Back</button>
+        <span class="ag-spacer"></span>
+        <p class="ag-form-msg" id="form-msg"></p>
+        <button class="btn primary" id="wiz-next" type="button">Next</button>
+        <button class="btn primary ag-deploy" id="deploy" type="button">Deploy to kagent</button>
+      </div>
+    </div>
+
+    <aside class="ag-wiz-side">
+      <div class="ag-kicker">Preview</div>
+      <div id="preview-card"></div>
+      <p class="ag-side-note">Saved here, published to AgentRegistry, then deployed onto kagent. A ✓ means that system is ready to use; the others need a platform admin first.</p>
+    </aside>
+  </div>
+</div>
+<div class="ag-overlay" id="deploy-overlay" style="display:none" role="dialog" aria-modal="true">
+  <div class="ag-overlay-card">
+    <div class="ag-spinner"></div>
+    <h2 id="deploy-title">Deploying your agent</h2>
+    <p id="deploy-sub">Publishing it to AgentRegistry, then starting it on kagent.</p>
+    <div class="ag-elapsed" id="deploy-elapsed">0s</div>
+  </div>
+</div>
+<div class="modal-back" id="skill-modal" style="display:none" role="dialog" aria-modal="true">
+  <div class="modal">
+    <div class="kicker">AgentRegistry · new skill</div>
+    <h2>Write a skill</h2>
+    <p class="sub">A Skill in AgentRegistry has no inline body. The text lives in git, so this writes
+      the package, commits and pushes it, then registers the Skill. The wizard can use it straight
+      away; the body reaches the public mirror when the mirror action has run.</p>
+    <label class="field"><span>Title</span>
+      <input id="skill-title" placeholder="Slice health check"></label>
+    <label class="field"><span>What it is for</span>
+      <input id="skill-desc" placeholder="How to read slice KPIs and call a breach"></label>
+    <label class="field"><span>Body</span>
+      <textarea id="skill-body" rows="10" placeholder="# Slice health check&#10;&#10;When asked about a slice, read latency, jitter and packet loss first…"></textarea></label>
+    <p class="hint" id="skill-target"></p>
+    <p class="footnote" id="skill-msg"></p>
+    <div class="wiz-actions">
+      <button class="btn primary" id="skill-save" type="button">Create and push</button>
+      <button class="btn" id="skill-cancel" type="button">Cancel</button>
+    </div>
+  </div>
+</div>
+<script src="/static/js/agents.js"></script>
+<script src="/static/js/chat.js"></script>
+</body>
+</html>

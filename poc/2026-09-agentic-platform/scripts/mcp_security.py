@@ -60,10 +60,6 @@ def servers():
                 "backend": s["backend"], "route": n + "-mesh", "waypoint": "mcp-waypoint",
                 "selector": {"app": n}} for n, s in mcp_policies.load()["services"].items()]
     return primary + [
-        {"name": "everything-server", "namespace": "agents", "port": 3000, "path": "/mcp",
-         "backend": "everything-server", "route": "mcpserver-everything-server-waypoint",
-         "waypoint": "mcpserver-everything-server-waypoint",
-         "selector": {"app.kubernetes.io/name": "everything-server"}},
         {"name": "kagent-tools", "namespace": "kagent", "port": 8084, "path": "/mcp",
          "backend": "kagent-tools-mcp", "route": "kagent-tools-mesh", "waypoint": "mcp-waypoint",
          "selector": {"app.kubernetes.io/name": "kagent-tools"}},
@@ -219,23 +215,10 @@ def reconcile_servers(env=None):
                 "gateway.networking.k8s.io/v1"), env)
             apply(document("EnterpriseAgentgatewayPolicy", "kagent-tools-default-deny", ns,
                            mcp_policies._allow([s["backend"]], ["false"])), env)
-        if ns != "agents":  # The kmcp controller owns this backend already.
-            patch("agentgatewaybackend", ns, s["backend"], {"spec": {"mcp": {"targets": [{
-                "name": name, "selector": {"services": {"matchLabels": {"mcp-lockdown/service": name}}}}]}}}, env)
+        patch("agentgatewaybackend", ns, s["backend"], {"spec": {"mcp": {"targets": [{
+            "name": name, "selector": {"services": {"matchLabels": {"mcp-lockdown/service": name}}}}]}}}, env)
         apply(document("EnterpriseAgentgatewayPolicy", name + "-discovery-only", ns,
               mcp_policies._allow([s["backend"]], [mcp_policies.clause("kagent", "kagent-controller", None)])), env)
-        if ns == "agents":
-            grant = mcp_policies._doc(mcp_policies._meta("trustusbank-waypoint-calc--everything-server", "grants",
-                agent="trustusbank-waypoint-calc", **{"agent-namespace": ns}, backend=s["backend"]),
-                mcp_policies._allow([s["backend"]], [mcp_policies.clause(ns, "trustusbank-waypoint-calc", ["sum"])]))
-            grant["metadata"]["namespace"] = ns
-            apply(grant, env)
-            # The old AccessPolicy translator adds an unrestricted controller
-            # exception. A conjunctive Require keeps discovery list-only.
-            restriction = mcp_policies._allow([s["backend"]], [
-                '!(source.identity.namespace == "kagent" && source.identity.serviceAccount == "kagent-controller") || mcp.methodName == "tools/list"'])
-            restriction["backend"]["mcp"]["authorization"]["action"] = "Require"
-            apply(document("EnterpriseAgentgatewayPolicy", "controller-discovery-only", ns, restriction), env)
         kubectl("-n", ns, "label", "service", name, f'istio.io/use-waypoint={s["waypoint"]}', "--overwrite", env=env)
         print(apply(jwt_policy(s, issuer, jwks), env))
         # DENY wins over any old additive ALLOW policy, including generated

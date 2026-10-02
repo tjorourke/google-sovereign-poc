@@ -1,0 +1,50 @@
+# What kind of data is this prompt carrying? Read from the body before routing
+# and written into x-tub-data, which the models route (05-routes.yaml) matches:
+#
+#   restricted  marked confidential, or an upload handed to /tub/summarize
+#   customer    carries bank or personal data: an IBAN, a TrustUsBank customer
+#               number, a German tax number or Steuer-IdNr, an email address
+#   general     everything else; the semantic router's choice stands
+#
+# Gateway API routes cannot look inside a request body, so this runs in the
+# PreRouting phase and the routes match the header it sets. It targets the
+# agentgateway-models ListenerSet, NOT the Gateway: reading a body buffers it,
+# and on the Gateway that buffering would also hold the MCP SSE streams.
+#
+# The same OSS policy kind as the router's extProc policy, so both attach to the
+# ListenerSet. The header is recomputed from the body on every request, so a
+# caller cannot smuggle x-tub-data: general past it.
+apiVersion: agentgateway.dev/v1alpha1
+kind: AgentgatewayPolicy
+metadata:
+  name: trustusbank-data-class
+  namespace: agentgateway-system
+spec:
+  targetRefs:
+  - group: gateway.networking.k8s.io
+    kind: ListenerSet
+    name: agentgateway-models
+  traffic:
+    phase: PreRouting
+    transformation:
+      request:
+        set:
+        - name: x-tub-data
+          value: |
+            request.path != "/v1/chat/completions" ? "restricted" :
+            [json(request.body).messages.map(m, type(m.content) == string
+                ? m.content
+                : m.content.map(p, has(p.text) ? p.text : "[[attachment]]").join("\n")
+              ).join("\n")
+            ].map(t,
+              t.matches("(?i)(streng vertraulich|strictly confidential|board distribution only|trustusbank restricted)")
+                ? "restricted"
+              : t.matches("\\b[A-Z]{2}\\d{2}( ?[0-9A-Z]{4}){3,7}( ?[0-9A-Z]{1,4})?\\b")
+                || t.matches("\\bCUS-\\d{5}\\b")
+                || t.matches("\\bDE\\d{9}\\b")
+                || t.matches("\\b[1-9]\\d{10}\\b")
+                || t.matches("\\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}\\b")
+                || t.matches("(?i)(personal data|personenbezogene daten|geburtsdatum|steuer-id|steuer id)")
+                ? "customer"
+              : "general"
+            )[0]

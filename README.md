@@ -12,8 +12,8 @@ applies: different console, different API domains, different identity model.
 The stack: a GKE Autopilot cluster running Solo Enterprise for Istio in ambient
 mode, Solo Enterprise for kagent, enterprise agentgateway, AgentRegistry,
 Keycloak as the single OIDC issuer, a self-hosted model, TLS on every
-browser-facing URL, and a Prometheus/Grafana stack. All Enterprise builds, no
-OSS components.
+browser-facing URL, and a Prometheus/Grafana stack. Solo products use Enterprise
+builds; supporting services include open-source Presidio for DLP.
 
 ---
 
@@ -24,12 +24,42 @@ For the current Google presentation, start with
 waypoint/JWT/tool-grant behavior, deployed versions, load balancers and the live
 inventory. The console UI lives in the companion `solo-demos` repository.
 
+For DLP, PDF summaries and AGW call-level audit, see
+[`trustusbank-dlp-audit.md`](docs/trustusbank-dlp-audit.md). After the base platform
+is installed, `bash scripts/deploy-google-demo.sh` installs the Google demo
+overlay, including Presidio and waypoint tracing.
+
+### The hosted demo console
+
+The `/google` demo pages also run inside Berlin as their own service, so a
+presenter needs nothing on their laptop:
+
+```
+https://agw.agentic.eu0.internal/google     sign in: solo / S010g00g13!
+```
+
+`poc/2026-09-agentic-platform/console/` is the source: the Google-only app under
+`console/app`, its Dockerfile, and the Deployment/HTTPRoute manifests. It is a
+separate, self-contained copy — the laptop console in `solo-demos` is untouched
+and keeps working on localhost:8900. Deploy or update it with:
+
+```bash
+./poc/2026-09-agentic-platform/scripts/97-google-console.sh
+```
+
+That packages `console/app` plus the handful of lab helper modules it imports,
+builds a linux/amd64 image with buildx, pushes it to the in-universe registry,
+applies a least-privilege ServiceAccount, and mounts the sign-in credentials from
+the `console-access` Secret (set CONSOLE_USER/CONSOLE_PASSWORD to override).
+The page is HTTPS-only on the existing AGW listener, behind a login form with an
+HMAC session cookie; API clients can still use HTTP Basic with the same account.
+
 In order. `deploy-e2e.sh` takes about 75 minutes.
 
 ```bash
 cp .env.local.example .env.local     # then edit: it is gitignored
 ./scripts/gcd-auth.sh                # sign in to the universe (browser)
-./scripts/deploy-e2e.sh              # the whole stack, 23 phases
+./scripts/deploy-e2e.sh              # the whole stack, 18 phases
 ./scripts/teardown.sh                # cluster only; Cloud SQL and the VPC survive
 ```
 
@@ -90,7 +120,7 @@ scripts/           top-level entry points, described below
 
 | Script | What it does |
 |---|---|
-| `deploy-e2e.sh` | Main entry point. Stands the whole stack up, 23 phases, resumable. `--fresh` forgets phase state, `--recreate` replaces the cluster first. |
+| `deploy-e2e.sh` | Main entry point. Stands the whole stack up, 18 phases, resumable. `--fresh` forgets phase state, `--recreate` replaces the cluster first. |
 | `teardown.sh` | Destroys the cluster and its Workload Identity bindings. Keeps Cloud SQL, KMS, the VPC, buckets and the DNS zone. `--all` destroys those too, `--dry-run` shows the plan. |
 | `gcd-auth.sh` | Interactive sign-in to the universe. Mints both the CLI credential and ADC; Terraform needs ADC. |
 | `gcd-auth-assist.sh` | `start` / `login` / `status` / `stop`. Re-mints credentials without clicking, by reusing a browser you signed into once. Lab only. |
@@ -135,11 +165,6 @@ cd poc/2026-09-agentic-platform
 | 80 | `80-ingress.sh` | Gateway, HTTPRoutes, private DNS, external LoadBalancer |
 | 85 | `85-tls.sh` | TLS on every browser-facing URL, and the https OIDC issuer |
 | 60 | `60-model.sh` | self-hosted model inside the sovereign boundary |
-| 90 | `90-mcp-agent.sh` | MCP tool server and the first agent |
-| 95 | `95-authz-on.sh` | tool-level authorization at the gateway |
-| 56 | `56-ar-push-agent.sh` | publishes to the catalogue, deploys via the registry |
-| 67 | `67-accesspolicy-setup.sh` | the waypoint path governed by `AccessPolicy` |
-| 69 | `69-accesspolicy-health.sh` | verifies all three agent paths (expect 9/9) |
 | 97 | `o11y-deploy.sh` | scrapes the Solo stack, loads the Grafana dashboard |
 
 The order is not numeric. 15 runs after 20 because the probes establish that GCD
@@ -153,10 +178,8 @@ all exist first or Prometheus has nothing to scrape.
 |---|---|
 | `00-preflight.sh` | read-only probes that need no cluster |
 | `55-arctl-connect.sh` | **source** this, do not run it. Exports `arctl` credentials minted in-cluster |
-| `57-ar-ask.sh` | ask the AgentRegistry-deployed agent something, and show the tools it called |
 | `68-agent-mesh-policies.sh` | puts the real agent flows under ambient policy |
 | `85-edge.sh` | applies the Tier 1 edge once agentgateway exists |
-| `95-authz-off.sh` | removes MCP tool authorization, back to all tools visible |
 | `98-gpu-evidence-capture.sh` | collects live evidence for the GPU case with Google |
 | `88-identity.sh` | console users and per-agent Keycloak token-exchange clients |
 | `89-cost.sh` | labelled illustrative cost history and budget configuration |
@@ -164,6 +187,15 @@ all exist first or Prometheus has nothing to scrape.
 | `92-mcp-lockdown.sh` | all agent waypoints, strict MCP workload JWTs and per-agent tool grants |
 | `verify_mcp_security.py` | live allow/deny probes, identity replay and pod-IP bypass checks |
 | `capture_infrastructure.py` | credential-free cloud, Helm, LB, image and policy inventory |
+| `93-audit-call.py` | authenticated model call and its AGW trace deep-link |
+| `61-model-context.py --apply` | raise existing Gemma context to 24,576 tokens and check the actual model API |
+| `94-audit-waypoints.py --apply` | trace all current enterprise agent and MCP waypoints |
+| `96-dlp.sh` | Presidio mirror/deploy, data-residency routing, guardrails and upload-to-Gemma probes |
+| `make_dlp_sample.py` | generate a fictional TrustUsBank PDF for the upload demonstration |
+| `claude_desktop_berlin.py on/off` | switch/restore the Mac Desktop profile, using a refreshing Keycloak helper |
+| `verify_desktop.py` | verify Desktop Messages, PDF/SSE, token counting, authentication and guardrails over HTTPS |
+| `verify_desktop_context.py` | native-sized 19k-token preamble plus PDF; useful error for oversized requests |
+| `97-google-console.sh` | package, build and host the Google-only demo console in the cluster (`--image` redeploys an existing build) |
 | `99-teardown.sh` | in-cluster teardown in reverse dependency order |
 | `o11y-deploy.sh` | `install` / `--status` / `--open` / `--remove` |
 
@@ -176,7 +208,7 @@ Each script exercises the behaviour it reports on:
 ```bash
 cd poc/2026-09-agentic-platform
 ./scripts/66-istio-health.sh         # ambient L4 + L7 enforcement      expect 10/10
-./scripts/69-accesspolicy-health.sh  # all three agent paths            expect  9/9
+python3 scripts/verify_mcp_security.py  # MCP identity and policy probes, live
 ./scripts/85-tls.sh --verify         # TLS on all five hostnames        expect  5/5
 ./scripts/o11y-deploy.sh --status    # scrape targets and metric series
 ```

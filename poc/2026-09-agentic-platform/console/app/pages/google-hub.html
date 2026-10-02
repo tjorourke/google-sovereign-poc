@@ -1,0 +1,397 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Google Sovereign Cloud · Solo.io</title>
+  <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
+  <link rel="icon" type="image/png" href="/static/favicon.png">
+  <link rel="stylesheet" href="/static/css/app.css">
+  <link rel="stylesheet" href="/static/css/stage.css">
+</head>
+<body class="stage">
+<nav class="console-nav">
+  <a class="brand" href="/">
+    <svg width="22" height="22" viewBox="0 0 48 48" aria-hidden="true">
+      <g stroke="#a78bfa" stroke-width="2.4" opacity="0.6" stroke-linecap="round">
+        <line x1="24" y1="7" x2="7" y2="24"/><line x1="24" y1="7" x2="41" y2="24"/>
+        <line x1="7" y1="24" x2="41" y2="24"/><line x1="7" y1="24" x2="24" y2="41"/>
+        <line x1="41" y1="24" x2="24" y2="41"/>
+      </g>
+      <circle cx="24" cy="7" r="5" fill="#a78bfa"/>
+      <circle cx="7" cy="24" r="5" fill="#7c3aed"/>
+      <circle cx="41" cy="24" r="5" fill="#7c3aed"/>
+      <circle cx="24" cy="41" r="5" fill="#5b21b6"/>
+    </svg>
+    Solo.io
+  </a>
+  <div class="nav-links"></div>
+  <span class="nav-status"><i class="dot" id="dot"></i><span id="status-label">checking cluster</span></span>
+</nav>
+
+<header class="st-hero">
+  <div class="st-wrap">
+    <a class="st-crumb" href="/" data-keep>← All demos</a>
+    <div class="st-eyebrow">Google Sovereign Cloud · TrustUsBank</div>
+    <h1>Banking AI on <em>Google Sovereign Cloud</em></h1>
+    <p class="lead">TrustUsBank uses agentgateway and kagent in Berlin to keep customer data on its own infrastructure. The demos below cover model routing, agents, tool approvals and budgets. Signed in as bob.</p>
+
+    <div class="gs-open">
+      <a href="http://kagent.agentic.eu0.internal/age/gateways" target="_blank" rel="noopener">Open agentgateway <i>↗</i></a>
+      <a href="http://kagent.agentic.eu0.internal/ke/agents" target="_blank" rel="noopener">Open kagent <i>↗</i></a>
+    </div>
+
+    <div class="st-brief">
+      <section class="st-company">
+        <div class="st-eyebrow">The company</div>
+        <h2>TrustUsBank</h2>
+        <p>A German retail bank.</p>
+        <div class="st-facts">
+          <div><b>Berlin</b><span>Google sovereign cloud</span></div>
+          <div><b id="fact-agents">Agents</b><span>banking and development</span></div>
+          <div><b>Bank-hosted model</b><span>Gemma 3 on an H100</span></div>
+          <div><b>bob</b><span>signed in through Keycloak</span></div>
+        </div>
+      </section>
+      <blockquote class="st-quote">
+        <p>“Customer data must stay in Germany on our own model. Gemini is fine for general questions.”</p>
+        <p>“We need to approve tool access and track spending by user and agent.”</p>
+        <cite>Head of IT, TrustUsBank</cite>
+      </blockquote>
+    </div>
+
+    <div class="st-classes">
+      <div class="st-class c1"><small>General questions</small><h3>Gemini</h3><p>For requests without customer data</p></div>
+      <div class="st-class c2"><small>Tools</small><h3>Admin approval</h3><p>Tool access requires approval from a platform admin</p></div>
+      <div class="st-class c3"><small>Customer data</small><h3>Bank-hosted Gemma</h3><p>Processed in Berlin</p><span>Gemma 3 27B on an NVIDIA H100</span></div>
+    </div>
+
+    <nav class="st-jump" aria-label="Steps">
+      <a href="#s1"><b>01</b>Routing</a>
+      <a href="#s2"><b>02</b>Bank agents</a>
+      <a href="#s3"><b>03</b>Change the website</a>
+      <a href="#s4"><b>04</b>Build an agent</a>
+      <a href="#s5"><b>05</b>Approve tools</a>
+      <a href="#s6"><b>06</b>Cost</a>
+      <a href="#s7"><b>07</b>Data protection</a>
+    </nav>
+
+    <details class="arch">
+      <summary><b>Architecture</b><span>laptops · Berlin agentgateway · DLP · models · kagent — click to expand</span></summary>
+      <div class="arch-body">
+      <svg viewBox="0 0 1240 700" width="100%" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" role="img" aria-label="TrustUsBank architecture on Google Cloud Dedicated">
+        <defs>
+          <marker id="arw" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="#64748b"/>
+          </marker>
+          <marker id="arw-g" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="#15803d"/>
+          </marker>
+          <marker id="arw-o" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="#b45309"/>
+          </marker>
+          <marker id="arw-p" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="#7c3aed"/>
+          </marker>
+          <marker id="arw-i" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M 0 0 L 10 5 L 0 10 z" fill="#4338ca"/>
+          </marker>
+        </defs>
+
+        <rect x="0" y="0" width="1240" height="700" fill="#ffffff"/>
+        <text x="24" y="34" font-size="19" font-weight="600" fill="#0f172a">TrustUsBank on Google Cloud Dedicated — one gateway, every call accounted for</text>
+        <text x="24" y="56" font-size="13" fill="#475569">The model endpoint classifies and masks prompts. Matched customer data and restricted documents go to Gemma; agent tools use identity-bound waypoints.</text>
+
+        <!-- Paint the boundary before the connections so it cannot hide them. -->
+        <rect x="256" y="76" width="800" height="600" rx="10" fill="#f8fafc" stroke="#94a3b8" stroke-width="1.5" stroke-dasharray="7 5"/>
+        <text x="272" y="99" font-size="13" font-weight="600" fill="#475569">Google Cloud Dedicated · Berlin · u-germany-northeast1 — GKE Autopilot</text>
+
+        <!-- laptops, outside -->
+        <rect x="24" y="96" width="200" height="64" rx="7" fill="#f1f5f9" stroke="#475569" stroke-width="1.5"/>
+        <text x="124" y="122" font-size="13" font-weight="600" text-anchor="middle" fill="#0f172a">Analyst laptop</text>
+        <text x="124" y="142" font-size="11" text-anchor="middle" fill="#64748b">browser · this console</text>
+
+        <rect x="24" y="184" width="200" height="64" rx="7" fill="#f1f5f9" stroke="#475569" stroke-width="1.5"/>
+        <text x="124" y="210" font-size="13" font-weight="600" text-anchor="middle" fill="#0f172a">Developer laptop</text>
+        <text x="124" y="230" font-size="11" text-anchor="middle" fill="#64748b">Agentdesktop (Claude Desktop)</text>
+
+        <rect x="24" y="272" width="200" height="64" rx="7" fill="#eef2ff" stroke="#4338ca" stroke-width="1.5"/>
+        <text x="124" y="298" font-size="13" font-weight="600" text-anchor="middle" fill="#312e81">Platform-admin laptop</text>
+        <text x="124" y="318" font-size="11" text-anchor="middle" fill="#4338ca">Solo Enterprise UI — audit</text>
+
+        <path d="M 224 128 L 280 150" stroke="#64748b" stroke-width="1.6" fill="none" marker-end="url(#arw)"/>
+        <path d="M 224 216 L 280 205" stroke="#64748b" stroke-width="1.6" fill="none" marker-end="url(#arw)"/>
+        <text x="228" y="118" font-size="10" fill="#64748b">HTTPS · 443</text>
+        <path d="M 224 304 H 644 V 645 H 952 V 628" stroke="#4338ca" stroke-width="1.4" fill="none" stroke-dasharray="2 3" marker-end="url(#arw-i)"/>
+
+        <!-- agentgateway -->
+        <rect x="280" y="116" width="330" height="210" rx="9" fill="#ffffff" stroke="#15803d" stroke-width="1.8"/>
+        <text x="296" y="140" font-size="13.5" font-weight="700" fill="#14532d">enterprise agentgateway</text>
+        <text x="296" y="157" font-size="11" fill="#166534">one proxy · agw.agentic.eu0.internal</text>
+        <text x="296" y="184" font-size="11" fill="#0f172a">1 · classify — semantic router + data-class policy</text>
+        <text x="296" y="206" font-size="11" fill="#0f172a">2 · route — customer / restricted → Gemma</text>
+        <text x="296" y="228" font-size="11" fill="#0f172a">3 · refuse — secrets &amp; prompt injection → 403</text>
+        <text x="296" y="250" font-size="11" fill="#0f172a">4 · mask — Presidio webhook, request + response</text>
+        <text x="296" y="272" font-size="11" fill="#0f172a">Uploads: /tub/summarize → in-cluster reader</text>
+        <text x="296" y="304" font-size="11" font-weight="600" fill="#4338ca">every call: access log + trace + cost</text>
+
+        <!-- DLP -->
+        <rect x="664" y="116" width="376" height="110" rx="9" fill="#ecfeff" stroke="#0e7490" stroke-width="1.5"/>
+        <text x="680" y="140" font-size="13" font-weight="700" fill="#155e75">trustusbank-pii · Presidio (open source, in-cluster)</text>
+        <text x="680" y="162" font-size="11" fill="#164e63">finds IBAN · customer no. · tax IDs · names · addresses</text>
+        <text x="680" y="182" font-size="11" fill="#164e63">replaces with {NAME} {IBAN} … before any model</text>
+        <text x="680" y="202" font-size="11" fill="#164e63">opens uploaded documents here and forces Gemma</text>
+
+        <!-- models -->
+        <rect x="664" y="256" width="376" height="76" rx="9" fill="#f0fdf4" stroke="#16a34a" stroke-width="1.8"/>
+        <text x="680" y="281" font-size="13" font-weight="700" fill="#14532d">Gemma 3 27B · vLLM · NVIDIA H100, this cluster</text>
+        <text x="680" y="301" font-size="11" fill="#166534">customer + restricted data · uploads · router fallback</text>
+        <text x="680" y="321" font-size="11" font-weight="600" fill="#15803d">never leaves Berlin</text>
+
+        <rect x="1080" y="140" width="140" height="76" rx="9" fill="#fffbeb" stroke="#d97706" stroke-width="1.5"/>
+        <text x="1150" y="164" font-size="13" font-weight="700" text-anchor="middle" fill="#78350f">Gemini 3.8 Flash</text>
+        <text x="1150" y="184" font-size="11" text-anchor="middle" fill="#92400e">frontier · Google API</text>
+        <text x="1150" y="202" font-size="11" text-anchor="middle" fill="#92400e">clean prompts only</text>
+
+        <!-- kagent -->
+        <rect x="280" y="360" width="330" height="150" rx="9" fill="#eff6ff" stroke="#1d4ed8" stroke-width="1.5"/>
+        <text x="296" y="384" font-size="13" font-weight="700" fill="#1e3a8a">kagent · trustusbank-* agents</text>
+        <text x="296" y="406" font-size="11" fill="#1e40af">payments · fraud · compliance · website SDLC</text>
+        <text x="296" y="426" font-size="11" fill="#1e40af">each agent: own Keycloak client + SPIFFE identity</text>
+        <text x="296" y="446" font-size="11" fill="#1e40af">LLM: separate llm route · tools: workload JWT + mesh</text>
+        <text x="296" y="478" font-size="11" font-weight="600" fill="#1e3a8a">ungranted tool → 403 at the waypoint</text>
+
+        <!-- waypoint -->
+        <rect x="664" y="360" width="180" height="90" rx="9" fill="#faf5ff" stroke="#7c3aed" stroke-width="1.5" stroke-dasharray="5 4"/>
+        <text x="680" y="384" font-size="13" font-weight="700" fill="#5b21b6">AGW waypoints</text>
+        <text x="680" y="406" font-size="11" fill="#6d28d9">strict MCP workload JWT</text>
+        <text x="680" y="426" font-size="11" fill="#6d28d9">per-agent tool grants</text>
+
+        <!-- mcp -->
+        <rect x="860" y="360" width="180" height="90" rx="9" fill="#f1f5f9" stroke="#475569" stroke-width="1.5"/>
+        <text x="876" y="384" font-size="13" font-weight="700" fill="#0f172a">MCP tool servers</text>
+        <text x="876" y="406" font-size="11" fill="#475569">core-banking · compliance</text>
+        <text x="876" y="426" font-size="11" fill="#475569">no direct pod access</text>
+
+        <!-- agentdesktop fleet, planned -->
+        <rect x="280" y="540" width="330" height="84" rx="9" fill="#faf5ff" stroke="#7c3aed" stroke-width="1.5" stroke-dasharray="5 4"/>
+        <text x="296" y="563" font-size="13" font-weight="700" fill="#5b21b6">Agentdesktop fleet<tspan fill="#a78bfa" font-size="10.5">　planned, not yet deployed</tspan></text>
+        <text x="296" y="585" font-size="11" fill="#6d28d9">managed desktop agents, hosted in-cluster:</text>
+        <text x="296" y="603" font-size="11" fill="#6d28d9">same gateway, same DLP, same audit</text>
+
+        <!-- keycloak -->
+        <rect x="664" y="540" width="180" height="84" rx="9" fill="#f1f5f9" stroke="#475569" stroke-width="1.5"/>
+        <text x="680" y="563" font-size="13" font-weight="700" fill="#0f172a">Keycloak</text>
+        <text x="680" y="585" font-size="11" fill="#475569">one OIDC issuer</text>
+        <text x="680" y="603" font-size="11" fill="#475569">user + per-agent tokens</text>
+
+        <!-- telemetry / audit -->
+        <rect x="860" y="540" width="180" height="84" rx="9" fill="#eef2ff" stroke="#4338ca" stroke-width="1.5"/>
+        <text x="876" y="563" font-size="13" font-weight="700" fill="#312e81">Solo Enterprise UI</text>
+        <text x="876" y="585" font-size="11" fill="#4338ca">traces · cost · budgets</text>
+        <text x="876" y="603" font-size="11" fill="#4338ca">audit: who, what, when</text>
+
+        <!-- flows -->
+        <path d="M 610 170 H 664" stroke="#0e7490" stroke-width="1.6" fill="none" marker-end="url(#arw)"/>
+        <text x="612" y="163" font-size="10" fill="#0e7490">mask</text>
+        <path d="M 610 290 H 664" stroke="#15803d" stroke-width="1.8" fill="none" marker-end="url(#arw-g)"/>
+        <path d="M 460 326 V 346 H 1130 V 218" stroke="#b45309" stroke-width="1.6" fill="none" stroke-dasharray="6 4" marker-end="url(#arw-o)"/>
+        <text x="700" y="340" font-size="10.5" fill="#b45309">clean (general) prompts only · via Cloud NAT</text>
+
+        <path d="M 460 360 V 330" stroke="#1d4ed8" stroke-width="1.6" fill="none" marker-end="url(#arw)"/>
+        <text x="470" y="352" font-size="10" fill="#1d4ed8">LLM</text>
+        <path d="M 610 405 H 664" stroke="#1d4ed8" stroke-width="1.6" fill="none" marker-end="url(#arw-p)"/>
+        <text x="612" y="398" font-size="10" fill="#1d4ed8">tools</text>
+        <path d="M 844 405 H 860" stroke="#475569" stroke-width="1.6" fill="none" marker-end="url(#arw)"/>
+
+        <path d="M 610 580 H 632 V 340 H 580 V 330" stroke="#7c3aed" stroke-width="1.4" fill="none" stroke-dasharray="4 3" marker-end="url(#arw-p)"/>
+        <text x="638" y="470" font-size="10" fill="#7c3aed" transform="rotate(-90 638 470)">fleet prompts via AGW</text>
+
+        <path d="M 680 540 V 495 H 612" stroke="#475569" stroke-width="1.4" fill="none" stroke-dasharray="2 3" marker-end="url(#arw)"/>
+        <text x="685" y="485" font-size="10" fill="#475569">OIDC · user / A2A identity</text>
+
+        <path d="M 610 300 H 630 V 516 H 950 V 540" stroke="#4338ca" stroke-width="1.4" fill="none" stroke-dasharray="2 3" marker-end="url(#arw-i)"/>
+        <text x="700" y="510" font-size="10" fill="#4338ca">spans · access logs · cost (OTel → ClickHouse)</text>
+      </svg>
+      </div>
+    </details>
+  </div>
+</header>
+
+<div class="st-wrap">
+  <div class="st-journey">
+    <a class="st-step" id="s1" href="/google/routing">
+      <div class="st-num">01</div>
+      <div>
+        <div class="st-eyebrow">Routing</div>
+        <h3>Route requests by content</h3>
+        <p>The semantic router sends customer, financial and health questions to Gemma on the bank's GPU in Berlin. General questions can go to Gemini.</p>
+        <div class="st-tags"><span>agentgateway</span><span>Semantic router</span><span>Gemma 3 27B on H100</span></div>
+        <span class="st-go">Open Routing <i>→</i></span>
+      </div>
+      <div class="st-vis">
+        <div class="row"><div class="box dark">"What is bob's balance?"<small>private</small></div><span class="to">→</span><div class="box ok">Gemma<small>Berlin GPU</small></div></div>
+        <div class="row"><div class="box">"Write a haiku"<small>general</small></div><span class="to">→</span><div class="box">Gemini<small>Google</small></div></div>
+        <div class="cap" id="route-cap">Checking the gateway…</div>
+      </div>
+    </a>
+
+    <a class="st-step" id="s2" href="/google/agents">
+      <div class="st-num">02</div>
+      <div>
+        <div class="st-eyebrow">Bank agents</div>
+        <h3>Banking agents</h3>
+        <p>Chat with agents for payments, fraud checks, loans and privacy. Each agent authenticates with its own identity and accesses tools through agentgateway.</p>
+        <div class="st-tags"><span>kagent</span><span>AgentRegistry</span><span>Agent identity</span></div>
+        <span class="st-go">Chat with the agents <i>→</i></span>
+      </div>
+      <div class="st-vis">
+        <div class="st-avatars" id="tub-agents"><span class="st-av">Loading…</span></div>
+        <div class="cap" id="tub-cap">kagent · Berlin</div>
+      </div>
+    </a>
+
+    <a class="st-step" id="s3" href="/google/sdlc">
+      <div class="st-num">03</div>
+      <div>
+        <div class="st-eyebrow">Change the website</div>
+        <h3>Website changes through pull requests</h3>
+        <p>Describe a change to the bank's website. Review the planning agent's proposal, then let the developer agent open a pull request. Both steps require your approval.</p>
+        <div class="st-tags"><span>Plan agent</span><span>Developer agent</span><span>GitHub pull request</span></div>
+        <span class="st-go">Open the website demo <i>→</i></span>
+      </div>
+      <div class="st-vis">
+        <div class="row"><div class="box">Request<small>website change</small></div><span class="to">→</span><div class="box">Plan<small>review</small></div><span class="to">→</span><div class="box ok">Pull request<small>review</small></div></div>
+        <div class="cap">github.com/tjorourke/trustusbank-payments</div>
+      </div>
+    </a>
+
+    <a class="st-step" id="s4" href="/google/agents?new=1">
+      <div class="st-num">04</div>
+      <div>
+        <div class="st-eyebrow">Build an agent</div>
+        <h3>Deploy an agent to kagent</h3>
+        <p>Choose a model and configure the agent's skills and tools. After deployment, you can chat with it or edit its configuration. Restricted tools need admin approval in step 05.</p>
+        <div class="st-tags"><span>Wizard</span><span>Deploy to kagent</span><span>Chat as bob</span></div>
+        <span class="st-go">Build an agent <i>→</i></span>
+      </div>
+      <div class="st-vis">
+        <div class="row"><div class="box">Model</div><span class="to">→</span><div class="box">Skills</div><span class="to">→</span><div class="box">Tools</div><span class="to">→</span><div class="box ok">Deployed</div></div>
+        <div class="cap" id="built-cap">Custom agents</div>
+      </div>
+    </a>
+
+    <a class="st-step" id="s5" href="/google/approvals">
+      <div class="st-num">05</div>
+      <div>
+        <div class="st-eyebrow">Approve tools</div>
+        <h3>Review tool access</h3>
+        <p>Review tools that can move money or read private data. The gateway blocks access to tools awaiting approval.</p>
+        <div class="st-tags"><span>AgentRegistry</span><span>Tool review</span><span>Enforced at the gateway</span></div>
+        <span class="st-go">Open approvals <i>→</i></span>
+      </div>
+      <div class="st-vis">
+        <div class="st-big" id="approvals-live">
+          <div class="warn"><b>–</b><span>Pending approval</span></div>
+          <div class="ok"><b>–</b><span>Tools available</span></div>
+        </div>
+        <div class="cap">Bank tool servers</div>
+      </div>
+    </a>
+
+    <a class="st-step" id="s6" href="http://kagent.agentic.eu0.internal/age/cost-management" target="_blank" rel="noopener">
+      <div class="st-num">06</div>
+      <div>
+        <div class="st-eyebrow">Cost</div>
+        <h3>Usage costs and budgets</h3>
+        <p>View model costs by user and agent. Set a monthly budget for bob, enforced by agentgateway.</p>
+        <div class="st-tags"><span>Cost management</span><span>Budget for bob</span><span>Traces</span></div>
+        <span class="st-go">Open Cost in Solo Enterprise <i>↗</i></span>
+      </div>
+      <div class="st-vis">
+        <div class="row"><div class="box dark">bob<small>user</small></div><span class="to">→</span><div class="box">Money assistant<small>agent</small></div><span class="to">→</span><div class="box ok">Cost (€)<small>per call</small></div></div>
+        <div class="cap">Also: <span class="lnk" data-href="http://kagent.agentic.eu0.internal/age/gateways">Gateways</span> · <span class="lnk" data-href="http://kagent.agentic.eu0.internal/ke/agents">kagent</span> · <span class="lnk" data-href="http://agentregistry.agentic.eu0.internal">AgentRegistry</span></div>
+      </div>
+    </a>
+
+    <a class="st-step" id="s7" href="/google/dlp">
+      <div class="st-num">07</div>
+      <div>
+        <div class="st-eyebrow">Data protection</div>
+        <h3>Masked before any model sees it</h3>
+        <p>An open-source DLP (Presidio) runs in the cluster. Customer and restricted data is replaced with placeholders and answered only by Gemma in Berlin; secrets and prompt injection are refused. Upload a document — it is opened in-cluster and summarised without leaving the boundary.</p>
+        <div class="st-tags"><span>Presidio DLP</span><span>Gateway guardrails</span><span>File upload → Gemma</span></div>
+        <span class="st-go">Open Data protection <i>→</i></span>
+      </div>
+      <div class="st-vis">
+        <div class="row"><div class="box dark">"…IBAN DE89 3704…"<small>customer data</small></div><span class="to">→</span><div class="box">"…IBAN {IBAN}…"<small>masked</small></div><span class="to">→</span><div class="box ok">Gemma<small>Berlin</small></div></div>
+        <div class="row"><div class="box">"Ignore all previous…"<small>injection</small></div><span class="to">→</span><div class="box bad">403<small>refused</small></div></div>
+        <div class="cap">agentgateway guardrails · Presidio in-cluster</div>
+      </div>
+    </a>
+  </div>
+</div>
+<style>.st-step .lnk { text-decoration: underline; cursor: pointer; }    .gs-open { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 22px; }
+    .gs-open a { display: inline-flex; align-items: center; gap: 8px; padding: 10px 18px; border-radius: 8px;
+      background: #1a73e8; color: #fff; font-weight: 600; font-size: 14px; text-decoration: none;
+      box-shadow: 0 1px 3px rgba(0,0,0,.25); }
+    .gs-open a:hover { background: #1558b0; }
+    .gs-open a i { font-style: normal; opacity: .85; }
+    .arch { margin-top: 26px; border: 1px solid #e8e2d8; border-radius: 16px; background: #fff; }
+    .arch summary { cursor: pointer; list-style: none; padding: 14px 20px; display: flex; align-items: baseline; gap: 12px; }
+    .arch summary::-webkit-details-marker { display: none; }
+    .arch summary::before { content: '▸'; color: #7c3aed; font-size: 15px; }
+    .arch[open] summary::before { content: '▾'; }
+    .arch summary b { font-size: 14.5px; color: #120d1f; }
+    .arch summary span { font-size: 12.5px; color: #6b6478; }
+    .arch .arch-body { border-top: 1px solid #f0ebe3; padding: 10px 14px 16px; overflow-x: auto; }
+    .arch svg { display: block; height: auto; min-width: 1050px; }
+</style>
+<script>
+(() => {
+  const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  const COLOURS = [['#dbeafe', '#1d4ed8'], ['#fee2e2', '#b91c1c'], ['#fef3c7', '#b45309'], ['#dcfce7', '#15803d']];
+  const $ = id => document.getElementById(id);
+
+  // Links inside a card's picture: open them without following the card.
+  document.querySelectorAll('.lnk').forEach(el => el.addEventListener('click', e => {
+    e.preventDefault(); e.stopPropagation(); window.open(el.dataset.href, '_blank', 'noopener');
+  }));
+
+  fetch('/api/google/status').then(r => r.json()).then(s => {
+    const gw = (s.gateway_pods || []).filter(p => p.ready).length;
+    const gemma = (s.gemma_pods || []).filter(p => p[1] === 'Running').length;
+    $('dot').className = 'dot ' + (s.reachable && gw ? 'live' : 'off');
+    $('status-label').textContent = s.reachable ? (gemma ? 'Berlin live · Gemma up' : 'Berlin live') : 'Berlin not reachable';
+    $('route-cap').textContent = s.reachable
+      ? `Gateway ${gw ? 'up' : 'down'} · Gemma ${gemma ? 'running on H100' : 'not running'}`
+      : 'Berlin not reachable';
+  }).catch(() => { $('dot').className = 'dot off'; $('status-label').textContent = 'console only'; });
+
+  Promise.all([
+    fetch('/api/trustusbank/status').then(r => r.json()),
+    fetch('/api/google/builder/agents').then(r => r.json()).catch(() => ({})),
+  ]).then(([d, b]) => {
+    const built = (b.agents || []).map(a => ({ title: a.name, ready: a.ready }));
+    const agents = (d.agents || []).concat(built);
+    $('tub-agents').innerHTML = agents.map((a, i) => {
+      const [bg, fg] = COLOURS[i % COLOURS.length];
+      return `<span class="st-av"><b style="background:${bg};color:${fg}">${esc(a.title.slice(0, 2).toUpperCase())}</b>${esc(a.title)}${a.ready ? '' : ' (starting)'}</span>`;
+    }).join('') || '<span class="st-av">No bank agents</span>';
+    const up = agents.filter(a => a.ready).length;
+    if (agents.length) $('fact-agents').textContent = `${agents.length} agents`;
+    $('tub-cap').textContent = d.reachable ? `${up} of ${agents.length} ready on kagent · Model: Gemma` : (d.error || 'kagent not reachable');
+    if (built.length) $('built-cap').textContent = `${built.length} created: ${built.slice(0, 3).map(a => a.title).join(', ')}`;
+  }).catch(() => { $('tub-cap').textContent = 'kagent not reachable'; });
+
+  fetch('/api/google/mcp').then(r => r.json()).then(d => {
+    const tools = (d.servers || []).flatMap(s => s.tools || []);
+    const big = $('approvals-live').querySelectorAll('b');
+    const waiting = tools.filter(t => t.needs_approval && !t.approved).length;
+    big[0].textContent = waiting;
+    big[1].textContent = tools.length - waiting;
+  }).catch(() => {});
+})();
+</script>
+</body>
+</html>

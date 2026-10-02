@@ -1,0 +1,66 @@
+# The models route, extended for data protection. Applied by 96-dlp.sh INSTEAD
+# OF yaml/vsr/routes.yaml: same name, so it replaces that route in place. If
+# 87-vsr-routes.sh is re-run while DLP is installed it preserves these rules.
+# 96-dlp.sh --remove restores the plain models route.
+#
+# Rule precedence is carried by match specificity, not order: a rule with more
+# header matches wins, so a request the class policy marked customer or
+# restricted lands on Gemma even when it also carries x-selected-model: gemini
+# — bank data never leaves Berlin, whatever the router or the caller asked for.
+# Without the class policy (02) no request carries x-tub-data, the two class
+# rules never match, and the fail-closed default is still Gemma.
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: models
+  namespace: agentgateway-system
+spec:
+  parentRefs:
+    - { group: gateway.networking.k8s.io, kind: ListenerSet, name: agentgateway-models }
+  hostnames: ["agw.__BASE_DOMAIN__"]
+  rules:
+    # Bank or personal data, or a restricted document: Gemma, in Berlin. The
+    # class header stays on for the DLP webhook; the router's pick comes off.
+    - matches:
+        - path: { type: PathPrefix, value: /v1/chat/completions }
+          headers: [{ type: RegularExpression, name: x-tub-data, value: "^(customer|restricted)$" }]
+      filters:
+        - type: RequestHeaderModifier
+          requestHeaderModifier:
+            remove: [x-selected-model]
+            set: [{name: x-tub-target, value: gemma}]
+      backendRefs:
+        - { name: gemma, group: agentgateway.dev, kind: AgentgatewayBackend }
+    # A clean prompt may leave for Gemini when the router or caller said so.
+    # Keep the computed class/target available to the webhook's residency check.
+    - matches:
+        - path: { type: PathPrefix, value: /v1/chat/completions }
+          headers:
+            - { type: RegularExpression, name: x-selected-model, value: "^gemini.*" }
+            - { type: Exact, name: x-tub-data, value: general }
+      filters:
+        - type: RequestHeaderModifier
+          requestHeaderModifier:
+            remove: [x-selected-model]
+            set: [{name: x-tub-target, value: gemini}]
+      backendRefs:
+        - { name: gemini, group: agentgateway.dev, kind: AgentgatewayBackend }
+    - matches:
+        - path: { type: PathPrefix, value: /v1/chat/completions }
+          headers: [{ type: RegularExpression, name: x-selected-model, value: "^gemma.*" }]
+      filters:
+        - type: RequestHeaderModifier
+          requestHeaderModifier:
+            remove: [x-selected-model]
+            set: [{name: x-tub-target, value: gemma}]
+      backendRefs:
+        - { name: gemma, group: agentgateway.dev, kind: AgentgatewayBackend }
+    # Fail closed to the boundary: no header (router down, or never asked) is Gemma.
+    - matches:
+        - path: { type: PathPrefix, value: /v1/chat/completions }
+      filters:
+        - type: RequestHeaderModifier
+          requestHeaderModifier:
+            set: [{name: x-tub-target, value: gemma}]
+      backendRefs:
+        - { name: gemma, group: agentgateway.dev, kind: AgentgatewayBackend }

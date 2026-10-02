@@ -7,32 +7,98 @@
     "(AgentRegistry names it <agent>-latest-<deployment, cut to 16>). The catalog list-only",
     "policy keeps every backend default-deny for callers with no explicit tool grant."
   ],
-  "catalog": {"namespace": "mcp", "serviceAccount": "mcp-catalog"},
+  "catalog": {
+    "namespace": "mcp",
+    "serviceAccount": "mcp-catalog"
+  },
   "services": {
-    "bank-payments":     {"backend": "bank-payments-mcp",     "path": "/mcp"},
-    "bank-compliance":   {"backend": "bank-compliance-mcp",   "path": "/mcp"},
-    "bank-credit":       {"backend": "bank-credit-mcp",       "path": "/mcp"},
-    "bank-gdpr":         {"backend": "bank-gdpr-mcp",         "path": "/mcp"},
-    "sdlc-pm":           {"backend": "sdlc-pm-mcp",           "path": "/mcp"},
-    "sdlc-dev":          {"backend": "sdlc-dev-mcp",          "path": "/mcp"},
-    "everything-server": {"backend": "everything-server-mcp", "path": "/mcp"}
+    "bank-payments": {
+      "backend": "bank-payments-mcp",
+      "path": "/mcp"
+    },
+    "bank-compliance": {
+      "backend": "bank-compliance-mcp",
+      "path": "/mcp"
+    },
+    "bank-credit": {
+      "backend": "bank-credit-mcp",
+      "path": "/mcp"
+    },
+    "bank-gdpr": {
+      "backend": "bank-gdpr-mcp",
+      "path": "/mcp"
+    },
+    "sdlc-pm": {
+      "backend": "sdlc-pm-mcp",
+      "path": "/mcp"
+    },
+    "sdlc-dev": {
+      "backend": "sdlc-dev-mcp",
+      "path": "/mcp"
+    }
   },
   "grants": [
-    {"service": "bank-payments",   "namespace": "agentregistry-system", "agent": "trustusbank-payments",
-     "tools": ["get_account_balance", "list_transactions", "check_payment_limit", "get_ecb_fx_rate"]},
-    {"service": "bank-compliance", "namespace": "agentregistry-system", "agent": "trustusbank-compliance",
-     "tools": ["screen_sanctions", "check_aml_threshold", "get_transaction_alerts"]},
-    {"service": "bank-credit",     "namespace": "agentregistry-system", "agent": "trustusbank-credit",
-     "tools": ["get_customer_exposure", "assess_affordability"]},
-    {"service": "bank-gdpr",       "namespace": "agentregistry-system", "agent": "trustusbank-gdpr",
-     "tools": ["find_personal_data", "list_processing_purposes", "draft_art15_response"]},
-    {"service": "sdlc-pm",         "namespace": "agentregistry-system", "agent": "trustusbank-pm-agent",
-     "tools": ["list_issues", "get_app_settings", "create_issue"]},
-    {"service": "sdlc-dev",        "namespace": "agentregistry-system", "agent": "trustusbank-dev-agent",
-     "tools": ["get_next_issue", "update_setting", "read_file", "edit_file", "open_pull_request"]},
-    {"service": "everything-server", "namespace": "agentregistry-system", "agent": "trustusbank-sovereign",
-     "tools": ["sum", "echo", "reverse_text", "to_uppercase"]},
-    {"service": "everything-server", "namespace": "kagent", "agent": "trustusbank-sovereign-calc",
-     "tools": ["sum"]}
+    {
+      "service": "bank-payments",
+      "namespace": "agentregistry-system",
+      "agent": "trustusbank-payments",
+      "tools": [
+        "get_account_balance",
+        "list_transactions",
+        "check_payment_limit",
+        "get_ecb_fx_rate"
+      ]
+    },
+    {
+      "service": "bank-compliance",
+      "namespace": "agentregistry-system",
+      "agent": "trustusbank-compliance",
+      "tools": [
+        "screen_sanctions",
+        "check_aml_threshold",
+        "get_transaction_alerts"
+      ]
+    },
+    {
+      "service": "bank-credit",
+      "namespace": "agentregistry-system",
+      "agent": "trustusbank-credit",
+      "tools": [
+        "get_customer_exposure",
+        "assess_affordability"
+      ]
+    },
+    {
+      "service": "bank-gdpr",
+      "namespace": "agentregistry-system",
+      "agent": "trustusbank-gdpr",
+      "tools": [
+        "find_personal_data",
+        "list_processing_purposes",
+        "draft_art15_response"
+      ]
+    },
+    {
+      "service": "sdlc-pm",
+      "namespace": "agentregistry-system",
+      "agent": "trustusbank-pm-agent",
+      "tools": [
+        "list_issues",
+        "get_app_settings",
+        "create_issue"
+      ]
+    },
+    {
+      "service": "sdlc-dev",
+      "namespace": "agentregistry-system",
+      "agent": "trustusbank-dev-agent",
+      "tools": [
+        "get_next_issue",
+        "update_setting",
+        "read_file",
+        "edit_file",
+        "open_pull_request"
+      ]
+    }
   ]
 }

@@ -1,0 +1,39 @@
+# The upload endpoint, on the same gateway and hostname as the models route so
+# the access log tells the whole story in one place. A document POSTed here is
+# opened inside the cluster by trustusbank-pii (01), whose reader then calls the
+# models route itself with Gemma forced — so the document's text crosses to a
+# model only after the DLP webhook has masked it, and never leaves Berlin.
+#
+# Not the models route, so the promptGuard policy (03) does not run on the
+# upload call itself: the body is a base64 document, not a chat request. The
+# reader's internal call to /v1/chat/completions is where the guardrails bite.
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: trustusbank-upload
+  namespace: agentgateway-system
+spec:
+  parentRefs:
+    - { group: gateway.networking.k8s.io, kind: ListenerSet, name: agentgateway-models }
+  hostnames: ["agw.__BASE_DOMAIN__"]
+  rules:
+    - matches:
+        - path: { type: Exact, value: /tub/summarize }
+      backendRefs:
+        - { name: trustusbank-pii, port: 8081 }
+---
+# A Gemma summary of a long document can take minutes. The route above gets a
+# generous request timeout; the models route keeps the gateway default.
+apiVersion: agentgateway.dev/v1alpha1
+kind: AgentgatewayPolicy
+metadata:
+  name: trustusbank-upload-timeouts
+  namespace: agentgateway-system
+spec:
+  targetRefs:
+  - group: gateway.networking.k8s.io
+    kind: HTTPRoute
+    name: trustusbank-upload
+  traffic:
+    timeouts:
+      request: 300s

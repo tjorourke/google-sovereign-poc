@@ -84,8 +84,8 @@ apply() {
   done
 
   step "mcp-catalog (list-only identity)"
-  local img="${MCP_CATALOG_IMAGE:-$(k -n "$NS" get deploy everything-server -o jsonpath='{.spec.template.spec.containers[0].image}' 2>/dev/null || true)}"
-  [[ -n "$img" ]] || die "no image for mcp-catalog: set MCP_CATALOG_IMAGE (anything with python3), or run 90-mcp-agent.sh"
+  local img="${MCP_CATALOG_IMAGE:-$(k -n "$NS" get deploy mcp-catalog -o jsonpath='{.spec.template.spec.containers[0].image}' 2>/dev/null || true)}"
+  [[ -n "$img" ]] || die "no image for mcp-catalog: set MCP_CATALOG_IMAGE (anything with python3)"
   sed "s|__MCP_IMAGE__|$img|" "$MESH/catalog.yaml" | k apply -f -
   k -n "$NS" rollout status deploy/mcp-catalog --timeout=180s
 

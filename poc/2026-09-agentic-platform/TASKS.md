@@ -4,6 +4,44 @@ One page, `localhost:8900/google` (demo-console `pages/google-sovereign.html`), 
 
 Status key: `[ ]` todo · `[~]` in progress · `[x]` done and verified
 
+## 2026-10-02 sum/calculator demo removed
+
+- [x] The everything-server toy + its three agents (`trustusbank-sovereign`,
+  `-sovereign-calc`, `-waypoint-calc`) removed from the cluster and the repo;
+  phases 90/56/67/69/95 left the default chain (18 phases). `verify_mcp_security.py`
+  re-run after cleanup: **89/89 passed**.
+
+## 2026-10-02 hosted console (Berlin)
+
+- [x] Google-only console runs in-cluster: `https://agw.agentic.eu0.internal/google`,
+  login page (solo / S010g00g13! by default, CONSOLE_USER/CONSOLE_PASSWORD to change),
+  HMAC session cookie, HTTPS-only route on the existing AGW listener.
+- [x] Self-contained in this repo (`console/app` + `console/Dockerfile` +
+  manifests + `scripts/97-google-console.sh`); the vision laptop console is
+  untouched. Verified: login flow (302/401/303/200), hub, DLP live feed, chat
+  via Gemma, builder API. Website staging runs as commit-pinned source
+  snapshots on the existing Python runtime — no laptop Docker.
+
+## 2026-10-02 data protection and call-level audit
+
+- [x] TrustUsBank Presidio webhook and file reader deployed in Berlin using the
+  same pinned open-source analyzer image as EKS, mirrored in-universe.
+- [x] Gateway rejects configured injection/secret patterns, masks PII and pins
+  matched customer/restricted data to Gemma. Additional Presidio detections on
+  the Gemini path return 409; the DLP console retries on Gemma.
+- [x] Real PDF upload through the browser → in-cluster extraction → masked
+  Gemma summary; per-call AGW trace link visible below the answer.
+- [x] Bob's verified identity, model, guardrail decisions, tokens, costs and
+  timestamps visible under AGW Tracing → Span Attributes.
+- [x] All 15 enterprise waypoints export traces. Payments agent invocation,
+  Gemma calls and get_account_balance seen in a single AGW trace, with workload
+  JWT and SPIFFE identity visible on the tool hop.
+- [x] Collapsed architecture diagram on /google: laptops, Berlin AGW, kagent,
+  DLP/models; Agentdesktop fleet clearly marked planned; no AgentRegistry.
+- [x] Deploy/probe/sample-generation scripts in google-sov, with the rebuild
+  overlay `scripts/deploy-google-demo.sh` and presenter runbook
+  `docs/trustusbank-dlp-audit.md`.
+
 ## 2026-10-02 every agent is trustusbank-*
 
 - [x] All 12 kagent Agents renamed: trustusbank-pm-agent, trustusbank-dev-agent (SDLC);

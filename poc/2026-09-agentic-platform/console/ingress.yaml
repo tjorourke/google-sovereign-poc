@@ -1,0 +1,46 @@
+# Reuse the already trusted AGW hostname. Only the HTTPS listener serves the UI.
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: google-console
+  namespace: agentgateway-system
+spec:
+  parentRefs:
+  - {group: gateway.networking.k8s.io, kind: ListenerSet, name: agentgateway-models, sectionName: https}
+  hostnames: ["agw.__BASE_DOMAIN__"]
+  rules:
+  - matches:
+    - path: {type: Exact, value: /}
+    - path: {type: Exact, value: /healthz}
+    - path: {type: Exact, value: /login}
+    - path: {type: Exact, value: /logout}
+    - path: {type: PathPrefix, value: /google}
+    - path: {type: PathPrefix, value: /static}
+    - path: {type: PathPrefix, value: /api/google}
+    - path: {type: PathPrefix, value: /api/trustusbank}
+    - path: {type: PathPrefix, value: /api/tubsdlc}
+    - path: {type: PathPrefix, value: /tubsdlc/site}
+    backendRefs:
+    - {name: google-console, namespace: trustusbank-console, port: 8900}
+---
+apiVersion: gateway.networking.k8s.io/v1beta1
+kind: ReferenceGrant
+metadata:
+  name: google-console-ingress
+  namespace: trustusbank-console
+spec:
+  from:
+  - {group: gateway.networking.k8s.io, kind: HTTPRoute, namespace: agentgateway-system}
+  to:
+  - {group: "", kind: Service, name: google-console}
+---
+apiVersion: agentgateway.dev/v1alpha1
+kind: AgentgatewayPolicy
+metadata:
+  name: google-console-timeouts
+  namespace: agentgateway-system
+spec:
+  targetRefs:
+  - {group: gateway.networking.k8s.io, kind: HTTPRoute, name: google-console}
+  traffic:
+    timeouts: {request: 600s}

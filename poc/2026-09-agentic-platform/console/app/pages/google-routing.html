@@ -1,0 +1,450 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Routing · Google Sovereign Cloud · Solo.io</title>
+  <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
+  <link rel="icon" type="image/png" href="/static/favicon.png">
+  <link rel="stylesheet" href="/static/css/app.css">
+  <link rel="stylesheet" href="/static/css/stage.css">
+  <style>
+    .gs-open { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 22px; }
+    .gs-open a { display: inline-flex; align-items: center; gap: 8px; padding: 10px 18px; border-radius: 8px;
+      background: #1a73e8; color: #fff; font-weight: 600; font-size: 14px; text-decoration: none;
+      box-shadow: 0 1px 3px rgba(0,0,0,.25); }
+    .gs-open a:hover { background: #1558b0; }
+    .gs-open a i { font-style: normal; opacity: .85; }
+    .gs-conn { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-top: 30px; }
+    .gs-conn .st-stat b { font-size: 22px; letter-spacing: -.01em; }
+    .gs-conn .st-stat small { word-break: break-all; }
+    .gs-err { margin-top: 12px; padding: 12px 16px; border-radius: 14px; background: #fffbeb; border: 1px solid #fcd34d; color: #78350f; font-size: 14px; font-weight: 650; }
+    .gs-err[hidden] { display: none; }
+
+    .gs-routes { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .gs-route { border-radius: 24px; padding: 24px 26px; background: #fff; border: 2px solid #e8e2d8; transition: border-color .2s, box-shadow .2s, transform .2s; }
+    .gs-route h3 { margin: 6px 0 4px; font-size: 26px; letter-spacing: -.02em; font-weight: 850; color: #120d1f; }
+    .gs-route p { margin: 0 0 14px; font-size: 15px; line-height: 1.5; color: #5d5669; }
+    .gs-route .st-eyebrow { color: #15803d; }
+    .gs-route.gemini .st-eyebrow { color: #1d4ed8; }
+    .gs-route.hit { transform: translateY(-3px); }
+    .gs-route.gemma.hit { border-color: #16a34a; box-shadow: 0 22px 44px -26px rgba(22, 163, 74, .6); }
+    .gs-route.gemini.hit { border-color: #2563eb; box-shadow: 0 22px 44px -26px rgba(37, 99, 235, .6); }
+    .gs-path { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 12.5px; font-weight: 750; }
+    .gs-path span { background: #f7f4ef; border: 1px solid #ede7de; border-radius: 10px; padding: 6px 10px; }
+    .gs-path i { font-style: normal; color: #a78bfa; font-weight: 900; }
+    .gs-path .in { border-color: #86efac; background: #f0fdf4; color: #14532d; }
+    .gs-path .out { border-color: #fcd34d; background: #fffbeb; color: #78350f; }
+    .gs-badge { display: inline-block; margin-top: 14px; font-size: 12px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; border-radius: 999px; padding: 5px 12px; }
+    .gs-badge.in { background: #dcfce7; color: #14532d; }
+    .gs-badge.out { background: #fef3c7; color: #78350f; }
+
+    .gs-ask { margin-top: 18px; border-radius: 24px; background: #fff; border: 1px solid #e8e2d8; padding: 24px 26px; }
+    .gs-ask textarea { width: 100%; box-sizing: border-box; min-height: 96px; border: 1px solid #e0d9ce; border-radius: 14px; padding: 14px 16px; font: 16px/1.5 inherit; resize: vertical; background: #fbfaf7; }
+    .gs-ask textarea:focus { outline: 2px solid #c4b5fd; border-color: #c4b5fd; }
+    .gs-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; margin-top: 12px; }
+    .gs-samples { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 12px; }
+    .gs-samples button { border: 1px solid #e0d9ce; background: #f7f4ef; color: #3f3a4a; border-radius: 999px; padding: 6px 12px; font: 700 13px/1 inherit; cursor: pointer; }
+    .gs-samples button:hover { border-color: #c4b5fd; }
+    .gs-send { border: 0; background: #120d1f; color: #fff; border-radius: 999px; padding: 11px 22px; font: 800 15px/1 inherit; cursor: pointer; }
+    .gs-send:disabled { opacity: .5; cursor: wait; }
+
+    .gs-result { margin-top: 18px; display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr); gap: 16px; }
+    .gs-result[hidden] { display: none; }
+    .gs-answer, .gs-why { border-radius: 24px; background: #fff; border: 1px solid #e8e2d8; padding: 22px 24px; }
+    .gs-answer .txt { font-size: 15.5px; line-height: 1.6; color: #221c30;
+                    height: 320px; overflow-y: auto; overscroll-behavior: contain; }
+    .gs-answer .txt.plain { white-space: pre-wrap; }
+    .gs-answer .txt > :first-child { margin-top: 0; }
+    .gs-answer .txt p { margin: 0 0 10px; }
+    .gs-answer .txt h3, .gs-answer .txt h4, .gs-answer .txt h5 { margin: 16px 0 6px; line-height: 1.3; color: #221c30; }
+    .gs-answer .txt h3 { font-size: 18px; } .gs-answer .txt h4 { font-size: 16px; } .gs-answer .txt h5 { font-size: 15px; }
+    .gs-answer .txt ul, .gs-answer .txt ol { margin: 0 0 10px; padding-left: 22px; }
+    .gs-answer .txt li { margin: 3px 0; }
+    .gs-answer .txt code { font-size: 13px; background: #f3efe8; border-radius: 5px; padding: 1px 5px; }
+    .gs-answer .txt pre { background: #1f1b2b; color: #f4f1fa; border-radius: 12px; padding: 12px 14px;
+                          margin: 0 0 12px; overflow-x: auto; font-size: 13px; line-height: 1.5; }
+    .gs-answer .txt pre code { background: none; padding: 0; color: inherit; }
+    .gs-answer .txt hr { border: 0; border-top: 1px solid #ebe5dc; margin: 14px 0; }
+    .gs-answer .txt blockquote { margin: 0 0 10px; padding-left: 12px; border-left: 3px solid #e2dbcf; color: #5c5568; }
+    .gs-why table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    .gs-why td { padding: 7px 0; border-bottom: 1px solid #f0ebe3; vertical-align: top; }
+    .gs-why td:first-child { color: #6b6478; font-weight: 700; padding-right: 12px; white-space: nowrap; }
+    .gs-why td code { word-break: break-all; }
+    .gs-stats { display: flex; gap: 10px; margin-bottom: 14px; }
+    .gs-stats div { flex: 1; background: #f7f4ef; border-radius: 14px; padding: 10px 12px; }
+    .gs-stats b { display: block; font-size: 22px; font-weight: 850; letter-spacing: -.02em; }
+    .gs-stats span { font-size: 12px; font-weight: 650; color: #6b6478; }
+
+    .gs-log { margin: 18px 0 10px; }
+    .gs-log-head { display: flex; justify-content: space-between; align-items: baseline; margin: 0 0 10px; }
+    .gs-log-head small { color: #6b6478; font-size: 12.5px; }
+    .gs-log .card { background: #fff; border: 1px solid #d8e0ea; border-left-width: 5px; border-radius: 10px; padding: 14px 16px; margin: 0 0 12px; }
+    .gs-log .card.private { border-left-color: #16a34a; }
+    .gs-log .card.frontier { border-left-color: #d97706; }
+    .gs-log .card.refused { border-left-color: #dc2626; }
+    .gs-log .top { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+    .gs-log .who { font-weight: 700; margin-right: 4px; }
+    .gs-log .when { margin-left: auto; font: 12px ui-monospace, SFMono-Regular, Menlo, monospace; color: #64748b; }
+    .gs-log .pill { font: 12px ui-monospace, SFMono-Regular, Menlo, monospace; border: 1px solid #cbd5e1; border-radius: 999px; padding: 2px 9px; color: #334155; background: #f8fafc; white-space: nowrap; }
+    .gs-log .pill.task { color: #0e7490; border-color: #a5f3fc; background: #ecfeff; }
+    .gs-log .pill.pool-private { color: #15803d; border-color: #bbf7d0; background: #f0fdf4; }
+    .gs-log .pill.pool-frontier { color: #b45309; border-color: #fde68a; background: #fffbeb; }
+    .gs-log .pill.bad { color: #b91c1c; border-color: #fecaca; background: #fef2f2; }
+    .gs-log .prompt { font: 13px ui-monospace, SFMono-Regular, Menlo, monospace; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 9px 11px; margin: 10px 0 6px; white-space: pre-wrap; word-break: break-word; color: #1e293b; }
+    .gs-log details summary { cursor: pointer; list-style: none; font-size: 12.5px; color: #475569; }
+    .gs-log details summary::-webkit-details-marker { display: none; }
+    .gs-log details summary::before { content: '▸ '; }
+    .gs-log details[open] summary::before { content: '▾ '; }
+    .gs-log .turn { display: flex; flex-wrap: wrap; gap: 6px 8px; align-items: center; border-left: 3px solid #e2e8f0; padding: 6px 0 6px 10px; margin: 8px 0 0; }
+    .gs-log .tmeta { width: 100%; font-size: 12.5px; color: #475569; }
+    .gs-log .hdrs { width: 100%; font: 12px ui-monospace, SFMono-Regular, Menlo, monospace; color: #475569; }
+    .gs-log .hdrs div { padding: 1px 0; }
+    .gs-log .empty { color: #6b6478; font-size: 13.5px; background: #fff; border: 1px dashed #d8e0ea; border-radius: 10px; padding: 14px 16px; }
+
+    .tb-agents { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; }
+    .tb-agent { text-align: left; border-radius: 20px; padding: 18px 18px 16px; background: #fff; border: 2px solid #e8e2d8; cursor: pointer; font: inherit; transition: border-color .2s, transform .2s, box-shadow .2s; }
+    .tb-agent:hover { border-color: #c4b5fd; }
+    .tb-agent[aria-pressed="true"] { border-color: #16a34a; transform: translateY(-3px); box-shadow: 0 22px 44px -26px rgba(22, 163, 74, .6); }
+    .tb-agent h3 { margin: 6px 0 6px; font-size: 19px; font-weight: 850; letter-spacing: -.02em; color: #120d1f; }
+    .tb-agent p { margin: 0 0 10px; font-size: 13.5px; line-height: 1.45; color: #5d5669; }
+    .tb-agent .st-eyebrow { color: #15803d; display: flex; align-items: center; gap: 6px; }
+    .tb-agent code { font-size: 11.5px; color: #475569; word-break: break-all; }
+    .tb-dot { width: 8px; height: 8px; border-radius: 50%; background: #d4d4d8; display: inline-block; }
+    .tb-dot.ok { background: #16a34a; } .tb-dot.bad { background: #dc2626; }
+    .tb-chain { margin: 16px 0 0; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; font-size: 12.5px; font-weight: 750; }
+    .tb-chain span { background: #f0fdf4; border: 1px solid #86efac; color: #14532d; border-radius: 10px; padding: 6px 10px; }
+    .tb-chain i { font-style: normal; color: #a78bfa; font-weight: 900; }
+    .tb-run { margin-top: 18px; display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr); gap: 16px; }
+    .tb-run[hidden] { display: none; }
+    .tb-trace { border-radius: 24px; background: #fff; border: 1px solid #e8e2d8; padding: 22px 24px; }
+    .tb-step { border-left: 3px solid #86efac; padding: 6px 0 8px 12px; margin: 0 0 10px; font-size: 13px; }
+    .tb-step b { font: 700 13px ui-monospace, SFMono-Regular, Menlo, monospace; color: #14532d; }
+    .tb-step small { display: block; color: #6b6478; margin: 2px 0 4px; }
+    .tb-step pre { margin: 4px 0 0; max-height: 180px; overflow: auto; font: 11.5px/1.45 ui-monospace, SFMono-Regular, Menlo, monospace; background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 8px 10px; white-space: pre-wrap; word-break: break-word; }
+    .tb-id { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 0 0 14px; font-size: 13.5px; color: #5d5669; }
+    .tb-id b { display: inline-flex; align-items: center; gap: 8px; background: #120d1f; color: #fff; border-radius: 999px; padding: 6px 14px 6px 6px; font-weight: 750; }
+    .tb-id b i { font-style: normal; width: 24px; height: 24px; border-radius: 50%; background: #16a34a; display: inline-grid; place-items: center; font-size: 12px; }
+    .tb-id.off b { background: #dc2626; }
+    .tb-id code { font-size: 12px; background: #f7f4ef; border: 1px solid #e0d9ce; border-radius: 6px; padding: 2px 6px; color: #120d1f; }
+    .tb-soon { border-radius: 24px; background: #fff; border: 1px dashed #d8e0ea; padding: 22px 26px; margin: 0 0 70px; font-size: 15px; line-height: 1.55; color: #5d5669; }
+    @media (max-width: 1000px) { .tb-agents, .tb-run { grid-template-columns: 1fr; } }
+    @media (max-width: 1000px) { .gs-conn, .gs-routes, .gs-result { grid-template-columns: 1fr; } }
+  </style>
+</head>
+<body class="stage">
+<nav class="console-nav">
+  <a class="brand" href="/">
+    <svg width="22" height="22" viewBox="0 0 48 48" aria-hidden="true">
+      <g stroke="#a78bfa" stroke-width="2.4" opacity="0.6" stroke-linecap="round">
+        <line x1="24" y1="7" x2="7" y2="24"/><line x1="24" y1="7" x2="41" y2="24"/>
+        <line x1="7" y1="24" x2="41" y2="24"/><line x1="7" y1="24" x2="24" y2="41"/>
+        <line x1="41" y1="24" x2="24" y2="41"/>
+      </g>
+      <circle cx="24" cy="7" r="5" fill="#a78bfa"/>
+      <circle cx="7" cy="24" r="5" fill="#7c3aed"/>
+      <circle cx="41" cy="24" r="5" fill="#7c3aed"/>
+      <circle cx="24" cy="41" r="5" fill="#5b21b6"/>
+    </svg>
+    Solo.io
+  </a>
+  <div class="nav-links">
+    <a href="/kernwerk" class="up">← Sovereign AI</a>
+    <a href="/google" class="active">Google Sovereign Cloud</a>
+    <a href="/kernwerk/eu">Kernwerk</a>
+  </div>
+  <span class="nav-status"><i class="dot" id="dot"></i><span id="status-label">checking Berlin</span></span>
+</nav>
+
+<header class="st-hero">
+  <div class="st-wrap">
+    <a class="st-crumb" href="/google">← Google Sovereign Cloud</a>
+    <div class="st-eyebrow">Step 01 · Routing · Berlin</div>
+    <h1>One gateway. <em>Gemma</em> keeps it in Germany, <em>Gemini</em> brings the frontier.</h1>
+    <p class="lead">Every question goes through one gateway in Berlin. A router reads it first: anything about customers, money, health or the law stays on Gemma, on the bank's own GPU inside Germany. Everyday questions may go to Gemini. Ask one and see where it went, and why.</p>
+
+    <div class="gs-conn">
+      <div class="st-stat"><span>agentgateway</span><b id="c-gw"><i class="st-skel"></i></b><small id="c-gw-sub">&nbsp;</small></div>
+      <div class="st-stat"><span>Semantic Router (extProc)</span><b id="c-vsr"><i class="st-skel"></i></b><small id="c-vsr-sub">&nbsp;</small></div>
+      <div class="st-stat"><span>Gemma 3 27B · vLLM</span><b id="c-gemma"><i class="st-skel"></i></b><small id="c-gemma-sub">&nbsp;</small></div>
+      <div class="st-stat"><span>AI backends</span><b id="c-be"><i class="st-skel"></i></b><small id="c-be-sub">&nbsp;</small></div>
+    </div>
+    <div class="gs-err" id="c-err" hidden></div>
+  </div>
+</header>
+<section class="st-section">
+  <div class="st-wrap">
+    <div class="st-head"><div><div class="st-eyebrow">Two routes, one gateway</div><h2>Ask a question, see where it goes</h2></div></div>
+    <div class="gs-routes">
+      <div class="gs-route gemma" id="r-gemma">
+        <div class="st-eyebrow">Route 1 · sovereign</div>
+        <h3>Gemma 3 27B</h3>
+        <p>Self-hosted on vLLM, on one NVIDIA H100 80GB in the cluster. Computer science and finance land here, along with law, health and psychology, and so does anything the router cannot classify.</p>
+        <div class="gs-path"><span>Client</span><i>→</i><span>agentgateway</span><i>→</i><span>Semantic Router</span><i>→</i><span class="in">vLLM · H100 · Berlin</span></div>
+        <span class="gs-badge in">Never leaves the boundary</span>
+      </div>
+      <div class="gs-route gemini" id="r-gemini">
+        <div class="st-eyebrow">Route 2 · frontier</div>
+        <h3>Gemini 3.8 Flash</h3>
+        <p>Google's frontier model, for non-sensitive general questions such as event planning, history and general knowledge. The gateway holds the API key and the prompt goes out through Cloud NAT.</p>
+        <div class="gs-path"><span>Client</span><i>→</i><span>agentgateway</span><i>→</i><span>Semantic Router</span><i>→</i><span class="out">Cloud NAT → Gemini API</span></div>
+        <span class="gs-badge out">Leaves the boundary, by policy</span>
+      </div>
+    </div>
+
+    <div class="gs-ask">
+      <div class="gs-samples" id="samples">
+        <button data-p="Our banking app sometimes charges a customer twice when they tap Pay twice. Why does that happen, and how do we fix it in the code?">Gemma · software</button>
+        <button data-p="I earn 3,000 euros a month. How much should I save each month to have 10,000 euros in three years?">Gemma · money</button>
+        <button data-p="Plan a two-day cultural visit to Berlin for an international delegation: museums, a concert and a riverside walk.">Gemini · event planning</button>
+        <button data-p="Summarise how the printing press changed the spread of scientific knowledge in sixteenth-century Europe, in one paragraph.">Gemini · history</button>
+      </div>
+      <textarea id="prompt" placeholder="Ask anything. The router decides where it goes."></textarea>
+      <div class="gs-row">
+        <div class="st-chips" id="route" role="group" aria-label="Route">
+          <button type="button" data-route="auto" aria-pressed="true">Auto · router decides</button>
+          <button type="button" data-route="gemma" aria-pressed="false">Force Gemma</button>
+          <button type="button" data-route="gemini" aria-pressed="false">Force Gemini</button>
+        </div>
+        <button class="gs-send" id="send">Send through the gateway</button>
+      </div>
+    </div>
+
+    <div class="gs-result" id="result" hidden>
+      <div class="gs-answer">
+        <div class="st-eyebrow" id="a-who">Answer</div>
+        <div class="txt" id="a-txt"></div>
+      </div>
+      <div class="gs-why">
+        <div class="gs-stats">
+          <div><b id="s-lat">–</b><span>seconds</span></div>
+          <div><b id="s-tok">–</b><span>tokens out</span></div>
+          <div><b id="s-tps">–</b><span>tok/s</span></div>
+        </div>
+        <div class="st-eyebrow" style="margin-bottom:6px">Why it went there</div>
+        <table id="why"></table>
+      </div>
+    </div>
+
+    <div class="gs-log">
+      <div class="gs-log-head"><div class="st-eyebrow">Gateway decisions</div><small>newest first · one card per prompt</small></div>
+      <div id="log"><div class="empty" id="log-empty">No prompts yet. Every prompt you send lands here with the router's decision.</div></div>
+    </div>
+  </div>
+</section>
+<script>
+const $ = id => document.getElementById(id);
+let route = 'auto';
+
+function stat(id, main, sub) { $(id).textContent = main; $(id + '-sub').textContent = sub || ''; }
+
+async function loadStatus() {
+  let s;
+  try { s = await (await fetch('/api/google/status')).json(); }
+  catch (e) { s = { reachable: false, error: 'console could not query status' }; }
+  const dot = $('dot'), label = $('status-label');
+  if (!s.reachable) {
+    dot.className = 'dot warn'; label.textContent = 'Berlin not connected';
+    ['c-gw', 'c-vsr', 'c-gemma', 'c-be'].forEach(id => stat(id, '–', ''));
+    stat('c-gw', 'Unreachable', '');
+    $('c-err').hidden = false; $('c-err').textContent = s.error || 'not reachable';
+    return;
+  }
+  $('c-err').hidden = true;
+  dot.className = 'dot live'; label.textContent = 'Berlin connected';
+  if (s.kube_error) {
+    // The gateway answers, but kubectl cannot see the cluster: no counts to show.
+    ['c-gw', 'c-vsr', 'c-gemma', 'c-be'].forEach(id => stat(id, 'Unknown', 'kubectl unavailable'));
+    $('c-err').hidden = false; $('c-err').textContent = s.kube_error;
+    return;
+  }
+  const ready = ps => `${(ps || []).filter(p => p.ready).length}/${(ps || []).length} ready`;
+  const lbl = ps => (ps || []).length && ps.every(p => p.company) ? `company=${ps[0].company}` : '';
+  stat('c-gw', ready(s.gateway_pods), lbl(s.gateway_pods) || 'gateway pods');
+  stat('c-vsr', ready(s.router_pods), 'gRPC :50051 · PreRouting');
+  const g = (s.gemma_pods || [])[0];
+  stat('c-gemma', g ? g[1] : 'not found', g ? (g[2] || 'GPU') : 'ns model, app=llm');
+  stat('c-be', String((s.backends || []).length),
+       (s.backends || []).map(b => `${b.name}${b.provider ? ' (' + b.provider + ')' : ''}`).join(' · '));
+}
+
+document.querySelectorAll('#route button').forEach(b => b.onclick = () => {
+  route = b.dataset.route;
+  document.querySelectorAll('#route button').forEach(x => x.setAttribute('aria-pressed', x === b));
+});
+document.querySelectorAll('#samples button').forEach(b => b.onclick = () => { $('prompt').value = b.dataset.p; $('prompt').focus(); });
+
+function esc(s) { return String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c])); }
+
+// Small, safe markdown for model answers: escape first, then headings, lists,
+// fenced code, quotes and inline bold/italic/code. Re-rendered on every chunk,
+// so an unclosed fence mid-stream still shows as code.
+function inline(t) {
+  return t.replace(/`([^`]+)`/g, '<code>$1</code>')
+          .replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
+          .replace(/(^|[^*\w])\*([^*\n]+)\*(?!\w)/g, '$1<em>$2</em>')
+          .replace(/(^|\W)_([^_\n]+)_(?!\w)/g, '$1<em>$2</em>');
+}
+function md(text) {
+  const lines = esc(text).split('\n');
+  let out = '', list = null, para = [], code = null;
+  const flushPara = () => { if (para.length) out += `<p>${inline(para.join('<br>'))}</p>`; para = []; };
+  const closeList = () => { if (list) out += `</${list}>`; list = null; };
+  for (const line of lines) {
+    if (code !== null) {
+      if (/^\s*```/.test(line)) { out += `<pre><code>${code.join('\n')}</code></pre>`; code = null; }
+      else code.push(line);
+      continue;
+    }
+    let m;
+    if (/^\s*```/.test(line)) { flushPara(); closeList(); code = []; continue; }
+    if ((m = line.match(/^\s*(#{1,6})\s+(.*)$/))) {
+      flushPara(); closeList();
+      const n = Math.min(m[1].length + 2, 5);
+      out += `<h${n}>${inline(m[2].replace(/\s*#+\s*$/, ''))}</h${n}>`; continue;
+    }
+    if (/^\s*([-*_])(\s*\1){2,}\s*$/.test(line)) { flushPara(); closeList(); out += '<hr>'; continue; }
+    if ((m = line.match(/^\s*(?:[-*•+]|(\d+)[.)])\s+(.*)$/))) {
+      flushPara();
+      const kind = m[1] ? 'ol' : 'ul';
+      if (list !== kind) { closeList(); out += kind === 'ol' && m[1] !== '1' ? `<ol start="${m[1]}">` : `<${kind}>`; list = kind; }
+      out += `<li>${inline(m[2])}</li>`; continue;
+    }
+    if ((m = line.match(/^\s*&gt;\s?(.*)$/))) { flushPara(); closeList(); out += `<blockquote>${inline(m[1])}</blockquote>`; continue; }
+    if (!line.trim()) { flushPara(); closeList(); continue; }
+    if (list && /^\s{2,}\S/.test(line)) { out = out.replace(/<\/li>$/, ` ${inline(line.trim())}</li>`); continue; }
+    closeList(); para.push(line.trim());
+  }
+  flushPara(); closeList();
+  if (code !== null) out += `<pre><code>${code.join('\n')}</code></pre>`;
+  return out;
+}
+
+async function send() {
+  const prompt = $('prompt').value.trim();
+  if (!prompt) return;
+  $('send').disabled = true; $('send').textContent = 'Routing…';
+  ['r-gemma', 'r-gemini'].forEach(id => $(id).classList.remove('hit'));
+  // Show the answer box at once and fill it token by token: a silent 30 s wait
+  // reads as a hang in front of an audience.
+  $('result').hidden = false;
+  $('a-who').textContent = 'Asking the router…';
+  $('a-txt').textContent = ''; $('a-txt').classList.remove('plain'); $('why').innerHTML = '';
+  ['s-lat', 's-tok', 's-tps'].forEach(id => $(id).textContent = '–');
+  const t0 = performance.now();
+  const tick = setInterval(() => { $('s-lat').textContent = ((performance.now() - t0) / 1000).toFixed(1); }, 100);
+  let text = '', r = null, chunks = 0;
+  const box = $('a-txt');
+  try {
+    const resp = await fetch('/api/google/chat/stream', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+                                                         body: JSON.stringify({ prompt, route }) });
+    const reader = resp.body.getReader(), dec = new TextDecoder();
+    let buf = '';
+    for (;;) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buf += dec.decode(value, { stream: true });
+      let i;
+      while ((i = buf.indexOf('\n\n')) >= 0) {
+        const line = buf.slice(0, i).trim(); buf = buf.slice(i + 2);
+        if (!line.startsWith('data:')) continue;
+        const ev = JSON.parse(line.slice(5));
+        if (ev.t === 'start') {
+          const h = ev.routing || {}, m = (h['x-vsr-selected-model'] || h['x-selected-model'] || '').toLowerCase();
+          $('send').textContent = 'Answering…';
+          $('a-who').textContent = m ? `${m} · answering…` : 'Answering…';
+          if (m) $('r-' + (m.startsWith('gemini') ? 'gemini' : 'gemma')).classList.add('hit');
+        } else if (ev.t === 'delta') {
+          const pinned = box.scrollHeight - box.scrollTop - box.clientHeight < 40;
+          text += ev.text; chunks++; box.innerHTML = md(text);
+          if (pinned) box.scrollTop = box.scrollHeight;   // follow the stream unless the presenter scrolled up
+          $('s-tok').textContent = chunks;
+        } else if (ev.t === 'done') { r = ev; }
+      }
+    }
+  } catch (e) { r = { status: 0, error: String(e) }; }
+  clearInterval(tick);
+  r = r || { status: 0, error: 'The stream closed before the gateway answered.' };
+  r.content = text;
+  $('send').disabled = false; $('send').textContent = 'Send through the gateway';
+  addDecision(prompt, route, r);
+  if (r.status !== 200) {
+    $('a-who').textContent = `Error · HTTP ${r.status}`;
+    box.classList.add('plain');
+    box.textContent = typeof r.error === 'string' ? r.error : JSON.stringify(r.error, null, 2);
+    return;
+  }
+  ['r-gemma', 'r-gemini'].forEach(id => $(id).classList.remove('hit'));
+  $('r-' + r.target).classList.add('hit');
+  const where = r.target === 'gemma' ? 'stayed in Berlin' : 'left the boundary via Cloud NAT';
+  $('a-who').textContent = `${r.model || r.target} · ${where}`;
+  if (!text) box.textContent = '(empty response)';
+  if (r.finish === 'length') box.insertAdjacentHTML('beforeend', '<p><em>[cut off at the max_tokens limit]</em></p>');
+  const toks = (r.usage || {}).completion_tokens || chunks;
+  $('s-lat').textContent = r.elapsed;
+  $('s-tok').textContent = toks ?? '–';
+  $('s-tps').textContent = toks ? Math.floor(toks / Math.max(r.elapsed - (r.ttft || 0), 0.1)) : '–';
+  const rows = [['requested', route === 'auto' ? 'model: auto (router decides)' : `forced: ${route}`],
+                ['answered by', r.model || '–'],
+                ['first token', r.ttft != null ? `${r.ttft} s` : '–']];
+  Object.entries(r.routing || {}).forEach(([k, v]) => rows.push([k, v]));
+  if (!Object.keys(r.routing || {}).length) rows.push(['router headers', 'none returned']);
+  $('why').innerHTML = rows.map(([k, v]) => `<tr><td>${esc(k)}</td><td><code>${esc(v)}</code></td></tr>`).join('');
+}
+
+// One card per prompt, in the style of /kernwerk/gateway-decisions.
+function addDecision(prompt, route, r) {
+  const h = r.routing || {}, ok = r.status === 200;
+  const gemma = r.target !== 'gemini';
+  const cls = !ok ? 'refused' : gemma ? 'private' : 'frontier';
+  const pool = gemma ? 'in-boundary' : 'frontier';
+  const decision = h['x-vsr-selected-decision'] || (route === 'auto' ? (ok ? 'default' : '–') : 'forced');
+  const category = h['x-vsr-selected-category'] || h['x-vsr-selected-domain'] || '';
+  const picked = h['x-vsr-selected-model'] || h['x-selected-model'] || (route === 'auto' ? '' : route);
+  const reason = route !== 'auto' ? `forced by the console (x-selected-model: ${picked})`
+               : h['x-vsr-selected-reasoning'] ? `router reasoning: ${h['x-vsr-selected-reasoning']}`
+               : decision === 'sovereign' ? 'computer science / finance / personal subject: stays in Berlin'
+               : decision === 'frontier' ? 'non-sensitive general question: may use Gemini'
+               : 'no router decision returned: the fallback is Gemma';
+  const toks = (r.usage || {}).completion_tokens;
+  const when = new Date().toLocaleTimeString([], { hour12: false });
+  const pill = (c, t) => `<span class="pill ${c}">${esc(t)}</span>`;
+  const hdrs = Object.entries(h).map(([k, v]) => `<div>${esc(k)}: <b>${esc(v)}</b></div>`).join('')
+             || '<div>no x-vsr-* headers returned</div>';
+  const card = document.createElement('div');
+  card.className = 'card ' + cls;
+  card.innerHTML = `
+    <div class="top">
+      <span class="who">${ok ? (gemma ? 'Gemma 3 27B' : 'Gemini 3.8 Flash') : 'Not answered'}</span>
+      ${pill(route === 'auto' ? 'task' : '', route === 'auto' ? 'auto' : 'forced ' + route)}
+      ${pill('pool-' + (gemma ? 'private' : 'frontier'), pool)}
+      ${r.model ? pill('', r.model) : ''}
+      <span class="when">${when}</span>
+    </div>
+    <div class="prompt">${esc(prompt)}</div>
+    <details>
+      <summary>decision <b>${esc(decision)}</b>${category ? ' · ' + esc(category) : ''} · HTTP ${r.status} · ${r.elapsed ?? '–'}s</summary>
+      <div class="turn">
+        ${pill('', when)}
+        ${pill('task', 'decision ' + decision)}
+        ${category ? pill('task', 'category ' + category) : ''}
+        ${pill('pool-' + (gemma ? 'private' : 'frontier'), pool)}
+        ${pill(ok ? '' : 'bad', 'HTTP ' + r.status)}
+        ${pill('', 'answered_by ' + (r.model || '–'))}
+        ${h['x-request-id'] ? pill('', 'request ' + h['x-request-id'].slice(0, 12)) : ''}
+        <div class="tmeta">reason <b>${esc(reason)}</b> · took <b>${r.elapsed ?? '–'} s</b>${toks ? ` · <b>${toks}</b> tokens · <b>${Math.floor(toks / r.elapsed)}</b> tok/s` : ''} · via <b>${esc(r.via || '–')}</b></div>
+        ${ok ? '' : `<div class="tmeta">error <b>${esc(typeof r.error === 'string' ? r.error : JSON.stringify(r.error))}</b></div>`}
+        <div class="hdrs">${hdrs}</div>
+      </div>
+    </details>`;
+  const empty = $('log-empty'); if (empty) empty.remove();
+  $('log').prepend(card);
+}
+$('send').onclick = send;
+$('prompt').addEventListener('keydown', e => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) send(); });
+
+loadStatus();
+setInterval(loadStatus, 30000);
+</script>
+</body>
+</html>

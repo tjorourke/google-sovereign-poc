@@ -124,7 +124,12 @@ kc -n "$NS" get gateway "$GW" >/dev/null 2>&1 || die "Gateway $NS/$GW missing â€
 kc -n "$NS" patch gateway "$GW" --type=merge \
   -p '{"spec":{"allowedListeners":{"namespaces":{"from":"Same"}}}}' >/dev/null
 for f in listenerset backends extproc-policy routes; do
-  sed "s/__BASE_DOMAIN__/${BASE_DOMAIN}/g" "$VSR_DIR/$f.yaml" | kc apply -f - >/dev/null
+  manifest="$VSR_DIR/$f.yaml"
+  # A router upgrade must not undo the installed data residency rules.
+  if [[ "$f" == routes ]] && kc -n "$NS" get agentgatewaypolicy trustusbank-data-class >/dev/null 2>&1; then
+    manifest="$LAB_ROOT/yaml/dlp/05-routes.yaml"
+  fi
+  sed "s/__BASE_DOMAIN__/${BASE_DOMAIN}/g" "$manifest" | kc apply -f - >/dev/null
 done
 # https alongside http once 85-tls.sh has issued the edge certificate (whose
 # HOSTS include agw). Added by patch so a rerun of the apply above, which

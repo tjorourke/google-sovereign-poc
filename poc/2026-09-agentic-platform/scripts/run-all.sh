@@ -50,11 +50,6 @@ PHASES=(
   "80|80-ingress.sh|yes|Gateway, HTTPRoutes, private DNS"
   "85|85-tls.sh|yes|TLS on every browser-facing URL, and the https OIDC issuer"
   "60|60-model.sh|yes|self-hosted model inside the boundary"
-  "90|90-mcp-agent.sh|yes|MCP tool server and the first agent"
-  "95|95-authz-on.sh|yes|tool-level authorization at the gateway"
-  "56|56-ar-push-agent.sh|yes|publish to the catalogue, deploy via the registry"
-  "67|67-accesspolicy-setup.sh|yes|waypoint path governed by AccessPolicy"
-  "69|69-accesspolicy-health.sh|yes|verify all three agent paths"
   # Last on purpose: it installs scrape targets for the Solo components, so
   # every one of them has to exist first or Prometheus finds nothing and the
   # status check reports zero series on a healthy cluster.
@@ -193,5 +188,5 @@ else
 fi
 if [[ "$(wc -l < "$STATE" | tr -d ' ')" -eq "${#PHASES[@]}" ]]; then
   ok "full chain complete"
-  log "verify:  ./scripts/66-istio-health.sh  &&  ./scripts/69-accesspolicy-health.sh"
+  log "verify:  ./scripts/66-istio-health.sh  &&  python3 ./scripts/verify_mcp_security.py"
 fi

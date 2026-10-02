@@ -19,3 +19,13 @@ spec:
         port: 4317
       protocol: GRPC
       randomSampling: "true"
+      attributes:
+        add:
+        - name: audit.user
+          expression: 'coalesce(jwt.preferred_username, jwt.sub, "anonymous")'
+        - name: audit.agent
+          expression: 'coalesce(jwt.agent_id, jwt.azp, "unattributed")'
+        - name: audit.team
+          expression: 'coalesce(jwt.team, "unattributed")'
+        - name: audit.subject
+          expression: 'coalesce(jwt.sub, "anonymous")'

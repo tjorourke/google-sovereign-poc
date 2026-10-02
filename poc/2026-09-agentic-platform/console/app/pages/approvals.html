@@ -1,0 +1,130 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Platform approval · Solo.io</title>
+  <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
+  <link rel="icon" type="image/png" href="/static/favicon.png">
+  <link rel="stylesheet" href="/static/css/app.css">
+  <link rel="stylesheet" href="/static/css/approvals.css">
+</head>
+<body>
+<nav class="console-nav">
+  <a class="brand" href="/">
+    <svg width="22" height="22" viewBox="0 0 48 48" aria-hidden="true">
+      <g stroke="#a78bfa" stroke-width="2.4" opacity="0.6" stroke-linecap="round">
+        <line x1="24" y1="7" x2="7" y2="24"/><line x1="24" y1="7" x2="41" y2="24"/>
+        <line x1="7" y1="24" x2="41" y2="24"/><line x1="7" y1="24" x2="24" y2="41"/>
+        <line x1="41" y1="24" x2="24" y2="41"/>
+      </g>
+      <circle cx="24" cy="7" r="5" fill="#a78bfa"/>
+      <circle cx="7" cy="24" r="5" fill="#7c3aed"/>
+      <circle cx="41" cy="24" r="5" fill="#7c3aed"/>
+      <circle cx="24" cy="41" r="5" fill="#5b21b6"/>
+    </svg>
+    Solo.io
+  </a>
+  <div class="nav-links">
+    <a href="/desktop">Agentdesktop</a>
+    <a href="/decisions">Gateway decisions</a>
+    <a href="/economy">Token economics</a>
+    <a href="/cost">Cost</a>
+    <a href="/agents">My agents</a>
+    <a href="/approvals" class="active">Platform approval</a>
+    <a href="/substrate">Substrate</a>
+  </div>
+  <span class="nav-status"><i class="dot" id="dot"></i><span id="status-label"></span></span>
+</nav>
+
+<header class="hero">
+  <div class="wrap">
+    <div class="crumb"><a href="/user-story-1">← Agentics Overview</a></div>
+    <div class="eyebrow">DEMO 06 PART 2 · Platform approval</div>
+    <h1>Platform approval</h1>
+    <p>Swap hats. The agent is built, published and running, and it still cannot call a tool that needs sign-off. Approving that is someone else's job, and this is their screen.</p>
+  </div>
+</header>
+
+<div class="wrap">
+  <div id="approvals-loading" class="approvals-loading" role="status" aria-live="polite">
+    <span class="approvals-spinner" aria-hidden="true"></span>
+    <strong>Loading approvals</strong>
+    <span>Reading agent identities and gateway policies…</span>
+  </div>
+  <div id="approvals-error" class="approvals-error" role="alert" hidden>
+    <span id="approvals-error-message"></span>
+    <button type="button" class="btn" id="approvals-retry">Try again</button>
+  </div>
+  <div id="approvals-content" hidden aria-busy="true">
+  <div class="panel">
+    <div class="panel-head">
+      <h2>Waiting on you</h2>
+      <span class="nav-status" style="color:var(--muted)"><i class="dot" id="ap-dot"></i><span id="ap-state">reading the registry</span></span>
+    </div>
+    <p class="sub">Every identity below asked for MCP tools when it was deployed. Until you allow it, the gateway denies the lot, and the agent gets an empty tool list rather than an error it can talk its way around.</p>
+    <div class="approve-list" id="pending"></div>
+    <p class="sub" id="pending-empty" style="display:none">Nothing waiting. Deploy an agent with MCP tools on <a href="/agents">My agents</a> and it lands here.</p>
+  </div>
+
+  <section class="panel" aria-labelledby="grants-title">
+    <div class="panel-head">
+      <h2 id="grants-title">Approved access</h2>
+      <span class="grant-total" id="grants-total">Loading grants</span>
+    </div>
+    <p class="sub">Every grant names an agent identity and the tools it can use. Expand a row to inspect the policy YAML. Revoking removes manually approved access at the gateway.</p>
+    <div class="grant-toolbar">
+      <label class="grant-search">Search grants
+        <input type="search" id="grant-search" placeholder="Agent, identity, server or tool…" autocomplete="off">
+      </label>
+      <label>Grant source
+        <select id="grant-source">
+          <option value="all">All sources</option>
+          <option value="reviewed">Admin-approved</option>
+          <option value="managed">Platform-managed</option>
+          <option value="automatic">Auto-approved</option>
+        </select>
+      </label>
+    </div>
+    <div class="grant-scroll" role="region" aria-label="Approved MCP grants" tabindex="0">
+      <table class="grant-table">
+        <thead><tr><th scope="col">Agent / policy</th><th scope="col">Workload identity</th>
+          <th scope="col">MCP servers</th><th scope="col">Tools</th><th scope="col">Source</th><th scope="col">Actions</th></tr></thead>
+        <tbody id="grant-rows"></tbody>
+      </table>
+    </div>
+    <p class="sub" id="grants-empty" hidden>No approved grants yet.</p>
+    <div class="grant-pagination">
+      <span id="grant-range" role="status" aria-live="polite"></span>
+      <div><button class="btn" id="grants-prev" type="button">Previous</button>
+        <button class="btn" id="grants-next" type="button">Next</button></div>
+    </div>
+    <p class="footnote">Platform-managed and auto-approved grants are read-only here. Their source controls access.</p>
+  </section>
+  </div>
+</div>
+</div>
+
+<div class="modal-back" id="mcp-modal" style="display:none" role="dialog" aria-modal="true">
+  <div class="modal">
+    <div class="kicker" id="mcp-modal-kicker">Security · platform admin</div>
+    <h2 id="mcp-modal-title">Approve MCP tools</h2>
+    <p class="sub" id="mcp-modal-lead">This identity is asking for the tools below. Approve or deny the lot.</p>
+    <p class="sub" id="mcp-modal-who"></p>
+    <div class="modal-tools" id="mcp-modal-tools"></div>
+    <details class="yaml" id="mcp-modal-policy" style="margin-top:12px">
+      <summary>The policy this writes</summary>
+      <p class="hint">One EnterpriseAgentgatewayPolicy per MCP backend that needs approval. The allow expression names this ServiceAccount and the tools it may call. Everything not listed stays denied.</p>
+      <pre id="mcp-modal-yaml"></pre>
+    </details>
+    <p class="footnote" id="mcp-modal-msg"></p>
+    <div class="wiz-actions">
+      <button class="btn primary" id="mcp-modal-approve" type="button">Approve</button>
+      <button class="btn" id="mcp-modal-deny" type="button">Deny</button>
+      <button class="btn" id="mcp-modal-close" type="button">Close</button>
+    </div>
+  </div>
+</div>
+<script src="/static/js/approvals.js"></script>
+</body>
+</html>

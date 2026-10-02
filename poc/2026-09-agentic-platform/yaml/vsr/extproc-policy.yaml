@@ -25,15 +25,22 @@ spec:
       name: agentgateway-models
   traffic:
     phase: PreRouting
+    # Conditional: the router is an LLM router and rejects anything that is not
+    # a chat completions body (it answered an upload POST to /tub/summarize with
+    # a DirectResponse 400 "missing required field: model" before routing).
+    # Everything else on the listener goes straight to its route.
     extProc:
-      backendRef:
-        name: semantic-router
-        namespace: agentgateway-system
-        port: 50051
-      processingOptions:
-        requestHeaderMode: Send
-        requestBodyMode: Buffered
-        responseHeaderMode: Send
-        responseBodyMode: None
-        allowModeOverride: true
-      failureMode: FailOpen
+      conditional:
+        - condition: request.path == "/v1/chat/completions"
+          policy:
+            backendRef:
+              name: semantic-router
+              namespace: agentgateway-system
+              port: 50051
+            processingOptions:
+              requestHeaderMode: Send
+              requestBodyMode: Buffered
+              responseHeaderMode: Send
+              responseBodyMode: None
+              allowModeOverride: true
+            failureMode: FailOpen

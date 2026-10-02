@@ -2,11 +2,84 @@
 
 Verified against Berlin on 2026-10-01. Console: <http://localhost:8900/google>.
 
+## 2026-10-02: DLP, PDF summary, and AGW audit
+
+**Hosted console:** the Google demo now also runs in Berlin at
+`https://agw.agentic.eu0.internal/google` (sign in: `solo` / `S010g00g13!`).
+A styled login page issues an HMAC-signed 12h session cookie; `Sign out` clears
+it. Unauthenticated pages redirect to `/login`, APIs answer 401, wrong
+credentials 401, and cross-origin writes are refused. Verified live through the
+gateway: login/logout, hub, routing chat on Gemma, DLP page + upload cards with
+trace links, builder and approvals APIs, and the staging/prod site preview — all
+served from the cluster, with no laptop port-forwards.
+Source and deployer: `console/` and `scripts/97-google-console.sh` in this repo.
+The laptop console in `solo-demos/vision-demo-2026/demo-console` is unchanged
+by this and keeps working on localhost:8900.
+
+Builder fix verified live on the hosted page: the wizard's name generator used
+to produce suffixes longer than the server's 12-character cap (e.g.
+`trustusbank-my-payments-2`, rejected with the cryptic NAME_RE error). It now
+compares names against the full deployed names and keeps generated suffixes
+within the cap (`my-payment-2`), and the server's error names the actual
+problem. Verified: template → wizard → Deploy to kagent → agent Ready, then
+deleted. The same pre-existing bug remains in the laptop console's
+google_builder.py/agents.js; port if wanted.
+Website staging uses immutable commit-pinned source snapshots on the existing
+Python runtime (no laptop Docker); a runtime/Dockerfile change is refused rather
+than silently skipped.
+
+Native Desktop follow-up: its real request contained 19,321 input tokens plus
+2,048 output tokens, exceeding the previous 8,192-token vLLM setting. Gemma is
+now serving a 24,576-token context. A regression with 19,605 input tokens plus
+the mortgage PDF returned a masked summary. Oversized requests now retain the
+actual context-limit message as HTTP 400 instead of becoming an AGW parser 502.
+The DLP log panel has a persistent **Clear history** action; AGW audit traces
+remain available. All 28 console tests (including three history-reset tests)
+pass.
+
+Presenter steps and deployment commands:
+[`docs/trustusbank-dlp-audit.md`](../../docs/trustusbank-dlp-audit.md).
+
+- `96-dlp.sh` deploys the mirrored Presidio image and TrustUsBank policies.
+  Live probes verified injection → 403, customer data with Gemini requested →
+  masked Gemma call, clean prompt → Gemini, and upload → Gemma summary.
+  The strengthened probe verifies masking against its own trace ID and sends
+  spoofed classification headers. Six additional negative controls passed via
+  `verify_dlp_edges.py`; all 25 existing console unit tests pass.
+- Browser upload of the generated `deploy/trustusbank-case.pdf` returned a
+  Gemma summary with placeholders in 5.38 seconds. Files are extracted inside
+  the cluster. The response includes a direct AGW trace link.
+- Claude Desktop's EKS-style reader/conversion path is also deployed at
+  `https://agw.agentic.eu0.internal/trustusbank`. Five live protocol checks pass:
+  invalid JWT, token counting, Messages, PDF/SSE and 403 rejection. The DLP page
+  displays external calls with a Claude Desktop label and attachment filenames.
+  `claude_desktop_berlin.py on` switches the local Mac profile (administrator
+  password required); native Desktop app testing remains a local step.
+- A name-only prompt that CEL misses is stopped by Presidio with 409 before
+  Gemini inference. The DLP console retries on Gemma; this was browser-verified.
+- Gateway traces now carry `audit.user`, `audit.agent`, `audit.team` and signed
+  subject from the verified JWT. Bob / trustusbank-console / payments-ops was
+  verified in AGW Span Attributes. The table's User ID column remains N/A in
+  this installed UI version; use Span Attributes → audit.
+- `94-audit-waypoints.py --apply` installed Accepted/Attached tracing policies
+  on all 15 enterprise waypoints. A real payments-agent request showed the
+  kagent invocation, both model calls and `get_account_balance` in one AGW trace.
+  MCP identity remains the verified workload JWT + SPIFFE identity, not a
+  delegated Bob token.
+- `/google` has a collapsed architecture expander with external laptops,
+  AGW/kagent/DLP/models, and a clearly marked planned Agentdesktop fleet.
+- Cluster deployment and sample-generation sources are in this repository;
+  console handlers/pages are in the companion repository. No fleet deployment
+  was added. DLP is scoped to the `models` route, not the agents' `llm` route.
+
+After a rebuild run `bash ../../scripts/deploy-google-demo.sh` from this lab.
+After adding an agent re-run `94-audit-waypoints.py --apply`. A re-run of
+`87-vsr-routes.sh` preserves installed DLP route rules.
+
 ## Security model
 
-- All 12 kagent Agents have their own programmed enterprise agentgateway waypoint.
-- All 9 MCP Services use waypoints: seven in `mcp`, `agents/everything-server`,
-  and `kagent/kagent-tools`.
+- All 9 kagent Agents have their own programmed enterprise agentgateway waypoint.
+- All 7 MCP Services use waypoints: six in `mcp` and `kagent/kagent-tools`.
 - Every MCP route uses `jwtAuthentication.mode: Strict`, the cluster's signed
   public JWKS, audience `trustusbank-mcp`, and required `sub`/`exp` claims.
 - JWT subject must equal `system:serviceaccount:<mesh namespace>:<mesh SA>`.
@@ -44,12 +117,13 @@ the cluster. The console reconciles builder workloads after deployment and on
 the deployment-status poll. Unknown MCP servers must be added to the inventory
 and granted explicitly before use.
 
-Latest security run: **117/117 live checks passed**, plus three offline identity
-regressions and 25 existing console tests. Evidence is in
-`deploy/security-verification.json`. A fresh `audit-payments` agent was created
-through the browser wizard, verified without a grant, approved, used to retrieve
-a balance, revoked (empty tool list verified), and deleted. Its successful chat
-is captured in `deploy/google-agent-verified.png`.
+Latest security run: **89/89 live checks passed** (2026-10-02, after the
+sum-demo removal; the earlier 117/117 run predates it and included the calc
+checks). Evidence is in `deploy/security-verification.json`. A fresh
+`audit-payments` agent was created through the browser wizard, verified without
+a grant, approved, used to retrieve a balance, revoked (empty tool list
+verified), and deleted. Its successful chat is captured in
+`deploy/google-agent-verified.png`.
 
 The JWKS in the policy is public key material read from the cluster API. It is
 not an embedded signing key. Tokens, client secrets, licenses and kubeconfigs
@@ -129,8 +203,20 @@ Pages: `/google`, `/google/routing`, `/google/agents`, `/google/agents?new=1`,
 - Seeded cost data is marked `seed-*`; it is illustrative history. Seeded spend
   does not demonstrate live budget enforcement. The existing `llm` route targets
   a Service, so its spans do not carry AI token pricing like the `models` route.
-- The native MCPServer controller's unauthenticated background discovery of
-  `agents/everything-server` is rejected by strict JWT. The calculator uses the
-  authenticated RemoteMCPServer `agents/waypoint-tools`; its tool path is tested.
 - GCD admission and GPU support are preview-specific. The RAPID version and
   workload allowlists are explicit prerequisites, not a claim about all GDC installs.
+
+## 2026-10-02: sum/calculator demo removed
+
+The `everything-server` MCP toy and its three agents (`trustusbank-sovereign`,
+`-sovereign-calc`, `-waypoint-calc`) were the platform-validation demo, and the
+user-facing demo does not use them. Removed from the cluster (agents, AR
+deployment record, both everything-server deployments and Services, routes,
+backends, policies, waypoints; the `agents` namespace) and from the repo: phases
+90/56/67/69/95 left the default chain (18 phases now), `verify_mcp_security.py`
+lost its two calc checks and its declarative fallback, and
+`mcp_security.py`/`68-agent-mesh-policies.sh`/`lib.sh`/`92-mcp-lockdown.sh` no
+longer reference them. After cleanup: **89/89 security checks passed** (a probe
+run during the policy re-render reported one transient empty tool list; the
+clean re-run is the number to quote). The waypoint/JWT/grant story is unchanged
+— the bank and SDLC agents already carry it.

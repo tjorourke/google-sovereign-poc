@@ -153,7 +153,7 @@ probe() {  # probe <url> -> http code, or 000 for a refused connection
 }
 
 MODEL_DIRECT="$(probe http://llm.model.svc.cluster.local:8000/v1/models)"
-MCP_DIRECT="$(probe http://everything-server.mcp.svc.cluster.local:3000/mcp)"
+MCP_DIRECT="$(probe http://bank-payments.mcp.svc.cluster.local:3000/mcp)"
 VIA_GW="$(probe http://llm.agentic.eu0.internal/v1/models)"
 
 log "direct to model Service      : $MODEL_DIRECT"

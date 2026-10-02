@@ -1,0 +1,487 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Website changes · TrustUsBank · Google Sovereign Cloud</title>
+  <link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
+  <link rel="icon" type="image/png" href="/static/favicon.png">
+  <link rel="stylesheet" href="/static/css/app.css">
+  <link rel="stylesheet" href="/static/css/stage.css">
+  <style>
+    /* Steps here hold live controls rather than links: no hover lift, content aligned to the top. */
+    .st-step.sd-live { align-items: start; }
+    .st-step.sd-live:hover { transform: none; border-color: #e8e2d8; box-shadow: none; }
+    .st-step.sd-live .st-vis { justify-content: flex-start; min-height: 0; }
+    .st-step.sd-live p { margin-bottom: 12px; }
+    .st-step.sd-plain { grid-template-columns: minmax(0, 1fr) minmax(0, 420px); }
+    .sd-chat { max-height: 220px; overflow: auto; display: flex; flex-direction: column; gap: 6px; font-size: 13.5px; }
+    .sd-chat:empty { display: none; }
+    .sd-msg { max-width: 90%; border-radius: 10px; padding: 7px 10px; white-space: pre-wrap; line-height: 1.4; }
+    .sd-msg.user { align-self: flex-end; background: #4c1d95; color: #fff; }
+    .sd-msg.bot { align-self: flex-start; background: #fff; border: 1px solid #e8e2d8; color: #1f1a2b; }
+    .sd-msg.tool { align-self: flex-start; color: #5d5669; font: 12px/1.35 ui-monospace, SFMono-Regular, Menlo, monospace; padding: 2px 4px; }
+    .sd-msg.platform { align-self: stretch; max-width: none; background: #eff6ff; border: 1px solid #bfdbfe; color: #1e3a8a; font-size: 12.5px; }
+    .sd-msg.error { align-self: stretch; max-width: none; background: #fef2f2; border: 1px solid #fecaca; color: #7f1d1d; font-size: 12.5px; }
+    .sd-open { display: flex; align-items: center; gap: 14px; padding: 16px 18px; border-radius: 14px; background: #1a1033; color: #fff; text-decoration: none; transition: transform .15s; }
+    .sd-open:hover { transform: translateY(-1px); }
+    .sd-open b { width: 40px; height: 40px; border-radius: 10px; background: #ede9fe; color: #5b21b6; display: grid; place-items: center; font-size: 14px; flex: none; }
+    .sd-open span { display: flex; flex-direction: column; flex: 1; }
+    .sd-open strong { font-size: 16px; }
+    .sd-open small { color: #c4b5fd; font-size: 12.5px; }
+    .sd-open i { font-style: normal; font-size: 20px; }
+    .sd-try { margin-top: 14px; }
+    .sd-try small { font-size: 11px; letter-spacing: .1em; text-transform: uppercase; color: #8a8478; font-weight: 700; }
+    .sd-try p { margin: 6px 0 0; font-size: 14px; color: #4a4540; }
+    .sd-prompts { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; }
+    .sd-prompts button { cursor: pointer; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+      background: #fff; border: 1px solid #e8e2d8; color: #4b4557; border-radius: 999px; padding: 4px 11px; font: 600 12.5px/1.4 inherit; font-family: inherit; }
+    .sd-prompts button:hover { border-color: #c4b5fd; color: #4c1d95; }
+    .sd-form { display: flex; gap: 6px; margin: 0; }
+    .sd-form input { flex: 1; min-width: 0; border: 1px solid #e8e2d8; border-radius: 10px; padding: 7px 10px; font: inherit; font-size: 13.5px; background: #fff; }
+    .sd-btn { cursor: pointer; border: 1px solid transparent; border-radius: 10px; padding: 7px 14px; font: inherit; font-size: 13.5px; font-weight: 750; white-space: nowrap; }
+    .sd-btn:disabled { opacity: .5; cursor: default; }
+    .sd-btn.send { background: #120d1f; color: #fff; }
+    .sd-btn.approve { background: #047857; color: #fff; }
+    .sd-btn.deny { background: #fff; color: #b91c1c; border-color: #fca5a5; }
+    .sd-gate { display: flex; gap: 8px; flex-wrap: wrap; }
+    .sd-result { margin-top: 8px; font-size: 13.5px; font-weight: 700; }
+    .sd-result:empty { display: none; }
+    .sd-card { display: grid; gap: 6px; }
+    .sd-card h4 { margin: 0; font-size: 15px; line-height: 1.3; color: #120d1f; }
+    .sd-card p { margin: 0; font-size: 13px; line-height: 1.45; color: #5d5669; white-space: pre-wrap; max-height: 96px; overflow: auto; }
+    .sd-meta { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; font-size: 12.5px; color: #5d5669; font-weight: 600; }
+    .sd-meta a { color: #6d28d9; }
+    .sd-label { display: inline-block; font-size: 11px; font-weight: 750; padding: 1px 8px; border-radius: 999px; border: 1px solid #e8e2d8; background: #fff; color: #5d5669; }
+    .sd-label.spec-review { background: #fffbeb; border-color: #fcd34d; color: #78350f; }
+    .sd-label.agent-ready { background: #eff6ff; border-color: #bfdbfe; color: #1e3a8a; }
+    .sd-label.in-review { background: #f5f3ff; border-color: #ddd6fe; color: #4c1d95; }
+    .sd-label.live { background: #f0fdf4; border-color: #86efac; color: #14532d; }
+    .sd-label.spec-rejected { background: #fef2f2; border-color: #fecaca; color: #7f1d1d; }
+    .sd-empty { font-size: 12.5px; font-weight: 700; color: #9a93a6; text-align: center; padding: 6px; }
+    .sd-who { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 18px; }
+    .sd-who span { display: inline-flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 700; color: #4b4557; background: #fff; border: 1px solid #e8e2d8; border-radius: 999px; padding: 4px 10px; }
+    .sd-who code { font-size: 11.5px; color: #6d28d9; }
+    .st-vis .box a { display: block; margin-top: 4px; font-size: 12px; color: #6d28d9; }
+    .st-vis .box.dark a { color: #c4b5fd; }
+    .sd-issues { width: 100%; border-collapse: collapse; font-size: 13px; }
+    .sd-issues td { padding: 6px 4px; border-bottom: 1px solid #ede7de; vertical-align: top; }
+    .sd-issues tr:last-child td { border-bottom: 0; }
+    .sd-issues a { color: #120d1f; font-weight: 650; }
+    .sd-issues .n { color: #9a93a6; font-weight: 750; width: 36px; }
+    .sd-modal { display: none; position: fixed; inset: 0; z-index: 80; background: rgba(18,13,31,.55); align-items: center; justify-content: center; }
+    .sd-modal > div { background: #fff; color: #1f1a2b; border-radius: 18px; padding: 24px; max-width: 460px; width: 90%; box-shadow: 0 24px 60px rgba(18,13,31,.35); }
+    .sd-modal h3 { margin: 0 0 6px; font-size: 19px; }
+    .sd-modal p { margin: 0 0 12px; color: #5d5669; font-size: 14px; }
+    .sd-modal textarea { width: 100%; box-sizing: border-box; border: 1px solid #e8e2d8; border-radius: 10px; padding: 9px 11px; font: inherit; font-size: 14px; resize: vertical; }
+    .sd-modal .err { color: #b91c1c; font-size: 13px; min-height: 1.2em; margin-top: 6px; }
+    .sd-modal .actions { display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px; }
+    .ps-confetti { position: fixed; inset: 0; pointer-events: none; z-index: 70; overflow: hidden; }
+    .ps-confetti i { position: absolute; top: -20px; width: 9px; height: 14px; border-radius: 2px;
+      animation-name: ps-fall; animation-timing-function: cubic-bezier(.25, .6, .5, 1); animation-fill-mode: forwards; }
+    @keyframes ps-fall { to { top: 105vh; transform: rotate(720deg) translateX(40px); opacity: .8; } }
+  </style>
+</head>
+<body class="stage">
+<nav class="console-nav">
+  <a class="brand" href="/">
+    <svg width="22" height="22" viewBox="0 0 48 48" aria-hidden="true">
+      <g stroke="#a78bfa" stroke-width="2.4" opacity="0.6" stroke-linecap="round">
+        <line x1="24" y1="7" x2="7" y2="24"/><line x1="24" y1="7" x2="41" y2="24"/>
+        <line x1="7" y1="24" x2="41" y2="24"/><line x1="7" y1="24" x2="24" y2="41"/>
+        <line x1="41" y1="24" x2="24" y2="41"/>
+      </g>
+      <circle cx="24" cy="7" r="5" fill="#a78bfa"/>
+      <circle cx="7" cy="24" r="5" fill="#7c3aed"/>
+      <circle cx="41" cy="24" r="5" fill="#7c3aed"/>
+      <circle cx="24" cy="41" r="5" fill="#5b21b6"/>
+    </svg>
+    Solo.io
+  </a>
+  <div class="nav-links">
+    <a href="/google">Google Sovereign Cloud</a>
+  </div>
+  <span class="nav-status"><i class="dot" id="dot"></i><span id="status-label">checking cluster</span></span>
+</nav>
+
+<header class="st-hero">
+  <div class="st-wrap">
+    <a class="st-crumb" href="/google">← Google Sovereign Cloud</a>
+    <div class="st-eyebrow">TrustUsBank · website changes</div>
+    <h1>A request becomes a <em>reviewed, live</em> change to the bank's website.</h1>
+    <p class="lead">A PM agent and an AI dev agent, both on Gemma in Berlin, work in a real
+      <a id="repo-link" href="https://github.com/tjorourke/trustusbank-payments" target="_blank" rel="noopener">GitHub repo</a>.
+      The product manager approves twice, on GitHub: the plan, then the finished change in staging.</p>
+    <div class="sd-who" id="who"><span>Checking the agents…</span></div>
+    <nav class="st-jump" aria-label="Steps">
+      <a href="#s1"><b>1</b>Request a change</a>
+      <a href="#s2"><b>2</b>PM approves on GitHub</a>
+      <a href="#s3"><b>3</b>AI dev agent builds it</a>
+      <a href="#s4"><b>4</b>Check staging</a>
+      <a href="#s5"><b>5</b>Live</a>
+    </nav>
+  </div>
+</header>
+
+<div class="st-wrap">
+  <div class="st-journey">
+
+    <section class="st-step sd-live" id="s1">
+      <div class="st-num">01</div>
+      <div>
+        <div class="st-eyebrow">PM agent</div>
+        <h3>Request a change</h3>
+        <p>Say what you want in plain words. The PM agent writes a short plan and files it as a GitHub issue for you to review.</p>
+        <div class="st-tags"><span>Gemma 3 27B</span><span>Issue labelled spec-review</span></div>
+      </div>
+      <div class="st-vis">
+        <a class="sd-open" href="/google/agents#chat/trustusbank-pm-agent" target="_blank" rel="noopener">
+          <b>PM</b><span><strong>Chat with the PM agent</strong><small>Opens in Agents, signed in as bob</small></span><i>→</i></a>
+        <div class="sd-try"><small>Try asking</small><div id="pm-prompts"></div></div>
+      </div>
+    </section>
+
+    <section class="st-step sd-live" id="s2">
+      <div class="st-num">02</div>
+      <div>
+        <div class="st-eyebrow">Product manager · first approval</div>
+        <h3>The PM approves the plan on GitHub</h3>
+        <p>Nothing is built until the PM approves. The decision is recorded on the GitHub issue; turning it down needs a reason.</p>
+        <div class="sd-gate">
+          <button class="sd-btn approve" id="spec-approve" type="button">Approve plan</button>
+          <button class="sd-btn deny" id="spec-deny" type="button">Turn down</button>
+        </div>
+        <div class="sd-result" id="spec-result"></div>
+      </div>
+      <div class="st-vis" id="spec-card"><div class="sd-empty">Checking GitHub…</div></div>
+    </section>
+
+    <section class="st-step sd-live" id="s3">
+      <div class="st-num">03</div>
+      <div>
+        <div class="st-eyebrow">AI dev agent</div>
+        <h3>The AI dev agent builds it</h3>
+        <p>It picks up the approved issue, commits to its own branch and opens a pull request. The platform builds it into staging.</p>
+        <div class="sd-meta" id="ready-card"></div>
+      </div>
+      <div class="st-vis">
+        <a class="sd-open" href="/google/agents#chat/trustusbank-dev-agent" target="_blank" rel="noopener">
+          <b>DEV</b><span><strong>Chat with the AI dev agent</strong><small>Opens in Agents, signed in as bob</small></span><i>→</i></a>
+        <div class="sd-try"><small>Try asking</small><div id="dev-prompts"></div></div>
+      </div>
+    </section>
+
+    <section class="st-step sd-live" id="s4">
+      <div class="st-num">04</div>
+      <div>
+        <div class="st-eyebrow">Product manager · second approval</div>
+        <h3>Check staging, then decide</h3>
+        <p>Approve merges the pull request and ships the exact build you checked. Deny sends the reason back to the AI dev agent; production is untouched.</p>
+        <div class="sd-gate">
+          <button class="sd-btn approve" id="approve-btn" type="button">Approve and go live</button>
+          <button class="sd-btn deny" id="deny-btn" type="button">Deny</button>
+        </div>
+        <div class="sd-result" id="promote-result"></div>
+      </div>
+      <div class="st-vis" id="pr-card"><div class="sd-empty">Checking GitHub…</div></div>
+    </section>
+
+    <section class="st-step sd-live" id="s5">
+      <div class="st-num">05</div>
+      <div>
+        <div class="st-eyebrow">Production</div>
+        <h3>Live for customers</h3>
+        <p>Staging and production are the same app in two namespaces in Berlin, behind agentgateway.</p>
+      </div>
+      <div class="st-vis">
+        <div class="row">
+          <div class="box">Staging<small id="staging-tag">checking…</small><a id="staging-link" href="/tubsdlc/site/staging/" target="_blank" rel="noopener">Open preview →</a></div>
+          <div class="box dark">Production<small id="prod-tag">checking…</small><a id="prod-link" href="/tubsdlc/site/prod/" target="_blank" rel="noopener">Open preview →</a></div>
+        </div>
+        <div class="cap" id="env-cap"></div>
+      </div>
+    </section>
+
+    <section class="st-step sd-live sd-plain">
+      <div>
+        <div class="st-eyebrow">The record</div>
+        <h3>Recent issues</h3>
+        <p>Every plan, approval, denial and release is on a GitHub issue.</p>
+        <a class="st-go" id="issues-link" href="https://github.com/tjorourke/trustusbank-payments/issues" target="_blank" rel="noopener">All issues on GitHub <i>→</i></a>
+      </div>
+      <div class="st-vis"><table class="sd-issues"><tbody id="issues"><tr><td class="sd-empty">Checking GitHub…</td></tr></tbody></table></div>
+    </section>
+
+  </div>
+</div>
+<div class="sd-modal" id="deny-modal">
+  <div>
+    <h3 id="deny-title">What needs to change?</h3>
+    <p id="deny-help"></p>
+    <textarea id="deny-reason" rows="4"></textarea>
+    <div class="err" id="deny-error"></div>
+    <div class="actions">
+      <button class="sd-btn" id="deny-cancel" type="button" style="background:#fff;border-color:#ddd6e8">Cancel</button>
+      <button class="sd-btn deny" id="deny-submit" type="button" style="background:#b91c1c;color:#fff">Send</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const API = "/api/trustusbank/sdlc";
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+let S = {};
+let promptsDrawn = false;
+
+function label(l) { return `<span class="sd-label ${esc(l)}">${esc(l)}</span>`; }
+
+function render(s) {
+  S = s;
+  $("dot").className = "dot " + (s.reachable ? "live" : "off");
+  $("status-label").textContent = s.reachable ? "Berlin cluster reachable" : "cluster not reachable";
+  if (s.repo_url) { $("repo-link").href = s.repo_url; $("issues-link").href = s.repo_url + "/issues"; }
+
+  $("who").innerHTML = (s.agents || []).map((a) => {
+    const id = a.identity || {};
+    const dot = a.ready ? "live" : "off";
+    return `<span class="sd-chip" title="${esc(id.error || id.issuer || "")}"><i class="dot ${dot}"></i>${esc(a.title)}
+      · ${id.signed_in ? `as <b>${esc(id.user)}</b> via <code>${esc(id.client)}</code>` : "not signed in"}</span>`;
+  }).join("") || `<span class="sd-chip"><i class="dot off"></i>${esc(s.error || "No agents found")}</span>`;
+
+  if (!promptsDrawn && s.agents) {
+    promptsDrawn = true;
+    for (const a of s.agents) {
+      const box = $(a.role + "-prompts");
+      if (!box) continue;
+      box.innerHTML = (a.prompts || []).slice(0, 3).map((p) => `<button type="button" title="${esc(p)}">${esc(p)}</button>`).join("");
+      if (a.role === "pm" || a.role === "dev") { box.innerHTML = (a.prompts || []).slice(0, 3).map((p) => `<p>“${esc(p)}”</p>`).join(""); continue; }
+      box.querySelectorAll("button").forEach((b) => b.addEventListener("click", () => send(a.role, b.textContent)));
+    }
+  }
+
+  const spec = s.spec_review_issue;
+  $("spec-card").innerHTML = spec
+    ? `<div class="sd-card"><div class="sd-meta">${label("spec-review")}<a href="${esc(spec.url)}" target="_blank" rel="noopener">#${spec.number} on GitHub →</a></div>
+       <h4>${esc(spec.title)}</h4><p>${esc(spec.summary)}</p></div>`
+    : s.agent_ready_issue
+    ? `<div class="sd-card"><div class="sd-meta">${label("agent-ready")}<a href="${esc(s.agent_ready_issue.url)}" target="_blank" rel="noopener">#${s.agent_ready_issue.number} on GitHub →</a></div>
+       <h4>${esc(s.agent_ready_issue.title)}</h4><p>Approved. The AI dev agent picks this up in step 3.</p></div>`
+    : `<div class="sd-empty">No plan is waiting for review. Ask the PM agent for a change in step 1.</div>`;
+  $("spec-approve").disabled = $("spec-deny").disabled = !spec;
+
+  const ready = s.agent_ready_issue;
+  $("ready-card").innerHTML = ready
+    ? `Next up: ${label("agent-ready")} <a href="${esc(ready.url)}" target="_blank" rel="noopener">#${ready.number} ${esc(ready.title)}</a>`
+    : "No approved issue is waiting for the AI dev agent.";
+
+  const issue = s.in_review_issue, pr = s.pull_request;
+  const building = s.stage === "building";
+  const staged = pr && (s.staging_image || "").startsWith((pr.headRefOid || "").slice(0, 12));
+  let status = "";
+  if (pr) {
+    status = building ? `<div class="box warn">Building commit ${esc((pr.headRefOid || "").slice(0, 7))} for staging…</div>`
+      : staged ? `<div class="box ok">In staging now<small>build ${esc(s.staging_image)}</small></div>`
+      : s.stage === "build_failed" ? `<div class="box warn">The staging build failed<small>${esc((s.error || "").slice(0, 160))}</small></div>`
+      : `<div class="box warn">Waiting for the staging build</div>`;
+  }
+  $("pr-card").innerHTML = pr
+    ? `<div class="sd-card"><div class="sd-meta">${label("in-review")}<a href="${esc(pr.url)}" target="_blank" rel="noopener">Pull request #${pr.number} →</a>
+         <a href="${esc(pr.url)}/files" target="_blank" rel="noopener">${pr.changedFiles} file${pr.changedFiles === 1 ? "" : "s"},
+         <span style="color:#047857">+${pr.additions}</span> <span style="color:#b91c1c">−${pr.deletions}</span></a></div>
+       <h4>${esc(pr.title)}</h4>
+       <div class="sd-meta">For issue <a href="${esc(issue.url)}" target="_blank" rel="noopener">#${issue.number}</a> · branch <code>${esc(pr.headRefName)}</code></div>
+       ${status}
+       <div class="sd-meta"><a href="${esc(s.staging_preview || "/tubsdlc/site/staging/")}" target="_blank" rel="noopener">Open the staging site →</a>
+         <a href="${esc(s.staging_preview || "/tubsdlc/site/staging/")}banking/" target="_blank" rel="noopener">Online banking in staging →</a></div></div>`
+    : `<div class="sd-empty">No pull request is waiting for review. The AI dev agent opens one in step 3.</div>`;
+  $("approve-btn").disabled = !(pr && staged && !building);
+  $("deny-btn").disabled = !pr;
+
+  for (const env of ["staging", "prod"]) {
+    const live = s[env + "_live"];
+    $(env + "-tag").textContent = s[env + "_image"] ? `build ${s[env + "_image"]}` : "not running";
+    if (s[env + "_preview"]) $(env + "-link").href = s[env + "_preview"];
+    if (live && env === "prod") {
+      const f = Object.entries(live.features || {}).filter(([, v]) => v).map(([k]) => k.replace(/_/g, " "));
+      $("env-cap").textContent = `Production today: daily transfer limit €${Number(live.limit).toLocaleString("de-DE")}` +
+        (f.length ? ` · on: ${f.join(", ")}` : "") + (live.announcement ? ` · banner: "${live.announcement}"` : "");
+    }
+  }
+
+  $("issues").innerHTML = (s.issues || []).slice(0, 5).map((i) => `<tr><td class="n">#${i.number}</td>
+      <td><a href="${esc(i.url)}" target="_blank" rel="noopener">${esc(i.title)}</a></td>
+      <td style="text-align:right">${i.labels.map(label).join(" ")} ${i.state === "closed" ? '<span class="sd-label">closed</span>' : ""}</td></tr>`).join("")
+    || `<tr><td class="sd-empty">No issues yet.</td></tr>`;
+}
+
+async function refresh() {
+  try {
+    const r = await fetch(API + "/status");
+    render(await r.json());
+  } catch (e) { /* keep the last state on screen */ }
+}
+refresh();
+setInterval(refresh, 8000);
+
+// ── chat with either agent ───────────────────────────────────────────────────
+const busy = { pm: false, dev: false };
+function bubble(box, cls, text) {
+  const el = document.createElement("div");
+  el.className = "sd-msg " + cls;
+  el.textContent = text;
+  box.appendChild(el);
+  box.scrollTop = box.scrollHeight;
+  return el;
+}
+async function send(role, text) {
+  if (busy[role] || !text.trim()) return;
+  busy[role] = true;
+  const box = $(role + "-chat");
+  bubble(box, "user", text);
+  let reply = null, replyText = "";
+  const say = (t) => { if (!reply) reply = bubble(box, "bot", ""); replyText += t; reply.textContent = replyText; };
+  try {
+    const resp = await fetch(`${API}/${role === "pm" ? "pm" : "fetch"}`, {
+      method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ text }),
+    });
+    const reader = resp.body.getReader();
+    const dec = new TextDecoder();
+    let buf = "";
+    const thinking = bubble(box, "platform", "Working…");
+    for (;;) {
+      const { value, done } = await reader.read();
+      if (done) break;
+      buf += dec.decode(value, { stream: true });
+      let i;
+      while ((i = buf.indexOf("\n\n")) >= 0) {
+        const chunk = buf.slice(0, i); buf = buf.slice(i + 2);
+        if (!chunk.startsWith("data: ")) continue;
+        const ev = JSON.parse(chunk.slice(6));
+        if (ev.t === "agent") thinking.textContent = `${ev.agent_id} is working, signed in as ${ev.user || "unknown"}…`;
+        else if (ev.t === "delta") say(ev.text);
+        else if (ev.t === "message") { if (!replyText.includes(ev.text)) { reply = null; replyText = ""; say(ev.text); } }
+        else if (ev.t === "tool_call") { reply = null; replyText = ""; bubble(box, "tool", `${ev.name}(${Object.keys(ev.args || {}).join(", ")})`); }
+        else if (ev.t === "recovering") thinking.textContent = "The stream dropped; fetching the finished answer…";
+        else if (ev.t === "spec") bubble(box, "platform", `Filed issue #${ev.issue.number}. Review it in step 2.`);
+        else if (ev.t === "stage") {
+          const msg = { building: `Pull request opened. Building commit ${(ev.sha || "").slice(0, 7)} for staging…`,
+                        staged: `In staging as build ${ev.tag}. Check it in step 4.`,
+                        build_failed: `The staging build failed: ${ev.error || "see the console log"}`,
+                        implemented: ev.note || "Done." }[ev.stage];
+          if (msg) bubble(box, ev.stage === "build_failed" ? "error" : "platform", msg);
+          refresh();
+        }
+        else if (ev.t === "error") bubble(box, "error", ev.error);
+        else if (ev.t === "done") thinking.remove();
+      }
+      box.scrollTop = box.scrollHeight;
+    }
+    if (thinking.isConnected) thinking.remove();
+  } catch (e) {
+    bubble(box, "error", String(e));
+  } finally {
+    busy[role] = false;
+    refresh();
+  }
+}
+for (const role of ["pm", "dev"]) {
+  if (!$(role + "-form")) continue;
+  $(role + "-form").addEventListener("submit", (e) => {
+    e.preventDefault();
+    const input = $(role + "-text");
+    const t = input.value.trim();
+    input.value = "";
+    send(role, t);
+  });
+}
+
+// ── the two approval gates ───────────────────────────────────────────────────
+function confetti() {
+  const colours = ["#7c3aed", "#a855f7", "#22c55e", "#f59e0b", "#3b82f6", "#ec4899"];
+  const layer = document.createElement("div");
+  layer.className = "ps-confetti";
+  for (let i = 0; i < 90; i++) {
+    const b = document.createElement("i");
+    b.style.left = Math.random() * 100 + "vw";
+    b.style.background = colours[i % colours.length];
+    b.style.animationDelay = (Math.random() * 0.6) + "s";
+    b.style.animationDuration = (2.2 + Math.random() * 1.6) + "s";
+    b.style.transform = `rotate(${Math.random() * 360}deg)`;
+    layer.appendChild(b);
+  }
+  document.body.appendChild(layer);
+  setTimeout(() => layer.remove(), 4500);
+}
+
+async function decide(kind, approve, reason) {
+  const [yes, no, out] = kind === "spec" ? ["spec-approve", "spec-deny", "spec-result"] : ["approve-btn", "deny-btn", "promote-result"];
+  $(yes).disabled = $(no).disabled = true;
+  $(out).style.color = "inherit";
+  $(out).textContent = kind === "spec" ? (approve ? "Approving the plan…" : "Turning it down…")
+                                       : (approve ? "Merging and going live…" : "Sending it back…");
+  try {
+    const body = { approve, reason };
+    if (kind === "spec" && S.spec_review_issue) body.number = S.spec_review_issue.number;
+    const r = await fetch(`${API}/${kind === "spec" ? "spec" : "promote"}`, {
+      method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body),
+    });
+    const d = await r.json();
+    if (!d.ok) { $(out).style.color = "#b91c1c"; $(out).textContent = d.error; return; }
+    if (kind === "spec") {
+      $(out).style.color = approve ? "#047857" : "#b45309";
+      $(out).textContent = approve ? `Approved. Issue #${d.issue.number} is ready for the AI dev agent.` : `Turned down. Issue #${d.issue.number} is closed.`;
+    } else if (approve) {
+      $(out).style.color = "#047857";
+      $(out).textContent = `Live. Build ${d.tag} is in production` + (d.merged ? " and the pull request is merged." : ".");
+      confetti();
+    } else {
+      $(out).style.color = "#b45309";
+      $(out).textContent = "Sent back to the AI dev agent. Production is unchanged.";
+    }
+  } catch (e) {
+    $(out).style.color = "#b91c1c"; $(out).textContent = String(e);
+  } finally {
+    refresh();
+  }
+}
+$("spec-approve").addEventListener("click", () => decide("spec", true));
+$("approve-btn").addEventListener("click", () => decide("promote", true));
+
+// A turn-down or a denial with no reason gives the agents nothing to work from, so
+// these are the two clicks that stop and ask first.
+const modal = $("deny-modal");
+let modalKind = null;
+const MODAL = {
+  spec: ["Why turn this plan down?", "Your reason goes on the issue as a comment, and the issue is closed. Ask the PM agent again for a new plan.",
+         "e.g. the limit should only rise for business accounts", "Turn down"],
+  promote: ["What needs to change?", "This goes on the pull request and the issue. The AI dev agent reads it on its next pass and updates the same pull request.",
+            "e.g. the banner text is too long on a phone; keep it to one line", "Deny"],
+};
+function openModal(kind) {
+  modalKind = kind;
+  const [t, h, ph, btn] = MODAL[kind];
+  $("deny-title").textContent = t; $("deny-help").textContent = h;
+  $("deny-reason").placeholder = ph; $("deny-reason").value = ""; $("deny-error").textContent = "";
+  $("deny-submit").textContent = btn;
+  modal.style.display = "flex";
+  $("deny-reason").focus();
+}
+const closeModal = () => { modal.style.display = "none"; };
+$("spec-deny").addEventListener("click", () => openModal("spec"));
+$("deny-btn").addEventListener("click", () => openModal("promote"));
+$("deny-cancel").addEventListener("click", closeModal);
+modal.addEventListener("click", (e) => { if (e.target === modal) closeModal(); });
+document.addEventListener("keydown", (e) => { if (e.key === "Escape" && modal.style.display !== "none") closeModal(); });
+$("deny-submit").addEventListener("click", () => {
+  const reason = $("deny-reason").value.trim();
+  if (!reason) { $("deny-error").textContent = "A reason is required."; return; }
+  closeModal();
+  decide(modalKind, false, reason);
+});
+$("deny-reason").addEventListener("keydown", (e) => {
+  if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) $("deny-submit").click();
+});
+</script>
+</body>
+</html>
