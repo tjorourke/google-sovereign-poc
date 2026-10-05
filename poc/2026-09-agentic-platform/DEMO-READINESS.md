@@ -189,7 +189,7 @@ The bank runtime and deployment sources live under its `trustusbank/` and
 for the complete demo to be reproducible.
 
 Companion source commit: `ecd2ec4c` in `tjorourke/solo`
-(`vision-demo-2026/demo-console`). Runtime image `trustusbank-agent:0.1.8`
+(`vision-demo-2026/demo-console`). Runtime image `trustusbank-agent:0.1.10`
 has manifest digest `sha256:f25dbcac4a89a81fc9f826289731f3593de43d9588d4007ee4a8aefa397a5807`.
 
 Pages: `/google`, `/google/routing`, `/google/agents`, `/google/agents?new=1`,

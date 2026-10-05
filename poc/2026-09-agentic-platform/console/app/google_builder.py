@@ -54,7 +54,7 @@ KEYCLOAK = tl.KEYCLOAK
 REALM = tl.REALM
 MODEL = {"name": "gemma-3-27b-it", "provider": "openai", "base_url": "http://llm.agentic.eu0.internal/v1",
          "title": "Gemma 3 27B", "where": "vLLM on an H100 in Berlin, through agentgateway's llm route"}
-DEFAULT_IMAGE = "docker.pkg-berlin-build0.goog/eu0/soloio-eval/solo/trustusbank-agent:0.1.8"
+DEFAULT_IMAGE = "docker.pkg-berlin-build0.goog/eu0/soloio-eval/solo/trustusbank-agent:0.1.10"
 
 BUILDER_LABEL = "demo.solo.io/builder"
 TOOLS_ANN = "demo.solo.io/tools"

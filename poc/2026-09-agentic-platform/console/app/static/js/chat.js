@@ -145,9 +145,13 @@
 
   function welcome(a) {
     const quizMode = isQuizAgent(a);
+    // Action openers for agents with a job to do; everyone else gets the generic pair.
+    const extra = {
+      'trustusbank-dev-agent': ['Pick up the next agent-ready issue, implement it and open a pull request.'],
+    }[a.name] || [];
     const picks = quizMode
       ? ['Start a mixed round', 'Kubernetes round please', 'Development round please', 'What topics do you have?']
-      : ['What can you do?', 'Give me a quick example of what you are for'];
+      : ['What can you do?', 'Give me a quick example of what you are for', ...extra];
     $('chat-log').innerHTML = `<div class="ag-chat-empty">
       <div class="ag-avatar lg" style="${avatarStyle(a.name)}">${esc(initials(a.name))}</div>
       <h3>${esc(a.title || a.name)}</h3>
