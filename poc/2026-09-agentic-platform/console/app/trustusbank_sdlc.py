@@ -80,21 +80,30 @@ def _token(role: str) -> str | None:
     """bob's token exchanged at trustusbank-<role>-agent: the person and the agent in one JWT."""
     tok_url = f"{tl.KEYCLOAK}/realms/{tl.REALM}/protocol/openid-connect/token"
     client = f"trustusbank-{role}-agent"
-    try:
-        with tl._id_lock:
-            user = tl._cached("user", lambda: tl._form(tok_url, {
-                "grant_type": "password", "client_id": "trustusbank-console", "username": tl.USER,
-                "password": os.environ.get("TUB_USER_PASSWORD", "password"), "scope": "openid"})["access_token"])
-            tok = tl._cached(client, lambda: tl._form(tok_url, {
-                "grant_type": "urn:ietf:params:oauth:grant-type:token-exchange", "subject_token": user,
-                "subject_token_type": "urn:ietf:params:oauth:token-type:access_token",
-                "requested_token_type": "urn:ietf:params:oauth:token-type:access_token"},
-                basic=(client, tl._secret(client)))["access_token"])
-        _id_errors.pop(role, None)
-        return tok
-    except Exception as e:  # noqa: BLE001
-        _id_errors[role] = f"Keycloak at {tl.KEYCLOAK}: {e}. Run scripts/88-identity.sh."
-        return None
+    for attempt in (1, 2):
+        try:
+            with tl._id_lock:
+                user = tl._cached("user", lambda: tl._form(tok_url, {
+                    "grant_type": "password", "client_id": "trustusbank-console", "username": tl.USER,
+                    "password": os.environ.get("TUB_USER_PASSWORD", "password"), "scope": "openid"})["access_token"])
+                tok = tl._cached(client, lambda: tl._form(tok_url, {
+                    "grant_type": "urn:ietf:params:oauth:grant-type:token-exchange", "subject_token": user,
+                    "subject_token_type": "urn:ietf:params:oauth:token-type:access_token",
+                    "requested_token_type": "urn:ietf:params:oauth:token-type:access_token"},
+                    basic=(client, tl._secret(client)))["access_token"])
+            _id_errors.pop(role, None)
+            return tok
+        except Exception as e:  # noqa: BLE001
+            if attempt == 2:
+                _id_errors[role] = f"Keycloak at {tl.KEYCLOAK}: {e}. Run scripts/88-identity.sh."
+                return None
+            # A hosted console is long-lived: a cached token or client secret that
+            # predates a Keycloak rebuild fails every call until restart (Keycloak
+            # here is ephemeral). Drop the identity caches once and refetch — the
+            # same retry trustusbank_lab._token() has always had.
+            with tl._id_lock:
+                tl._tokens.clear()
+                tl._secrets.pop(client, None)
 
 
 def identity(role: str) -> dict:
