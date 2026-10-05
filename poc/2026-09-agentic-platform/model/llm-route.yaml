@@ -9,6 +9,26 @@
 # llm.${BASE_DOMAIN}/v1, so this route and its DNS record are what make that URL
 # real. 60-model.sh applies this after the model is serving -- 80-ingress.sh
 # cannot, because it runs before the model namespace exists.
+# Chat completions ride an AgentgatewayBackend (AI provider), not a bare Service:
+# those spans then carry the model, token counts and cost, so agent traffic shows
+# up in Cost Management and activity views priced. A plain Service backend
+# produced anonymous, unpriced spans. Every other path (models list, probes)
+# keeps the Service backend, unchanged.
+apiVersion: agentgateway.dev/v1alpha1
+kind: AgentgatewayBackend
+metadata:
+  name: llm
+  namespace: model
+  labels: {company: trustusbank}
+spec:
+  ai:
+    provider:
+      openai:
+        model: gemma-3-27b-it
+      host: llm.model.svc.cluster.local
+      port: 8080
+      path: /v1/chat/completions
+---
 apiVersion: gateway.networking.k8s.io/v1
 kind: HTTPRoute
 metadata:
@@ -26,9 +46,18 @@ spec:
     - matches:
         - path:
             type: PathPrefix
+            value: /v1/chat/completions
+      backendRefs:
+        - group: agentgateway.dev
+          kind: AgentgatewayBackend
+          name: llm
+    - matches:
+        - path:
+            type: PathPrefix
             value: /
       backendRefs:
         - group: ""
           kind: Service
           name: llm
           port: 8080
+

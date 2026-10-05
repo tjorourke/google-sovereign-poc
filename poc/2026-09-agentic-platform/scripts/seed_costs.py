@@ -17,13 +17,18 @@ from datetime import datetime, timedelta, timezone
 from mcp_security import kubectl
 
 PREFIX = "seed-cost-v2-"
+# (team, requests/day, gemma share, agent mix, input tokens ~N(mu, sigma),
+#  output tokens ~lognorm(mu, sigma), flat 24/7 traffic)
+# The six humans keep believable volumes; svc-docs carries the production weight:
+# a document batch pipeline with big contexts, steady around the clock, ~$9.5K/30d.
 PEOPLE = {
-    "bob": ("payments-ops", 800, .90, {"trustusbank-payments": .65, "trustusbank-credit": .35}),
-    "carol": ("payments-ops", 1200, .96, {"trustusbank-payments": .45, "trustusbank-credit": .55}),
-    "david": ("development", 900, .35, {"trustusbank-dev-agent": .85, "trustusbank-pm-agent": .15}),
-    "emma": ("development", 600, .45, {"trustusbank-pm-agent": .55, "trustusbank-dev-agent": .45}),
-    "alice": ("compliance", 700, .99, {"trustusbank-compliance": .60, "trustusbank-gdpr": .40}),
-    "frank": ("platform", 400, .60, {"trustusbank-sovereign": .80, "fx-helper": .20}),
+    "bob":   ("payments-ops", 800,  .90, {"trustusbank-payments": .65, "trustusbank-credit": .35}, (3400, 900), (5.7, .45), False),
+    "carol": ("payments-ops", 1200, .96, {"trustusbank-payments": .45, "trustusbank-credit": .55}, (3400, 900), (5.7, .45), False),
+    "david": ("development",  900,  .35, {"trustusbank-dev-agent": .85, "trustusbank-pm-agent": .15}, (4600, 900), (6.2, .45), False),
+    "emma":  ("development",  600,  .45, {"trustusbank-pm-agent": .55, "trustusbank-dev-agent": .45}, (4600, 900), (6.2, .45), False),
+    "alice": ("compliance",   700,  .99, {"trustusbank-compliance": .60, "trustusbank-gdpr": .40}, (3400, 900), (5.7, .45), False),
+    "frank": ("platform",     400,  .60, {"trustusbank-sovereign": .80, "fx-helper": .20}, (3400, 900), (5.7, .45), False),
+    "svc-docs": ("document-ops", 25600, .70, {"trustusbank-doc-batch": 1.0}, (18000, 2500), (6.9, .40), True),
 }
 MODELS = {
     "gemma-3-27b-it": ("model/llm", .60, 1.80),
@@ -43,8 +48,11 @@ def rows_for_batch(start):
     local_hour = (start.hour + 2) % 24
     day_factor = 1.0 if start.weekday() < 5 else .22
     office = .90 + .25 * math.sin((local_hour - 8) / 10 * math.pi) if 8 <= local_hour < 18 else .12
-    for user, (team, daily, gemma_share, agents) in PEOPLE.items():
-        expected = daily / 120 * day_factor * office * rng.uniform(.7, 1.3)
+    for user, (team, daily, gemma_share, agents, tin_shape, tout_shape, flat) in PEOPLE.items():
+        # The /120 divisor is calibrated against the office-hours curve; flat
+        # batch traffic divides by the actual number of five-minute batches.
+        divisor = 288 if flat else 120
+        expected = daily / divisor * (1.0 if flat else day_factor * office) * rng.uniform(.7, 1.3)
         count = int(expected) + (rng.random() < expected % 1)
         # Keep all chart dimensions represented even during quieter demo hours.
         count = max(1, count)
@@ -52,8 +60,8 @@ def rows_for_batch(start):
             agent = rng.choices(list(agents), weights=list(agents.values()))[0]
             model = "gemma-3-27b-it" if rng.random() < gemma_share else "gemini-3.8-flash"
             route, pin, pout = MODELS[model]
-            tin = max(300, int(rng.gauss(4600 if team == "development" else 3400, 900)))
-            tout = max(40, int(rng.lognormvariate(6.2 if team == "development" else 5.7, .45)))
+            tin = max(300, int(rng.gauss(*tin_shape)))
+            tout = max(40, int(rng.lognormvariate(*tout_shape)))
             identity = hashlib.sha256(f"{batch}/{user}/{index}".encode()).hexdigest()
             yield {
                 "Timestamp": (start + timedelta(seconds=rng.randrange(300))).strftime("%Y-%m-%d %H:%M:%S.%f"),

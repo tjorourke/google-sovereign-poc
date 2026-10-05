@@ -24,7 +24,7 @@ ROUTES=("$LLM_NS/$LLM_ROUTE" "$AGW_NS/models")
 ch() { kc -n "$CH_NS" exec -i "$CH_POD" -c clickhouse -- clickhouse-client "$@"; }
 
 seed() {
-  step "seed: Gemma + Gemini, six users, four teams, $SEED_DAYS days"
+  step "seed: Gemma + Gemini, six users + the document batch pipeline, $SEED_DAYS days (~\$10K/30d)"
   python3 "$SCRIPT_DIR/seed_costs.py" --days "$SEED_DAYS"
 }
 

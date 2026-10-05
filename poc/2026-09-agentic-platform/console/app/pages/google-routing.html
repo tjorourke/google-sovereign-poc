@@ -382,6 +382,16 @@ async function send() {
     $('a-who').textContent = `Error · HTTP ${r.status}`;
     box.classList.add('plain');
     box.textContent = typeof r.error === 'string' ? r.error : JSON.stringify(r.error, null, 2);
+    if (r.status === 429) {
+      // A 429 on this page is the budget enforcing, not a fault: the demo user
+      // has a per-day Gemini token budget (developer-daily) and it is spent.
+      // The sovereign route is never capped — say so, then invite the retry.
+      box.insertAdjacentHTML('beforeend',
+        '<p style="margin-top:12px;padding:10px 14px;border-radius:10px;background:#fef3c7;border:1px solid #fcd34d;color:#78350f">' +
+        '<strong>Budget enforcement:</strong> bob has a per-day Gemini allowance (2,500 tokens). ' +
+        'Today\'s is spent, so the gateway blocks further frontier calls. ' +
+        '<strong>Gemma in Berlin is unmetered</strong> — the same prompt still answers on the sovereign route.</p>');
+    }
     return;
   }
   ['r-gemma', 'r-gemini'].forEach(id => $(id).classList.remove('hit'));
