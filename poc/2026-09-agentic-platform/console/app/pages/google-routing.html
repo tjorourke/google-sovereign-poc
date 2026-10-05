@@ -79,6 +79,10 @@
     .gs-log { margin: 18px 0 10px; }
     .gs-log-head { display: flex; justify-content: space-between; align-items: baseline; margin: 0 0 10px; }
     .gs-log-head small { color: #6b6478; font-size: 12.5px; }
+    .gs-log-tools { display: flex; align-items: center; gap: 10px; }
+    #log-clear { border: 1px solid #e0d9ce; background: #f7f4ef; color: #3f3a4a; border-radius: 999px;
+                 padding: 6px 14px; font: 700 13px/1 inherit; cursor: pointer; }
+    #log-clear:hover { border-color: #c4b5fd; }
     .gs-log .card { background: #fff; border: 1px solid #d8e0ea; border-left-width: 5px; border-radius: 10px; padding: 14px 16px; margin: 0 0 12px; }
     .gs-log .card.private { border-left-color: #16a34a; }
     .gs-log .card.frontier { border-left-color: #d97706; }
@@ -227,7 +231,13 @@
     </div>
 
     <div class="gs-log">
-      <div class="gs-log-head"><div class="st-eyebrow">Gateway decisions</div><small>newest first · one card per prompt</small></div>
+      <div class="gs-log-head">
+        <div class="st-eyebrow">Gateway decisions</div>
+        <div class="gs-log-tools">
+          <small>newest first · one card per prompt</small>
+          <button id="log-clear" type="button" hidden>Clear</button>
+        </div>
+      </div>
       <div id="log"><div class="empty" id="log-empty">No prompts yet. Every prompt you send lands here with the router's decision.</div></div>
     </div>
   </div>
@@ -439,7 +449,14 @@ function addDecision(prompt, route, r) {
     </details>`;
   const empty = $('log-empty'); if (empty) empty.remove();
   $('log').prepend(card);
+  $('log-clear').hidden = false;
 }
+// A clean log between runs: the decisions live only in this page, so clearing
+// is a DOM reset, not a server call. Hidden again once the log is empty.
+$('log-clear').onclick = () => {
+  $('log').innerHTML = '<div class="empty" id="log-empty">No prompts yet. Every prompt you send lands here with the router\'s decision.</div>';
+  $('log-clear').hidden = true;
+};
 $('send').onclick = send;
 $('prompt').addEventListener('keydown', e => { if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) send(); });
 

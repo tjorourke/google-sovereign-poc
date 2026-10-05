@@ -413,6 +413,14 @@ class Handler(BaseHTTPRequestHandler):
                     self.wfile.flush()
             except (BrokenPipeError, ConnectionResetError):
                 pass
+            except Exception as e:  # noqa: BLE001
+                # A raised (not yielded) failure still owes the page a terminal
+                # event, or it reads as a dead stream with no explanation.
+                try:
+                    self.wfile.write(f"data: {json.dumps({'t': 'done', 'status': 0, 'error': str(e)})}\n\n".encode())
+                    self.wfile.flush()
+                except (BrokenPipeError, ConnectionResetError):
+                    pass
             return
         if self.path == "/api/google/chat":
             b = self._body()

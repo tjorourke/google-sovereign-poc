@@ -73,9 +73,11 @@ def rbac():
         resource("ClusterRole", "google-console-site-management", {"rules": [
             rules("apps", ["deployments"], ["get", "list", "watch", "patch", "update"]),
             rules("", ["configmaps"], ["get", "create", "list"])]})]
-    for ns in ("agentgateway-system", "model", "mcp", "agentregistry-system", "kagent", "agents", "trustusbank-staging", "trustusbank-prod"):
+    # No "agents" namespace: the everything-server toy agents were removed from the
+    # cluster and repo (DEMO-READINESS), and a binding to a missing namespace fails.
+    for ns in ("agentgateway-system", "model", "mcp", "agentregistry-system", "kagent", "trustusbank-staging", "trustusbank-prod"):
         docs.append(binding("google-console-read", "google-console-read", ns))
-    for ns in ("agentregistry-system", "kagent", "agents"):
+    for ns in ("agentregistry-system", "kagent"):
         docs.append(binding("google-console-manage-agents", "google-console-agent-management", ns))
     docs.append(binding("google-console-manage-mcp", "google-console-mcp-management", "mcp"))
     for ns in ("trustusbank-staging", "trustusbank-prod"):

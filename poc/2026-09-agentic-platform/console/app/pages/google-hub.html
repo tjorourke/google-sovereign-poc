@@ -69,11 +69,10 @@
     <nav class="st-jump" aria-label="Steps">
       <a href="#s1"><b>01</b>Routing</a>
       <a href="#s2"><b>02</b>Bank agents</a>
-      <a href="#s3"><b>03</b>Change the website</a>
-      <a href="#s4"><b>04</b>Build an agent</a>
-      <a href="#s5"><b>05</b>Approve tools</a>
-      <a href="#s6"><b>06</b>Cost</a>
-      <a href="#s7"><b>07</b>Data protection</a>
+      <a href="#s3"><b>03</b>Approve tools</a>
+      <a href="#s4"><b>04</b>Change the website</a>
+      <a href="#s5"><b>05</b>Cost</a>
+      <a href="#s6"><b>06</b>Data protection</a>
     </nav>
 
     <details class="arch">
@@ -251,38 +250,8 @@
       </div>
     </a>
 
-    <a class="st-step" id="s3" href="/google/sdlc">
+    <a class="st-step" id="s3" href="/google/approvals">
       <div class="st-num">03</div>
-      <div>
-        <div class="st-eyebrow">Change the website</div>
-        <h3>Website changes through pull requests</h3>
-        <p>Describe a change to the bank's website. Review the planning agent's proposal, then let the developer agent open a pull request. Both steps require your approval.</p>
-        <div class="st-tags"><span>Plan agent</span><span>Developer agent</span><span>GitHub pull request</span></div>
-        <span class="st-go">Open the website demo <i>→</i></span>
-      </div>
-      <div class="st-vis">
-        <div class="row"><div class="box">Request<small>website change</small></div><span class="to">→</span><div class="box">Plan<small>review</small></div><span class="to">→</span><div class="box ok">Pull request<small>review</small></div></div>
-        <div class="cap">github.com/tjorourke/trustusbank-payments</div>
-      </div>
-    </a>
-
-    <a class="st-step" id="s4" href="/google/agents?new=1">
-      <div class="st-num">04</div>
-      <div>
-        <div class="st-eyebrow">Build an agent</div>
-        <h3>Deploy an agent to kagent</h3>
-        <p>Choose a model and configure the agent's skills and tools. After deployment, you can chat with it or edit its configuration. Restricted tools need admin approval in step 05.</p>
-        <div class="st-tags"><span>Wizard</span><span>Deploy to kagent</span><span>Chat as bob</span></div>
-        <span class="st-go">Build an agent <i>→</i></span>
-      </div>
-      <div class="st-vis">
-        <div class="row"><div class="box">Model</div><span class="to">→</span><div class="box">Skills</div><span class="to">→</span><div class="box">Tools</div><span class="to">→</span><div class="box ok">Deployed</div></div>
-        <div class="cap" id="built-cap">Custom agents</div>
-      </div>
-    </a>
-
-    <a class="st-step" id="s5" href="/google/approvals">
-      <div class="st-num">05</div>
       <div>
         <div class="st-eyebrow">Approve tools</div>
         <h3>Review tool access</h3>
@@ -299,8 +268,23 @@
       </div>
     </a>
 
-    <a class="st-step" id="s6" href="http://kagent.agentic.eu0.internal/age/cost-management" target="_blank" rel="noopener">
-      <div class="st-num">06</div>
+    <a class="st-step" id="s4" href="/google/sdlc">
+      <div class="st-num">04</div>
+      <div>
+        <div class="st-eyebrow">Change the website</div>
+        <h3>Website changes through pull requests</h3>
+        <p>Describe a change to the bank's website. Review the planning agent's proposal, then let the developer agent open a pull request. Both steps require your approval.</p>
+        <div class="st-tags"><span>Plan agent</span><span>Developer agent</span><span>GitHub pull request</span></div>
+        <span class="st-go">Open the website demo <i>→</i></span>
+      </div>
+      <div class="st-vis">
+        <div class="row"><div class="box">Request<small>website change</small></div><span class="to">→</span><div class="box">Plan<small>review</small></div><span class="to">→</span><div class="box ok">Pull request<small>review</small></div></div>
+        <div class="cap">github.com/tjorourke/trustusbank-payments</div>
+      </div>
+    </a>
+
+    <a class="st-step" id="s5" href="http://kagent.agentic.eu0.internal/age/cost-management" target="_blank" rel="noopener">
+      <div class="st-num">05</div>
       <div>
         <div class="st-eyebrow">Cost</div>
         <h3>Usage costs and budgets</h3>
@@ -314,8 +298,8 @@
       </div>
     </a>
 
-    <a class="st-step" id="s7" href="/google/dlp">
-      <div class="st-num">07</div>
+    <a class="st-step" id="s6" href="/google/dlp">
+      <div class="st-num">06</div>
       <div>
         <div class="st-eyebrow">Data protection</div>
         <h3>Masked before any model sees it</h3>
@@ -381,7 +365,6 @@
     const up = agents.filter(a => a.ready).length;
     if (agents.length) $('fact-agents').textContent = `${agents.length} agents`;
     $('tub-cap').textContent = d.reachable ? `${up} of ${agents.length} ready on kagent · Model: Gemma` : (d.error || 'kagent not reachable');
-    if (built.length) $('built-cap').textContent = `${built.length} created: ${built.slice(0, 3).map(a => a.title).join(', ')}`;
   }).catch(() => { $('tub-cap').textContent = 'kagent not reachable'; });
 
   fetch('/api/google/mcp').then(r => r.json()).then(d => {

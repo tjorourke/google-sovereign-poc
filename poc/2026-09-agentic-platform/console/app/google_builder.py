@@ -45,6 +45,9 @@ from pathlib import Path
 import trustusbank_lab as tl
 
 AR_URL = os.environ.get("GB_AR_URL", "http://agentregistry.agentic.eu0.internal").rstrip("/")
+# Browser-facing registry UI. GB_AR_URL may point in-cluster on the hosted console
+# (*.svc.cluster.local), which a presenter's browser can never resolve.
+AR_UI_URL = os.environ.get("GB_AR_UI_URL", "https://agentregistry.agentic.eu0.internal").rstrip("/")
 ARCTL = os.environ.get("ARCTL", str(Path.home() / ".arctl/bin/arctl"))
 AR_NS = "agentregistry-system"
 KEYCLOAK = tl.KEYCLOAK
@@ -60,22 +63,20 @@ PROMPT_ANN = "demo.solo.io/system"
 # The admin's decisions, per agent, on the agent's own record.
 OK_ANN, NO_ANN = "demo.solo.io/approved-tools", "demo.solo.io/denied-tools"
 BY_ANN, AT_ANN = "demo.solo.io/reviewed-by", "demo.solo.io/reviewed-at"
-# Every TrustUsBank agent is trustusbank-<something>; the builder adds the prefix. At most
-# 24 characters in all: AgentRegistry names the kagent Agent <name>-latest- plus 16
+# Builder agents are named exactly as typed: no forced prefix, so names stay short.
+# At most 24 characters: AgentRegistry names the kagent Agent <name>-latest- plus 16
 # characters of the Deployment's name, and kagent labels its Service with that
 # Agent's waypoint, agent-<kagent name>-waypoint, which may not pass 63.
-PREFIX = "trustusbank-"
-NAME_RE = re.compile(r"^trustusbank-[a-z][a-z0-9-]{1,11}$")
+NAME_RE = re.compile(r"^[a-z][a-z0-9-]{1,22}[a-z0-9]$")
 
 
 def _template_name(domain: str) -> str:
-    name = f"{PREFIX}my-{domain}"
-    return name if NAME_RE.match(name) else f"{PREFIX}{domain}-2"
+    name = f"my-{domain}"
+    return name if NAME_RE.match(name) else f"{domain}-2"
 
 
 def agent_name(raw: str) -> str:
-    name = (raw or "").strip().lower()
-    return name if name.startswith(PREFIX) else PREFIX + name
+    return (raw or "").strip().lower()
 
 # Skills are prompt fragments: Berlin's AgentRegistry has no Skill packages, and
 # these are what a bank would actually want an agent to always do.
@@ -362,7 +363,7 @@ def _builder_records() -> list:
 # ServiceAccount, proven by ztunnel's mTLS) and the tools approved on that server; no
 # HTTP header is trusted. agentgateway ORs the Allow policies on a backend, so an
 # approval adds this agent's policy and touches no one else's. Default deny is the
-# lab's mcp-catalog--tools-list policy, attached to every backend.
+# lab's mcp-catalog-tools-list policy, attached to every backend.
 #
 # The console owns only the builder agents' policies (label mcp-lockdown/source:
 # console); the fixed agents' come from yaml/mcp-mesh/grants.json through the lab's
@@ -507,10 +508,9 @@ def deploy(body: dict) -> dict:
     skills = [s for s in body.get("skills") or [] if isinstance(s, str)]
     tools = sorted({t for t in body.get("tools") or [] if isinstance(t, str) and "/" in t})
     if not NAME_RE.match(name):
-        suffix = name[len(PREFIX):]
-        if len(suffix) > 12:
-            return {"ok": False, "error": f"Name '{suffix}' is {len(suffix)} characters; the limit after trustusbank- is 12 (kagent's waypoint label must fit 63 bytes). Shorten it, e.g. '{suffix[:10]}-2'."}
-        return {"ok": False, "error": f"Name '{suffix}': after trustusbank- use 2-12 lowercase letters, digits or dashes, starting with a letter."}
+        if len(name) > 24:
+            return {"ok": False, "error": f"Name '{name}' is {len(name)} characters; the limit is 24 (kagent's waypoint label must fit 63 bytes). Shorten it, e.g. '{name[:21]}-2'."}
+        return {"ok": False, "error": f"Name '{name}': use 3-24 lowercase letters, digits or dashes, starting with a letter and ending with a letter or digit."}
     if not system:
         return {"ok": False, "error": "Say what the agent should do."}
     try:
@@ -848,7 +848,7 @@ def catalog_contract() -> dict:
     skills = [{"id": s["id"], "title": s["title"], "description": s["description"], "ready": True,
                "domain": "agentregistry" if s.get("source") == "agentregistry" else "prompt"} for s in _skills()]
     return {"skills": skills, "mcp": mcp, "autoApproveLabel": "",
-             "platform": {"kagent": True, "registry": True, "ui": "http://kagent.agentic.eu0.internal", "registry_ui": AR_URL,
+             "platform": {"kagent": True, "registry": True, "ui": "http://kagent.agentic.eu0.internal", "registry_ui": AR_UI_URL,
                          "label": "kagent in Berlin (GCD)",
                          "note": None if cat.get("reachable") else cat.get("error")}}
 

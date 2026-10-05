@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # 89-cost.sh — labelled Gemma/Gemini history and five editable demo budgets.
 # seed fills new five-minute batches; it never clears live data or duplicates a
-# completed batch. budget installs the five defaults (developer-daily, $5/day,
-# Block, on the demo user). After editing it in the UI, run seed rather than all
-# to retain your edit.
+# completed batch. budget installs the five defaults (developer-daily: the demo
+# user gets 2,500 Gemini tokens/day, Block; Gemma stays unmetered). After editing
+# it in the UI, run seed rather than all to retain your edit.
 # Historical ClickHouse spend and live gateway enforcement counters are separate.
 set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

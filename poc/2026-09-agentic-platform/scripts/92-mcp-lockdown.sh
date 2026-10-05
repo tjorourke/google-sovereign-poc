@@ -18,7 +18,7 @@
 #        source.identity.namespace == NS && source.identity.serviceAccount == SA
 #          && mcp.tool.name in [...]
 #      agentgateway ORs every Allow policy attached to a backend, so adding an
-#      agent adds a CRD and edits none. Default deny: mcp-catalog--tools-list is
+#      agent adds a CRD and edits none. Default deny: mcp-catalog-tools-list is
 #      attached to every backend, and a caller no policy names sees no tools and
 #      gets "Unknown tool". No HTTP header is trusted; the identity is the
 #      caller's mTLS certificate.

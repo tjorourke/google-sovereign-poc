@@ -323,8 +323,17 @@ def chat_stream(prompt: str, route: str = "auto", max_tokens: int = 2048):
                        "messages": [{"role": "system", "content": BRIEF},
                                     {"role": "user", "content": prompt}]}).encode()
     import trustusbank_lab
+    try:
+        token = trustusbank_lab.console_token()
+    except Exception as e:  # noqa: BLE001
+        # Keycloak rebuilt (its store is ephemeral) wipes the demo identity layer;
+        # say so, or the page reads the dead stream as "the gateway never answered".
+        yield {"t": "done", "status": 0, "route": route, "via": via,
+               "error": f"console could not sign in to Keycloak: {e}. Run scripts/88-identity.sh in google-sov",
+               "elapsed": round(time.time() - t0, 2)}
+        return
     headers = {"Host": LLM_HOST, "Content-Type": "application/json", "Accept": "text/event-stream",
-               "Authorization": "Bearer " + trustusbank_lab.console_token()}
+               "Authorization": "Bearer " + token}
     if spec["header"]:
         headers["x-selected-model"] = spec["header"]
     req = urllib.request.Request(url + "/v1/chat/completions", data=body, headers=headers, method="POST")
@@ -346,24 +355,33 @@ def chat_stream(prompt: str, route: str = "auto", max_tokens: int = 2048):
                if k.lower().startswith(("x-vsr-", "x-selected-")) or k.lower() == "x-request-id"}
     model, usage, ttft, finish = "", {}, None, None
     yield {"t": "start", "routing": routing, "via": via, "route": route}
-    with resp:
-        for raw in resp:
-            line = raw.decode("utf-8", "replace").strip()
-            if not line.startswith("data:") or line == "data: [DONE]":
-                continue
-            try:
-                ev = json.loads(line[5:])
-            except json.JSONDecodeError:
-                continue
-            model = ev.get("model") or model
-            usage = ev.get("usage") or usage
-            for ch in ev.get("choices") or []:
-                finish = ch.get("finish_reason") or finish
-                text = (ch.get("delta") or {}).get("content")
-                if text:
-                    if ttft is None:
-                        ttft = round(time.time() - t0, 2)
-                    yield {"t": "delta", "text": text}
+    try:
+        with resp:
+            for raw in resp:
+                line = raw.decode("utf-8", "replace").strip()
+                if not line.startswith("data:") or line == "data: [DONE]":
+                    continue
+                try:
+                    ev = json.loads(line[5:])
+                except json.JSONDecodeError:
+                    continue
+                model = ev.get("model") or model
+                usage = ev.get("usage") or usage
+                for ch in ev.get("choices") or []:
+                    finish = ch.get("finish_reason") or finish
+                    text = (ch.get("delta") or {}).get("content")
+                    if text:
+                        if ttft is None:
+                            ttft = round(time.time() - t0, 2)
+                        yield {"t": "delta", "text": text}
+    except Exception as e:  # noqa: BLE001
+        # A dropped upstream (timeout, reset) must surface as a terminal event:
+        # without it the page can only say "the stream closed".
+        yield {"t": "done", "status": 0, "route": route, "via": via, "routing": routing,
+               "error": f"gateway stream ended mid-answer: {e}",
+               "elapsed": round(time.time() - t0, 2), "ttft": ttft,
+               "target": "gemini" if (model or "").lower().startswith("gemini") else "gemma"}
+        return
     picked = (model or routing.get("x-vsr-selected-model") or spec["model"]).lower()
     yield {"t": "done", "status": 200, "route": route, "via": via, "model": model, "usage": usage,
            "routing": routing, "elapsed": round(time.time() - t0, 2), "ttft": ttft, "finish": finish,

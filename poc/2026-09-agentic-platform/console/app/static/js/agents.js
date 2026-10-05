@@ -536,17 +536,15 @@ function paintTemplates() {
 }
 
 function uniqueName(base) {
-  // agents carry full names (trustusbank-…); templates pass the suffix. Compare
-  // like for like, and keep the generated suffix within the server's 12-char
-  // cap (kagent's waypoint label must fit 63 bytes), "-N" tail included.
+  // Names are used exactly as typed (no forced prefix). Keep the generated "-N"
+  // tail within the server's 24-char cap (kagent's waypoint label must fit 63 bytes).
   const taken = new Set(agents.map(a => a.name));
-  const full = n => n.startsWith('trustusbank-') ? n : 'trustusbank-' + n;
-  if (!taken.has(full(base))) return base;
+  if (!taken.has(base)) return base;
   let i = 2;
   while (true) {
     const tail = `-${i}`;
-    const candidate = base.slice(0, 12 - tail.length) + tail;
-    if (!taken.has(full(candidate))) return candidate;
+    const candidate = base.slice(0, 24 - tail.length) + tail;
+    if (!taken.has(candidate)) return candidate;
     i++;
   }
 }

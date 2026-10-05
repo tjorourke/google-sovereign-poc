@@ -1,14 +1,14 @@
 #!/usr/bin/env python3
 """Render the per-agent MCP tool policies from yaml/mcp-mesh/grants.json.
 
-One EnterpriseAgentgatewayPolicy per agent per MCP backend, <agent>--<backend> in
+One EnterpriseAgentgatewayPolicy per agent per MCP backend, <agent>-<backend> in
 ns mcp, enforced at the shared mcp-waypoint. Its one clause names the agent by its
 mesh identity (the namespace and ServiceAccount in its SPIFFE certificate, which
 ztunnel proves) and the tools it may use on that server. No HTTP header is
 trusted. agentgateway ORs every Allow policy attached to a backend, so a new agent
 is a new policy and nobody else's changes; removing an agent deletes its policies.
 
-Default deny comes from mcp-catalog--tools-list: one policy on every backend that
+Default deny comes from mcp-catalog-tools-list: one policy on every backend that
 lets the mcp-catalog workload call tools/list (so the console can show an admin
 what a server offers) and nothing else. With an Allow policy always attached,
 any caller no policy names is refused.
@@ -73,7 +73,7 @@ def clause(ns: str, sa: str, tools: list[str] | None) -> str:
     return who + f'\n  && mcp.tool.name in {json.dumps(sorted(set(tools)))})'
 
 
-CATALOG_POLICY = "mcp-catalog--tools-list"
+CATALOG_POLICY = "mcp-catalog-tools-list"
 LABEL = "mcp-lockdown"
 
 
@@ -108,7 +108,7 @@ def agent_policies(cfg: dict, grants: list[dict], sas: dict, source: str) -> lis
         accounts = resolve(ns, agent, sas)
         if not accounts or not ts:
             continue
-        out.append(_doc(_meta(f"{agent}--{backend}", source, agent=agent, **{"agent-namespace": ns}, backend=backend),
+        out.append(_doc(_meta(f"{agent}-{backend}", source, agent=agent, **{"agent-namespace": ns}, backend=backend),
                         _allow([backend], [clause(ns, sa, sorted(ts)) for sa in accounts])))
     return out
 
