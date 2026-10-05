@@ -278,6 +278,8 @@ def _autostage_if_needed(issue: dict | None, pr: dict | None, staging_tag: str |
         return
     if _load_state().get("failed_sha") == head:
         return   # one failed build per commit; the next push retries
+    if _load_state().get("stage") == "denied" and _load_state().get("denied_sha") == head:
+        return   # a denied commit stays off staging; only the next push restages
     with _STAGE_LOCK:
         if head in _STAGE_INFLIGHT:
             return
@@ -656,5 +658,6 @@ def promote(approve: bool, reason: str = "") -> dict:
             google_snapshot.copy_environment(ENVS["prod"], ENVS["staging"], "staging")
         else:
             _roll("staging", prod_image)
-    _set_stage("denied", denied_reason=reason, staged_tag=None)
+    _set_stage("denied", denied_reason=reason, staged_tag=None,
+               denied_sha=pr["headRefOid"][:12] if pr else None)
     return {"ok": True, "denied": True, "issue": issue, "pull_request": pr}
