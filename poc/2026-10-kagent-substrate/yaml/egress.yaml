@@ -30,4 +30,4 @@ spec:
     workerPoolRef:
       name: kagent-default
     snapshotPolicy:
-      location: s3://ate-snapshots/sandboxes
+      location: gs://agentic-ate-snapshots/sandboxes

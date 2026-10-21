@@ -18,6 +18,7 @@ matchingCriteria:
             - --asset-staging-capacity=8Gi
           env:
             - name: ATE_STORAGE_BACKEND
+            - name: GOOGLE_CLOUD_UNIVERSE_DOMAIN
             - name: AWS_REGION
             - name: AWS_ENDPOINT_URL
             - name: AWS_S3_USE_PATH_STYLE

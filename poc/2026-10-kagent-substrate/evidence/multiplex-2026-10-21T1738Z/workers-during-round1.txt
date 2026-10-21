@@ -1,0 +1,3 @@
+NAME                                   POOL             STATE                 ACTORS   CPU   MEMORY    POD                                      AGE
+03f6ea2c-3b74-42f3-8e98-805f24d3a27d   kagent-default   WORKER_STATE_ACTIVE   4/1000   4/4   4Gi/8Gi   kagent/kagent-default-7f5f946df5-8r676   145m
+bf92e8f4-68ea-4b07-9dca-4c3df4c1322b   kagent-default   WORKER_STATE_ACTIVE   4/1000   4/4   4Gi/8Gi   kagent/kagent-default-7f5f946df5-x4j57   145m

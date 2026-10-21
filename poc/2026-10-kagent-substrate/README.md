@@ -17,6 +17,7 @@ What runs now:
 | Agent Substrate | 0.6.0-alpha3 | pinned by kagent's `go.mod`; gVisor sandbox class |
 | Solo Enterprise for agentgateway | v2026.10.0 | the latest; previous lab ran v2026.9.3 |
 | Model | OpenAI `gpt-4.1-mini` via agentgateway, over Cloud NAT | key held only by agentgateway |
+| Actor snapshots | Cloud Storage `gs://agentic-ate-snapshots`, `u-germany-northeast1` | since 2026-10-21 17:34Z; Workload Identity, no keys; RustFS before that |
 
 ## How kagent 1.0 runs an agent
 
@@ -37,20 +38,25 @@ kagent controller ──gRPC──▶ ate-api ──▶ ate-controller ──▶
                                          atenet-egress ──▶ agentgateway ──▶ OpenAI
 ```
 
-State: PostgreSQL (kagent and Substrate schemas, logins by Pod Certificate, no
-passwords) and RustFS (S3-compatible snapshot store), both in-cluster.
+State: PostgreSQL in-cluster (kagent and Substrate schemas, logins by Pod
+Certificate, no passwords) and Cloud Storage for actor snapshots.
 
-**Where idle actors go.** A suspended actor is a snapshot in RustFS (bucket
-`ate-snapshots` on a 10 GiB Hyperdisk claim): conversations under
-`s3://ate-snapshots/kagent/`, sandboxes under `s3://ate-snapshots/sandboxes/`
-(the `snapshotPolicy` in `yaml/agents.yaml`). kagent's templates use
+**Where idle actors go.** A suspended actor is a snapshot in the Cloud Storage
+bucket `agentic-ate-snapshots` (made by `scripts/35-gcs.sh`): conversations
+under `gs://agentic-ate-snapshots/kagent/`, sandboxes under
+`gs://agentic-ate-snapshots/sandboxes/` (the `snapshotPolicy` in
+`yaml/agents.yaml` and `yaml/egress.yaml`), each as a few small objects under
+`…/atespaces/kagent/actors/<actor uid>/snapshots/<uuid>/`, and golden and
+checkpoint tags under `…/atespaces/kagent/tags/`. kagent's templates use
 `SNAPSHOT_FIDELITY_VOLUMES`, so only the actor's DurableDir volume (`/data`,
 which holds the conversation's `sessions.db`) is captured, not memory or the
 rest of the root filesystem; a resume boots from the template's golden tag and
 restores `/data`. Suspend keeps a node-local copy in `/var/lib/ate` (atelet) and
-uploads it in the background; an actor resuming on another worker restores from
-RustFS. Metadata (actors, tags, assignments) lives in PostgreSQL. RustFS is the
-chart's in-cluster default: snapshots do not outlive the cluster.
+uploads it; an actor resuming on another node downloads it from GCS. Each
+actor keeps only its latest snapshot, and deleting a session deletes its
+objects. Metadata (actors, tags, assignments) lives in PostgreSQL. Until
+2026-10-21 17:34Z snapshots were in the chart's default, an in-cluster RustFS on
+a 10 GiB Hyperdisk claim, which did not outlive the cluster.
 
 ## What GCD forced, and how each was solved
 
@@ -91,8 +97,20 @@ chart's in-cluster default: snapshots do not outlive the cluster.
    chart's RustFS bucket Job with a 50m CPU request instead of 10m, so every
    later `helm upgrade` of the release, a re-run of `kagent install` included,
    failed with "spec.template: ... field is immutable" on the completed Job.
-   `yaml/substrate-values.yaml` sets `rustfs.bucketInit.resources` to exactly
-   what Autopilot stores, and the upgrade then applies cleanly.
+   `yaml/substrate-values.yaml` set `rustfs.bucketInit.resources` to exactly
+   what Autopilot stores, and the upgrade then applied cleanly. This no longer
+   arises: RustFS is not installed since snapshots moved to Cloud Storage (7).
+7. **Snapshots in Cloud Storage.** GCS is Substrate's native backend and needs
+   three things on GCD. Credentials: the object-store plugin sidecars (atelet,
+   ate-api-server) use the pod's Workload Identity, and `35-gcs.sh` grants
+   `roles/storage.objectUser` on the bucket to `ate-system/atelet` and
+   `ate-system/ate-api-server` as direct principals; no Google service account,
+   and service-account keys are forbidden by the org policy anyway. The
+   universe: the plugin's Go client defaults to `storage.googleapis.com`, so
+   `objectStorePlugin.extraEnv` sets `GOOGLE_CLOUD_UNIVERSE_DOMAIN`. The
+   allowlist: that env var is new on atelet's sidecar, so the atelet
+   WorkloadAllowlist was regenerated (`20-allowlists.sh atelet`) at its existing
+   path. `rustfs.enabled: false` and `atelet.storageBackend: gcs` do the rest.
 
 ## Running it
 
@@ -100,7 +118,7 @@ The cluster is OpenTofu (`infra/tofu`, profile `gcd-autopilot`); see the header
 of `scripts/10-cluster.sh` for the replace command. Then:
 
 ```bash
-./scripts/run-all.sh        # 10 → 15 → 20 atelet → 30 → 40 (+20 worker) → 50 → 60 → 70
+./scripts/run-all.sh        # 10 → 15 → 20 atelet → 30 → 35 → 40 (+20 worker) → 50 → 60 → 70 → 75
 ```
 
 | Script | Does |
@@ -109,10 +127,12 @@ of `scripts/10-cluster.sh` for the replace command. Then:
 | `15-gpu-guard.sh` | applies the GPU admission policy and proves it refuses an H100 pod |
 | `20-allowlists.sh atelet\|worker` | generates, uploads and installs the two WorkloadAllowlists |
 | `30-agentgateway.sh` | agentgateway Enterprise, ClusterIP Gateway, OpenAI backend; proves a call with a placeholder key |
+| `35-gcs.sh` | the snapshot bucket `agentic-ate-snapshots` and its Workload Identity grants for atelet and ate-api-server |
 | `40-kagent.sh` | PVC floor policy, `kagent install` (Substrate, Pod Certificates, PostgreSQL, kagent), worker allowlist, the `ate-operator` account |
 | `50-agents.sh` | Harness, two agents and a sandbox template; waits for golden snapshots |
 | `60-verify.sh` | end-to-end checks; writes `evidence/verify-*.txt` |
 | `70-substrate-behaviours.sh [api\|multiplex\|fork\|egress\|all]` | Substrate's API through `kubectl ate`, 20 concurrent conversations in two rounds, checkpoint and fork, EgressPolicy deny/allow; writes `evidence/behaviours-*.txt` and `evidence/multiplex-*/` |
+| `75-gcs-roundtrip.sh` | one conversation suspended to GCS, its worker deleted, resumed and loaded from GCS on another node; keeps the session; writes `evidence/gcs-roundtrip-*.txt` |
 | `kagent_mcp.py` | minimal client for kagent's MCP server (checkpoints and forks have no CLI command) |
 | `actor_timeline.py` | turns a multiplexing run's raw samples and logs into its `report.txt` |
 
@@ -138,6 +158,9 @@ kagent sandbox exec <id> -- sh -c 'uname -sr; dmesg | head'
 # scripts/lib.sh ate_cli into ~/.cache/kagent-substrate-lab/substrate-0.6.0-alpha3/)
 kubectl -n ate-system create token ate-operator --audience api.ate-system.svc --duration 30m > op.token
 kubectl ate --token-file op.token get actors -A
+
+# Suspended actors' snapshots, in Cloud Storage
+gcloud storage ls -r gs://agentic-ate-snapshots/kagent/atespaces/kagent/actors/
 ```
 
 ## Verification
@@ -204,6 +227,23 @@ install` had been re-run over the live install: `evidence/reinstall-2026-10-21.t
 | Re-running `kagent install` | clean on the first attempt, twice; operator principal kept; atelet unchanged | `reinstall-2026-10-21.txt` |
 | microVM class | not attempted: Autopilot has no nested virtualisation | — |
 
+### Snapshots on Cloud Storage (2026-10-21, 17:34–17:47Z)
+
+Switched with `35-gcs.sh`, `20-allowlists.sh atelet`, a `helm upgrade` of the
+Substrate release (revision 6; RustFS and its claim removed) and a re-apply of
+`yaml/agents.yaml` and `yaml/egress.yaml`, after which every template's golden
+snapshot was written to GCS within a minute.
+
+| Check | Result | Evidence |
+|---|---|---|
+| `60-verify.sh` | 13 passed, 0 failed | `verify-2026-10-21T1737Z.txt` |
+| Multiplexing, 20 conversations, two rounds | all 40 answered; 8 actors resumed on the other worker's node, so from GCS; resume p50 383 ms, p95 555 ms, max 620 ms (RustFS: p50 343–357 ms) | `multiplex-2026-10-21T1738Z/report.txt` |
+| One conversation, its worker deleted between turns (`75-gcs-roundtrip.sh`) | snapshot of 5 objects in GCS; resumed on the other node, whose object-store plugin downloaded the 4 snapshot files; the code word recalled | `gcs-roundtrip-2026-10-21T1744Z.txt` |
+| Checkpoint and fork | 4 passed: a checkpoint is a tag in GCS, and the fork restores from it | `behaviours-2026-10-21T1746Z.txt` |
+
+Not re-run on GCS: the API, EgressPolicy and reinstall checks, which do not touch
+snapshot storage.
+
 ## Open items
 
 Decisions left with the user:
@@ -213,9 +253,14 @@ Decisions left with the user:
 - Images are pulled from public registries over Cloud NAT, not mirrored into the
   in-universe Artifact Registry. Mirroring needs atelet's image credential
   provider (two more host mounts, so a regenerated allowlist).
-- Committed and pushed on branch `trustusbank-agent-names` (68edf86, b7230a1,
-  add058b), not merged to `main`. The user's own pending edits in
-  `poc/2026-09-agentic-platform` remain uncommitted.
+- Committed and pushed on branch `trustusbank-agent-names` up to 64d8c7c, not
+  merged to `main`; the switch to Cloud Storage is not committed yet. The
+  user's own pending edits in `poc/2026-09-agentic-platform` remain uncommitted.
+- The 11 conversations suspended before the switch point at RustFS snapshots
+  that no longer exist, so they cannot resume. They were test sessions; delete
+  them with `kagent agent session delete <id>`.
+- The snapshot bucket uses Google-managed encryption; the 2026-09 platform's
+  buckets used CMEK, which works for Cloud Storage here if wanted.
 - The GPU guard (`15-gpu-guard.sh`) still runs here and is applied on the
   cluster; the overview page no longer mentions it. Whether to drop it from the
   lab is the user's call.
@@ -234,6 +279,13 @@ Decisions left with the user:
   For a Deployment created by a controller, that is the controller's log; the
   WorkerPool template carries `cloud.google.com/generate-allowlist: "true"` so the
   refusal includes it.
+- **Warden's regenerated allowlist kept the old env names.** Asked again for
+  atelet with the GCS settings, Warden returned an allowlist listing both the
+  new `GOOGLE_CLOUD_UNIVERSE_DOMAIN` and the five RustFS `AWS_*` variables the
+  new spec no longer has, so it admits both configurations.
+- **The multiplexing test leaves no snapshots behind.** It deletes its 20
+  sessions, and deleting a session deletes its snapshot objects; that is why
+  only kept sessions show up in the bucket.
 - **`kagent install`'s 500Mi PostgreSQL claim cannot provision on GCD**
   (Hyperdisk Balanced floor, 4 GiB): see `yaml/pvc-floor.yaml`. Worth raising
   with kagent: the size should be configurable.

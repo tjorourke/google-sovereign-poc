@@ -1,0 +1,29 @@
+# kagent 1.0.0-alpha16 / Substrate 0.6.0-alpha3 / agentgateway v2026.10.0
+# cluster agentic (eu0:soloio-eval), 2026-10-21T17:46:35Z, sections: fork
+
+== session checkpoint and fork (kagent MCP: create_session_checkpoint, fork_session)
+    session 01a15f92-881c-761f-9974-1e5a4f434c56: planted KESTREL-42 in task 01a15f92-8b74-7941-9aaf-881107cfa12c
+    {
+      "checkpoint": {
+        "created_at": "2026-10-21T17:46:43.323041731Z",
+        "head_task_id": "01a15f92-8b74-7941-9aaf-881107cfa12c",
+        "history_sequence": 12121,
+        "id": "01a15f92-90f5-7a88-8a22-5d7174318a65",
+        "name": "01a15f92-881c-761f-9974-1e5a4f434c56-01a15f92-8b74-7941-9aaf-881107cfa12c",
+        "session_id": "01a15f92-881c-761f-9974-1e5a4f434c56",
+        "state": "CHECKPOINT_STATE_READY"
+      }
+    }
+PASS  checkpoint 01a15f92-90f5-7a88-8a22-5d7174318a65 READY at task 01a15f92-8b74-7941-9aaf-881107cfa12c
+    session 01a15f92-881c-761f-9974-1e5a4f434c56: planted OSPREY-7 AFTER the checkpoint
+PASS  fork_session created session 01a15f92-9c23-7526-9888-b2730fa5159f
+    fork     01a15f92-9c23-7526-9888-b2730fa5159f: KESTREL-42
+    original 01a15f92-881c-761f-9974-1e5a4f434c56: KESTREL-42
+    OSPREY-7
+PASS  the fork carries the context up to the checkpoint, and nothing after it
+PASS  the original keeps its full history
+    ATESPACE   NAME                                              SCOPE                 STATE   SNAPSHOT                                                                                          FIDELITY                    AGE
+    kagent     checkpoint-01a15f92-90f5-7a88-8a22-5d7174318a65   TAG_SCOPE_ATESPACE    Ready   gs://agentic-ate-snapshots/kagent/atespaces/kagent/tags/bcb5a519-07a4-4eab-9e97-0a569a7427e2      SNAPSHOT_FIDELITY_VOLUMES   10s
+
+== summary
+passed=4 failed=0

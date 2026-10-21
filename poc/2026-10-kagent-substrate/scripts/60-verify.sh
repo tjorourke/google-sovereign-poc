@@ -5,7 +5,7 @@
 #   2. GPU workloads refused
 #   3. an agent conversation: kagent -> Substrate actor (gVisor) -> agentgateway -> OpenAI
 #   4. a standalone sandbox is a gVisor sandbox: its kernel is gVisor's, not the node's
-#   5. actor state survives suspend/resume (snapshot to RustFS and restore)
+#   5. actor state survives suspend/resume (snapshot to Cloud Storage and restore)
 #   6. an agent drives a sandbox through kagent's own MCP tools
 #
 # Each check is attempted, not asserted. Evidence: evidence/verify-<time>.txt

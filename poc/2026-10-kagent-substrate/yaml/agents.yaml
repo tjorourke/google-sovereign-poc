@@ -8,8 +8,8 @@
 # the snapshot store when idle.
 
 # How these agents run: the Go ADK (kagent's own runtime; the release's pinned
-# golang-adk image) on the gVisor pool, snapshots in the in-cluster RustFS
-# bucket Substrate installs. The Go runtime is used rather than Python because
+# golang-adk image) on the gVisor pool, snapshots in the Cloud Storage
+# bucket scripts/35-gcs.sh creates. The Go runtime is used rather than Python because
 # a Go binary restores cleanly from a snapshot across workers.
 apiVersion: api.kagent.dev/v1alpha3
 kind: Harness
@@ -22,7 +22,7 @@ spec:
     workerPoolRef:
       name: kagent-default
     snapshotPolicy:
-      location: s3://ate-snapshots/kagent
+      location: gs://agentic-ate-snapshots/kagent
 ---
 apiVersion: api.kagent.dev/v1alpha3
 kind: Agent
@@ -61,7 +61,7 @@ spec:
     workerPoolRef:
       name: kagent-default
     snapshotPolicy:
-      location: s3://ate-snapshots/sandboxes
+      location: gs://agentic-ate-snapshots/sandboxes
 ---
 # An agent that creates and drives sandboxes through kagent's own MCP API.
 # Asking it to inspect its environment is the in-agent gVisor proof: the

@@ -3,7 +3,8 @@
 ![kagent 1.0 on Agent Substrate in Google Cloud Dedicated, Berlin](img/kagent-substrate-gcd.svg)
 
 kagent 1.0 runs every agent conversation, and every sandbox, as an Agent
-Substrate actor inside its own gVisor sandbox. We built that stack on Google
+Substrate actor inside its own gVisor sandbox, and keeps idle actors as
+snapshots in Cloud Storage. We built that stack on Google
 Cloud Dedicated in Berlin on 21 October 2026 and tested it end to end. This
 page covers what GKE Autopilot had to allow, what we tested, and the
 configuration to rebuild it. The scripts are in
@@ -17,10 +18,11 @@ configuration to rebuild it. The scripts are in
 | Cluster | GKE Autopilot `1.36.4-gke.1391000`, certificate beta APIs enabled at creation |
 | Agent platform | kagent `1.0.0-alpha16` (open source) |
 | Agent runtime | Agent Substrate `0.6.0-alpha3`: gVisor sandboxes on two worker pods of 4 CPU / 8 GiB |
+| Actor snapshots | Cloud Storage bucket `agentic-ate-snapshots` in `u-germany-northeast1`, reached with Workload Identity |
 | LLM gateway | Solo Enterprise for agentgateway `v2026.10.0`, the only holder of the OpenAI key |
 | Model | OpenAI `gpt-4.1-mini`, reached through agentgateway and Cloud NAT |
 | Agents | `trustusbank-assistant`, `trustusbank-sandbox-ops`; sandbox templates `trustusbank-scratch`, `trustusbank-egress` |
-| Not used here | Istio, AgentRegistry, Keycloak |
+| Not used here | Istio, AgentRegistry, Keycloak, the Substrate chart's in-cluster RustFS |
 
 ## Allowlists
 
@@ -99,17 +101,34 @@ it, so the installer can be re-run.
 - File: [`yaml/pvc-floor.yaml`](../poc/2026-10-kagent-substrate/yaml/pvc-floor.yaml)
 - Script: [`40-kagent.sh`](../poc/2026-10-kagent-substrate/scripts/40-kagent.sh) applies it before running `kagent install`.
 
-### The RustFS bucket Job and Autopilot's CPU minimum
+### Snapshots in Cloud Storage
 
-The Substrate chart creates its snapshot bucket with a one-off Job that asks
-for 10m CPU, and Autopilot stored it with 50m. A Job's pod template can't be
-changed afterwards, so every later upgrade of the Substrate release, a re-run
-of `kagent install` included, failed with `spec.template: field is immutable`.
-Setting the Job's resources to exactly what Autopilot stores makes the
-re-apply a no-op.
+A suspended actor is a snapshot of its `/data` volume. kagent's templates ask
+for `SNAPSHOT_FIDELITY_VOLUMES`, so memory is not saved. By default the
+Substrate chart keeps snapshots in an in-cluster RustFS, on a disk that goes
+with the cluster. Here they go to a Cloud Storage bucket in the same region.
+GCS is Substrate's native backend, and three things make it work on GCD:
 
-- File: [`yaml/substrate-values.yaml`](../poc/2026-10-kagent-substrate/yaml/substrate-values.yaml) (`rustfs.bucketInit.resources`)
-- Script: [`40-kagent.sh`](../poc/2026-10-kagent-substrate/scripts/40-kagent.sh) passes it to `kagent install` through [`kagent-cli-config.yaml`](../poc/2026-10-kagent-substrate/yaml/kagent-cli-config.yaml). The installer has since been re-run twice without error ([evidence](../poc/2026-10-kagent-substrate/evidence/reinstall-2026-10-21.txt)).
+- **No keys.** The object-store plugin, a sidecar in atelet and in
+  `ate-api-server`, uses the pod's Workload Identity. The bucket grants
+  `roles/storage.objectUser` to those two Kubernetes ServiceAccounts directly.
+  There is no Google service account, and GCD's org policy forbids
+  service-account keys anyway.
+- **The universe domain.** The plugin's Go client calls
+  `storage.googleapis.com` unless `GOOGLE_CLOUD_UNIVERSE_DOMAIN` says otherwise,
+  so the values set it to `apis-berlin-build0.goog`.
+- **A new atelet allowlist.** That variable is new on atelet's sidecar, so its
+  WorkloadAllowlist was generated again, at the same path. Warden kept the old
+  variables in the new one, so it admits both configurations.
+
+Each actor keeps only its latest snapshot: a few small objects under
+`gs://agentic-ate-snapshots/kagent/atespaces/kagent/actors/<actor uid>/snapshots/<uuid>/`.
+Deleting a session deletes them. Resumes took p50 383 ms from GCS, against
+343–357 ms from RustFS.
+
+- Files: [`yaml/substrate-values.yaml`](../poc/2026-10-kagent-substrate/yaml/substrate-values.yaml) (`rustfs`, `atelet.storageBackend`, `objectStorePlugin.extraEnv`), [`yaml/agents.yaml`](../poc/2026-10-kagent-substrate/yaml/agents.yaml) and [`yaml/egress.yaml`](../poc/2026-10-kagent-substrate/yaml/egress.yaml) (`snapshotPolicy.location`), [`allowlists/atelet.yaml`](../poc/2026-10-kagent-substrate/allowlists/atelet.yaml)
+- Scripts: [`35-gcs.sh`](../poc/2026-10-kagent-substrate/scripts/35-gcs.sh) creates the bucket and grants the two roles. [`20-allowlists.sh atelet`](../poc/2026-10-kagent-substrate/scripts/20-allowlists.sh) regenerates the allowlist. [`75-gcs-roundtrip.sh`](../poc/2026-10-kagent-substrate/scripts/75-gcs-roundtrip.sh) checks that a conversation written to GCS from one node is loaded from it on another.
+- On a running install: `35-gcs.sh`, `20-allowlists.sh atelet`, the Substrate `helm upgrade` under [Deploying it](#deploying-it), then `kubectl apply -f yaml/agents.yaml -f yaml/egress.yaml`. Snapshots already in RustFS are not moved, so conversations suspended before the switch can't be resumed.
 
 ### An operator identity for `kubectl ate`
 
@@ -160,29 +179,32 @@ Run against the cluster on 21 October 2026. Evidence is in
 |---|---|---|
 | Certificate beta APIs served | Pass | [cluster](../poc/2026-10-kagent-substrate/evidence/cluster-2026-10-21.txt) |
 | Substrate without allowlists | Refused, as above | [refusals](../poc/2026-10-kagent-substrate/evidence/warden-refusals-2026-10-21.txt) |
-| Control plane, atelet and workers running under their allowlists | Pass | [verify](../poc/2026-10-kagent-substrate/evidence/verify-2026-10-21T1622Z.txt) |
+| Control plane, atelet and workers running under their allowlists | Pass | [verify](../poc/2026-10-kagent-substrate/evidence/verify-2026-10-21T1737Z.txt) |
 | agentgateway supplies the OpenAI key to a request sent with a dummy one | Pass, HTTP 200 | [script](../poc/2026-10-kagent-substrate/scripts/30-agentgateway.sh) |
-| Agent answers through agentgateway | Pass | [verify](../poc/2026-10-kagent-substrate/evidence/verify-2026-10-21T1622Z.txt) |
-| Sandbox runs on gVisor's kernel, not the node's | Pass: `Linux 4.19.0-gvisor`, node `6.12.105+` | [verify](../poc/2026-10-kagent-substrate/evidence/verify-2026-10-21T1622Z.txt) |
-| A file survives suspend and resume | Pass | [verify](../poc/2026-10-kagent-substrate/evidence/verify-2026-10-21T1622Z.txt) |
-| An agent runs a command in a sandbox through kagent's MCP tools | Pass | [verify](../poc/2026-10-kagent-substrate/evidence/verify-2026-10-21T1622Z.txt) |
+| Agent answers through agentgateway | Pass | [verify](../poc/2026-10-kagent-substrate/evidence/verify-2026-10-21T1737Z.txt) |
+| Sandbox runs on gVisor's kernel, not the node's | Pass: `Linux 4.19.0-gvisor`, node `6.12.105+` | [verify](../poc/2026-10-kagent-substrate/evidence/verify-2026-10-21T1737Z.txt) |
+| A file survives suspend and resume | Pass | [verify](../poc/2026-10-kagent-substrate/evidence/verify-2026-10-21T1737Z.txt) |
+| An agent runs a command in a sandbox through kagent's MCP tools | Pass | [verify](../poc/2026-10-kagent-substrate/evidence/verify-2026-10-21T1737Z.txt) |
+| A conversation is written to Cloud Storage from one node and loaded from it on another | Pass: its worker was deleted, it resumed on the other node, which downloaded its 4 snapshot files, and it recalled the code word | [round trip](../poc/2026-10-kagent-substrate/evidence/gcs-roundtrip-2026-10-21T1744Z.txt) |
 | Substrate's API through `kubectl ate` | Pass as `ate-operator`; the default identity is refused | [api](../poc/2026-10-kagent-substrate/evidence/substrate-api-2026-10-21.txt) |
-| 20 conversations at once, two rounds, three runs | Pass: 8 run at a time (4 per worker), all 40 answered every run, resume p50 343–357 ms | [report](../poc/2026-10-kagent-substrate/evidence/multiplex-2026-10-21T1635Z/report.txt) |
-| A request when no worker is free | Pass: refused at once and retried by the kagent CLI; none failed | [report](../poc/2026-10-kagent-substrate/evidence/multiplex-2026-10-21T1635Z/report.txt) |
-| An actor resumes on the other worker | Pass: 5 to 10 of 20 per run, conversation intact | [report](../poc/2026-10-kagent-substrate/evidence/multiplex-2026-10-21T1635Z/report.txt) |
-| Checkpoint and fork | Pass: the fork knows only what came before the checkpoint | [fork](../poc/2026-10-kagent-substrate/evidence/checkpoint-fork-2026-10-21.txt) |
+| 20 conversations at once, two rounds | Pass: 8 run at a time (4 per worker), all 40 answered, resume p50 383 ms | [report](../poc/2026-10-kagent-substrate/evidence/multiplex-2026-10-21T1738Z/report.txt) |
+| A request when no worker is free | Pass: refused at once and retried by the kagent CLI; none failed | [report](../poc/2026-10-kagent-substrate/evidence/multiplex-2026-10-21T1738Z/report.txt) |
+| An actor resumes on the other worker | Pass: 8 of 20, conversation intact | [report](../poc/2026-10-kagent-substrate/evidence/multiplex-2026-10-21T1738Z/report.txt) |
+| Checkpoint and fork | Pass: the fork knows only what came before the checkpoint | [fork](../poc/2026-10-kagent-substrate/evidence/behaviours-2026-10-21T1746Z.txt) |
 | EgressPolicy | Pass: nothing reachable by default; one origin opened in a running sandbox | [run](../poc/2026-10-kagent-substrate/evidence/behaviours-2026-10-21T1635Z.txt) |
 | `kagent install` re-run over the live install | Pass, twice | [reinstall](../poc/2026-10-kagent-substrate/evidence/reinstall-2026-10-21.txt) |
 | microVM sandbox class | Not possible on Autopilot | |
 
-Re-run them with `scripts/60-verify.sh` (13 checks) and
-`scripts/70-substrate-behaviours.sh` (22).
+The API, EgressPolicy and reinstall checks ran earlier the same day, while
+snapshots were still in RustFS; the rest ran on Cloud Storage. Re-run them
+with `scripts/60-verify.sh` (13 checks), `scripts/70-substrate-behaviours.sh`
+(22) and `scripts/75-gcs-roundtrip.sh`.
 
 ## Deploying it
 
 Run order, once the cluster exists: `10-cluster.sh` → `20-allowlists.sh atelet` →
-`30-agentgateway.sh` → `40-kagent.sh` → `50-agents.sh` → `60-verify.sh` →
-`70-substrate-behaviours.sh`. [`run-all.sh`](../poc/2026-10-kagent-substrate/scripts/run-all.sh)
+`30-agentgateway.sh` → `35-gcs.sh` → `40-kagent.sh` → `50-agents.sh` → `60-verify.sh` →
+`70-substrate-behaviours.sh` → `75-gcs-roundtrip.sh`. [`run-all.sh`](../poc/2026-10-kagent-substrate/scripts/run-all.sh)
 runs the whole chain. Secrets
 (`AGENTGATEWAY_LICENSE_KEY`, `OPENAI_API_KEY`) come from the environment.
 Paths below are relative to `poc/2026-10-kagent-substrate/`.
@@ -482,6 +504,7 @@ matchingCriteria:
             - --asset-staging-capacity=8Gi
           env:
             - name: ATE_STORAGE_BACKEND
+            - name: GOOGLE_CLOUD_UNIVERSE_DOMAIN
             - name: AWS_REGION
             - name: AWS_ENDPOINT_URL
             - name: AWS_S3_USE_PATH_STYLE
@@ -654,8 +677,54 @@ spec:
   projectNumber: 560780937444745
   bucketName: agentic-allowlist
   allowlistPaths:
-    - substrate/0.6.0-alpha3/atelet.yaml
     - substrate/0.6.0-alpha3/ateworker-gvisor.yaml
+    - substrate/0.6.0-alpha3/atelet.yaml
+```
+
+</details>
+
+<details>
+<summary><b>Snapshot bucket</b> · Cloud Storage and Workload Identity · <code>scripts/35-gcs.sh</code></summary>
+
+```bash
+#!/usr/bin/env bash
+# 35-gcs.sh — the Cloud Storage bucket that holds Substrate's actor snapshots.
+#
+# Substrate's object-store plugins (a sidecar in atelet, another in
+# ate-api-server) read and write snapshots with the pod's own credentials:
+# Workload Identity Federation for GKE. There is no key (GCD's org policy
+# forbids service-account keys) and no Google service account, only bucket
+# roles granted to the two Kubernetes ServiceAccounts. yaml/substrate-values.yaml
+# selects the GCS backend; yaml/agents.yaml and yaml/egress.yaml point each
+# Harness and SandboxTemplate at this bucket. Idempotent.
+set -euo pipefail
+source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
+require gcloud
+assert_session
+
+BUCKET="${SNAPSHOT_BUCKET:-agentic-ate-snapshots}"
+POOL="$(gcloud container clusters describe "$CLUSTER_NAME" --location "$UNIVERSE_REGION" \
+  --format='value(workloadIdentityConfig.workloadPool)')"
+[[ -n "$POOL" ]] || die "no Workload Identity pool on $CLUSTER_NAME"
+
+step "bucket gs://$BUCKET in $UNIVERSE_REGION"
+if gcloud storage buckets describe "gs://$BUCKET" >/dev/null 2>&1; then
+  ok "exists"
+else
+  gcloud storage buckets create "gs://$BUCKET" --location "$UNIVERSE_REGION" \
+    --uniform-bucket-level-access --public-access-prevention >/dev/null \
+    || die "could not create gs://$BUCKET"
+  ok "created"
+fi
+
+step "object roles for the object-store plugins (Workload Identity, pool $POOL)"
+# The member keeps the literal iam.googleapis.com host inside the universe.
+for ksa in atelet ate-api-server; do
+  member="principal://iam.googleapis.com/projects/$PROJECT_NUMBER/locations/global/workloadIdentityPools/$POOL/subject/ns/ate-system/sa/$ksa"
+  gcloud storage buckets add-iam-policy-binding "gs://$BUCKET" --member "$member" \
+    --role roles/storage.objectUser >/dev/null || die "could not grant ate-system/$ksa"
+  ok "ate-system/$ksa: roles/storage.objectUser"
+done
 ```
 
 </details>
@@ -739,7 +808,9 @@ grafana-mcp:
 <details>
 <summary><b>Substrate values</b> · <code>yaml/substrate-values.yaml</code>, and what <code>kagent install</code> adds</summary>
 
-Neither setting here reaches the atelet pod, so its allowlist stands.
+The storage settings reach atelet's object-store sidecar, so the atelet
+allowlist is generated from these values. The bootstrap owners only change
+`ate-api-server`'s flags.
 
 ```yaml
 # Agent Substrate chart values. Read by `kagent install` (through
@@ -748,18 +819,22 @@ Neither setting here reaches the atelet pod, so its allowlist stands.
 # that reaches the atelet pod (image, args, env, volumes, security context) and
 # the allowlist must be regenerated, or GKE Warden rejects the DaemonSet.
 
+# Actor snapshots live in Cloud Storage, in the bucket scripts/35-gcs.sh
+# creates. GCS is Substrate's native backend: the object-store plugin sidecars
+# in atelet and ate-api-server use the pod's Workload Identity, so there is no
+# key to mount (GCD's org policy forbids them anyway). The chart's in-cluster
+# RustFS store is not installed.
 rustfs:
-  # Snapshot store for actors. Hyperdisk Balanced is the only disk type in GCD
-  # and has a 4 GiB floor; ask for something the CSI driver will not round.
-  storageSize: 10Gi
-  bucketInit:
-    # Exactly what Autopilot stores for the bucket Job. Its minimum CPU request
-    # is 50m, so it raised the chart's 10m at creation; a Job's pod template is
-    # immutable, so every later upgrade of this release (a re-run of `kagent
-    # install` included) failed on the completed Job until the two matched.
-    resources:
-      requests: { cpu: 50m, memory: 128Mi, ephemeral-storage: 1Gi }
-      limits: { cpu: 500m, memory: 256Mi, ephemeral-storage: 1Gi }
+  enabled: false
+atelet:
+  storageBackend: gcs          # anything but "s3" selects GCS
+objectStorePlugin:
+  extraEnv:
+    # Without this the Go client calls storage.googleapis.com, outside the
+    # universe. It is an extra env var on atelet's sidecar, so the atelet
+    # allowlist was regenerated for it (20-allowlists.sh atelet).
+    - name: GOOGLE_CLOUD_UNIVERSE_DOMAIN
+      value: apis-berlin-build0.goog
 
 ateApi:
   authorization:
@@ -846,8 +921,8 @@ metadata:
 # the snapshot store when idle.
 
 # How these agents run: the Go ADK (kagent's own runtime; the release's pinned
-# golang-adk image) on the gVisor pool, snapshots in the in-cluster RustFS
-# bucket Substrate installs. The Go runtime is used rather than Python because
+# golang-adk image) on the gVisor pool, snapshots in the Cloud Storage
+# bucket scripts/35-gcs.sh creates. The Go runtime is used rather than Python because
 # a Go binary restores cleanly from a snapshot across workers.
 apiVersion: api.kagent.dev/v1alpha3
 kind: Harness
@@ -860,7 +935,7 @@ spec:
     workerPoolRef:
       name: kagent-default
     snapshotPolicy:
-      location: s3://ate-snapshots/kagent
+      location: gs://agentic-ate-snapshots/kagent
 ---
 apiVersion: api.kagent.dev/v1alpha3
 kind: Agent
@@ -899,7 +974,7 @@ spec:
     workerPoolRef:
       name: kagent-default
     snapshotPolicy:
-      location: s3://ate-snapshots/sandboxes
+      location: gs://agentic-ate-snapshots/sandboxes
 ---
 # An agent that creates and drives sandboxes through kagent's own MCP API.
 # Asking it to inspect its environment is the in-agent gVisor proof: the
@@ -978,7 +1053,7 @@ spec:
     workerPoolRef:
       name: kagent-default
     snapshotPolicy:
-      location: s3://ate-snapshots/sandboxes
+      location: gs://agentic-ate-snapshots/sandboxes
 ```
 
 Grant it to the template; running sandboxes pick it up without a restart:
@@ -1010,6 +1085,9 @@ kagent sandbox exec <id> -- sh -c 'uname -sr; dmesg | head'
 kubectl -n ate-system create token ate-operator --audience api.ate-system.svc --duration 30m > op.token
 kubectl ate --token-file op.token get actors -A
 kubectl ate --token-file op.token get workers
+
+# Suspended actors' snapshots, in Cloud Storage
+gcloud storage ls -r gs://agentic-ate-snapshots/kagent/atespaces/kagent/actors/
 
 # Checkpoints and forks are MCP tools on kagent-controller (/mcp); the CLI has no command for them
 scripts/kagent_mcp.py http://127.0.0.1:$PORT call create_session_checkpoint \

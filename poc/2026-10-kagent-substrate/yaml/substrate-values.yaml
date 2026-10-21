@@ -4,18 +4,22 @@
 # that reaches the atelet pod (image, args, env, volumes, security context) and
 # the allowlist must be regenerated, or GKE Warden rejects the DaemonSet.
 
+# Actor snapshots live in Cloud Storage, in the bucket scripts/35-gcs.sh
+# creates. GCS is Substrate's native backend: the object-store plugin sidecars
+# in atelet and ate-api-server use the pod's Workload Identity, so there is no
+# key to mount (GCD's org policy forbids them anyway). The chart's in-cluster
+# RustFS store is not installed.
 rustfs:
-  # Snapshot store for actors. Hyperdisk Balanced is the only disk type in GCD
-  # and has a 4 GiB floor; ask for something the CSI driver will not round.
-  storageSize: 10Gi
-  bucketInit:
-    # Exactly what Autopilot stores for the bucket Job. Its minimum CPU request
-    # is 50m, so it raised the chart's 10m at creation; a Job's pod template is
-    # immutable, so every later upgrade of this release (a re-run of `kagent
-    # install` included) failed on the completed Job until the two matched.
-    resources:
-      requests: { cpu: 50m, memory: 128Mi, ephemeral-storage: 1Gi }
-      limits: { cpu: 500m, memory: 256Mi, ephemeral-storage: 1Gi }
+  enabled: false
+atelet:
+  storageBackend: gcs          # anything but "s3" selects GCS
+objectStorePlugin:
+  extraEnv:
+    # Without this the Go client calls storage.googleapis.com, outside the
+    # universe. It is an extra env var on atelet's sidecar, so the atelet
+    # allowlist was regenerated for it (20-allowlists.sh atelet).
+    - name: GOOGLE_CLOUD_UNIVERSE_DOMAIN
+      value: apis-berlin-build0.goog
 
 ateApi:
   authorization:

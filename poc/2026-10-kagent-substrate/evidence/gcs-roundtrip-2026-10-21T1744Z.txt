@@ -1,0 +1,13 @@
+# 2026-10-21T17:44:44Z session 01a15f90-c037-7620-b716-a412e9b846bc (actor session-01a15f90-c037-7620-b716-a412e9b846bc), code word heron-4472
+turn 1 answered (noted); ran on kagent/kagent-default-7f5f946df5-sdlxn, node gk3-agentic-nap-13pv4bqc-83583f7e-2ddm
+suspended; snapshot gs://agentic-ate-snapshots/kagent/atespaces/kagent/actors/2b28a1ae-2a31-4b6e-84e6-47b44c6f8fae/snapshots/8280e1b4-4ee4-42b2-8069-b270ca484f31
+     123 bytes  fs/fscheckpoint.pb.zstd
+     182 bytes  fs/multitar.img.zstd
+    1339 bytes  fs/pages.img.zstd
+     113 bytes  fs/pages_meta.img.zstd
+     738 bytes  manifest.json
+deleted turn 1's worker pod kagent-default-7f5f946df5-sdlxn, so the resume has to happen elsewhere
+turn 2 recalled heron-4472; resumed on kagent/kagent-default-7f5f946df5-x4j57, node gk3-agentic-nap-13pv4bqc-bfdd185a-242v
+object-store plugin in atelet-rnkcz downloaded 4 snapshot file(s) from GCS for the resume
+suspended again; new snapshot gs://agentic-ate-snapshots/kagent/atespaces/kagent/actors/2b28a1ae-2a31-4b6e-84e6-47b44c6f8fae/snapshots/dd6110c9-7534-464e-aae6-1c04f14f168c
+PASS: persisted to GCS on gk3-agentic-nap-13pv4bqc-83583f7e-2ddm, loaded from GCS on gk3-agentic-nap-13pv4bqc-bfdd185a-242v. Session kept: 01a15f90-c037-7620-b716-a412e9b846bc
