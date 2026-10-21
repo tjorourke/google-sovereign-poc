@@ -1,8 +1,7 @@
 # agentgateway in front of the model: the one governed hop between every agent
-# actor and the LLM. With no GPUs on this cluster the model is OpenAI, reached
-# over Cloud NAT; the API key exists only in the openai-secret Secret below
-# (created by 30-agentgateway.sh) and the gateway adds it upstream. Agents send
-# a placeholder.
+# actor and the LLM. The model is OpenAI, reached over Cloud NAT. The API key
+# exists only in the openai-secret Secret below (created by 30-agentgateway.sh),
+# and the gateway adds it upstream. Agents send a placeholder.
 #
 # ClusterIP only. Agents reach it in-cluster; nothing here needs a public IP.
 apiVersion: enterpriseagentgateway.solo.io/v1alpha1

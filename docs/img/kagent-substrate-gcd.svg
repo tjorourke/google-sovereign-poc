@@ -43,25 +43,21 @@
   <rect x="228" y="196" width="780" height="72" rx="6" fill="#fff8e6" stroke="#c8a415" stroke-width="1"/>
   <text x="240" y="212" font-size="9.5" font-weight="700" fill="#8a6d00" letter-spacing="1">ADMISSION · GKE WARDEN</text>
 
-  <rect x="240" y="220" width="144" height="42" rx="5" fill="#ffffff" stroke="#c8a415" stroke-width="1.2"/>
-  <text x="312" y="237" font-size="10.5" font-weight="700" fill="#202124" text-anchor="middle">WorkloadAllowlist</text>
-  <text x="312" y="252" font-size="10" fill="#5f6368" text-anchor="middle" font-family="SF Mono, Menlo, Consolas, monospace">atelet</text>
+  <rect x="240" y="220" width="180" height="42" rx="5" fill="#ffffff" stroke="#c8a415" stroke-width="1.2"/>
+  <text x="330" y="237" font-size="10.5" font-weight="700" fill="#202124" text-anchor="middle">WorkloadAllowlist</text>
+  <text x="330" y="252" font-size="10" fill="#5f6368" text-anchor="middle" font-family="SF Mono, Menlo, Consolas, monospace">atelet</text>
 
-  <rect x="393" y="220" width="144" height="42" rx="5" fill="#ffffff" stroke="#c8a415" stroke-width="1.2"/>
-  <text x="465" y="237" font-size="10.5" font-weight="700" fill="#202124" text-anchor="middle">WorkloadAllowlist</text>
-  <text x="465" y="252" font-size="10" fill="#5f6368" text-anchor="middle" font-family="SF Mono, Menlo, Consolas, monospace">gVisor worker</text>
+  <rect x="432" y="220" width="180" height="42" rx="5" fill="#ffffff" stroke="#c8a415" stroke-width="1.2"/>
+  <text x="522" y="237" font-size="10.5" font-weight="700" fill="#202124" text-anchor="middle">WorkloadAllowlist</text>
+  <text x="522" y="252" font-size="10" fill="#5f6368" text-anchor="middle" font-family="SF Mono, Menlo, Consolas, monospace">gVisor worker</text>
 
-  <rect x="546" y="220" width="144" height="42" rx="5" fill="#ffffff" stroke="#7b3fbf" stroke-width="1.2"/>
-  <text x="618" y="237" font-size="10.5" font-weight="700" fill="#202124" text-anchor="middle">No GPUs</text>
-  <text x="618" y="252" font-size="9" fill="#5f6368" text-anchor="middle">ValidatingAdmissionPolicy</text>
+  <rect x="624" y="220" width="180" height="42" rx="5" fill="#ffffff" stroke="#7b3fbf" stroke-width="1.2"/>
+  <text x="714" y="237" font-size="10.5" font-weight="700" fill="#202124" text-anchor="middle">PVC ≥ 4 GiB</text>
+  <text x="714" y="252" font-size="9.5" fill="#5f6368" text-anchor="middle">MutatingAdmissionPolicy</text>
 
-  <rect x="699" y="220" width="144" height="42" rx="5" fill="#ffffff" stroke="#7b3fbf" stroke-width="1.2"/>
-  <text x="771" y="237" font-size="10.5" font-weight="700" fill="#202124" text-anchor="middle">PVC ≥ 4 GiB</text>
-  <text x="771" y="252" font-size="9" fill="#5f6368" text-anchor="middle">MutatingAdmissionPolicy</text>
-
-  <rect x="852" y="220" width="144" height="42" rx="5" fill="#ffffff" stroke="#c8a415" stroke-width="1.2"/>
-  <text x="924" y="237" font-size="10" font-weight="700" fill="#202124" text-anchor="middle">AllowlistSynchronizer</text>
-  <text x="924" y="252" font-size="9.5" fill="#5f6368" text-anchor="middle">from Cloud Storage</text>
+  <rect x="816" y="220" width="180" height="42" rx="5" fill="#ffffff" stroke="#c8a415" stroke-width="1.2"/>
+  <text x="906" y="237" font-size="10.5" font-weight="700" fill="#202124" text-anchor="middle">AllowlistSynchronizer</text>
+  <text x="906" y="252" font-size="9.5" fill="#5f6368" text-anchor="middle">from Cloud Storage</text>
 
   <!-- namespace kagent -->
   <rect x="228" y="284" width="380" height="116" rx="6" fill="#f8f9fa" stroke="#dadce0" stroke-width="1" stroke-dasharray="5 4"/>
@@ -182,7 +178,7 @@
     <path d="M360,596 H386" marker-start="url(#a)" marker-end="url(#a)"/>
     <path d="M1008,675 H1098" stroke-dasharray="5 4" marker-end="url(#a)"/>
   </g>
-  <path d="M924,152 V218" fill="none" stroke="#c8a415" stroke-width="1.4" stroke-dasharray="5 4" marker-end="url(#ay)"/>
+  <path d="M906,152 V218" fill="none" stroke="#c8a415" stroke-width="1.4" stroke-dasharray="5 4" marker-end="url(#ay)"/>
 
   <g font-size="9.5" font-weight="700" fill="#ffffff" text-anchor="middle">
     <circle cx="330" cy="278" r="8" fill="#202124"/><text x="330" y="281.5">1</text>
@@ -192,7 +188,7 @@
     <circle cx="716" cy="492" r="8" fill="#202124"/><text x="716" y="495.5">5</text>
     <circle cx="1076" cy="492" r="8" fill="#202124"/><text x="1076" y="495.5">6</text>
     <circle cx="373" cy="582" r="8" fill="#202124"/><text x="373" y="585.5">7</text>
-    <circle cx="940" cy="186" r="8" fill="#202124"/><text x="940" y="189.5">8</text>
+    <circle cx="922" cy="186" r="8" fill="#202124"/><text x="922" y="189.5">8</text>
     <circle cx="1076" cy="661" r="8" fill="#202124"/><text x="1076" y="664.5">9</text>
   </g>
 

@@ -20,7 +20,7 @@ configuration to rebuild it. The scripts are in
 | LLM gateway | Solo Enterprise for agentgateway `v2026.10.0`, the only holder of the OpenAI key |
 | Model | OpenAI `gpt-4.1-mini`, reached through agentgateway and Cloud NAT |
 | Agents | `trustusbank-assistant`, `trustusbank-sandbox-ops`; sandbox templates `trustusbank-scratch`, `trustusbank-egress` |
-| Left out | Istio, AgentRegistry, Keycloak and GPUs. GPU workloads are refused at admission. |
+| Not used here | Istio, AgentRegistry, Keycloak |
 
 ## Allowlists
 
@@ -75,16 +75,81 @@ Violations details: {"[denied by autogke-default-linux-capabilities]":["linux ca
 
 [`scripts/20-allowlists.sh`](../poc/2026-10-kagent-substrate/scripts/20-allowlists.sh) does all four.
 
-## Other changes GCD needed
+## Other fixes
 
-| Problem | Fix |
-|---|---|
-| Substrate needs PodCertificateRequest and ClusterTrustBundle, which are beta on 1.36, the newest version in Berlin | enable both when the cluster is created; GKE ignores a later change |
-| Hyperdisk Balanced is the only disk type and starts at 4 GiB, but `kagent install` asks for 500 Mi | a MutatingAdmissionPolicy raises small claims to 4 GiB |
-| Autopilot stored the RustFS bucket Job with a higher CPU request than the chart sets, so every later upgrade failed on the Job's immutable template | `rustfs.bucketInit.resources` set to what Autopilot stores |
-| `kubectl ate` is refused: `kagent install` makes only kagent's controller an owner of Substrate's API | an `ate-operator` service account added as a bootstrap owner |
-| No GPUs on this cluster | a ValidatingAdmissionPolicy refuses accelerator requests and accelerator node selectors |
-| No nested virtualisation on Autopilot | gVisor only; Substrate's microVM class can't run |
+### Certificate APIs on GKE 1.36
+
+Substrate gives every component and actor a Pod Certificate, which needs
+Kubernetes' `PodCertificateRequest` and `ClusterTrustBundle` APIs. Both are GA
+in 1.37, but the newest GKE in Berlin is 1.36, where they are beta. GKE only
+switches beta APIs on when a cluster is created, so the OpenTofu profile lists
+them in `k8s_beta_apis` and the cluster was recreated with it.
+
+- Files: [`gcd-autopilot.tfvars`](../infra/tofu/profiles/gcd-autopilot.tfvars) (`k8s_beta_apis`), [`gke-autopilot/main.tf`](../infra/tofu/modules/gke-autopilot/main.tf) (`enable_k8s_beta_apis`)
+- Script: [`10-cluster.sh`](../poc/2026-10-kagent-substrate/scripts/10-cluster.sh) has the recreate command in its header, and stops if either API isn't served.
+
+### Hyperdisk's 4 GiB minimum
+
+`kagent install` creates its development PostgreSQL with a 500 Mi volume. GCD
+only has Hyperdisk Balanced, whose smallest disk is 4 GiB, so that claim never
+provisions and the install hangs. A MutatingAdmissionPolicy raises any claim
+under 4 GiB to 4 GiB when it is created, and ignores a later attempt to shrink
+it, so the installer can be re-run.
+
+- File: [`yaml/pvc-floor.yaml`](../poc/2026-10-kagent-substrate/yaml/pvc-floor.yaml)
+- Script: [`40-kagent.sh`](../poc/2026-10-kagent-substrate/scripts/40-kagent.sh) applies it before running `kagent install`.
+
+### The RustFS bucket Job and Autopilot's CPU minimum
+
+The Substrate chart creates its snapshot bucket with a one-off Job that asks
+for 10m CPU, and Autopilot stored it with 50m. A Job's pod template can't be
+changed afterwards, so every later upgrade of the Substrate release, a re-run
+of `kagent install` included, failed with `spec.template: field is immutable`.
+Setting the Job's resources to exactly what Autopilot stores makes the
+re-apply a no-op.
+
+- File: [`yaml/substrate-values.yaml`](../poc/2026-10-kagent-substrate/yaml/substrate-values.yaml) (`rustfs.bucketInit.resources`)
+- Script: [`40-kagent.sh`](../poc/2026-10-kagent-substrate/scripts/40-kagent.sh) passes it to `kagent install` through [`kagent-cli-config.yaml`](../poc/2026-10-kagent-substrate/yaml/kagent-cli-config.yaml). The installer has since been re-run twice without error ([evidence](../poc/2026-10-kagent-substrate/evidence/reinstall-2026-10-21.txt)).
+
+### An operator identity for `kubectl ate`
+
+This one isn't specific to GCD. Substrate's API checks every call against its
+own authorisation model, and on a new install only its *bootstrap owners* can
+do anything. `kagent install` names one: kagent's controller, identified by
+the SPIFFE ID in its Pod Certificate,
+`spiffe://cluster.local/ns/kagent/sa/kagent-controller`. `kubectl ate` signs in
+with a Kubernetes service-account token instead, which the API sees as
+`system:serviceaccount:<namespace>:<name>`, so it is refused. A token for the
+controller's own account is refused too: same account, different principal.
+
+The fix adds a second bootstrap owner, a dedicated `ate-system/ate-operator`
+service account. Only someone allowed to create tokens in `ate-system` can act
+as it. The shared `ate-client` account that `kubectl ate` falls back to stays
+out, as Substrate's documentation advises.
+
+```yaml
+# yaml/substrate-values.yaml
+ateApi:
+  authorization:
+    bootstrapOwners:
+      - spiffe://cluster.local/ns/kagent/sa/kagent-controller   # kept: this list replaces kagent's
+      - system:serviceaccount:ate-system:ate-operator
+```
+
+```bash
+kubectl -n ate-system create token ate-operator --audience api.ate-system.svc --duration 30m > op.token
+kubectl ate --token-file op.token get actors -A
+```
+
+- Files: [`yaml/substrate-values.yaml`](../poc/2026-10-kagent-substrate/yaml/substrate-values.yaml), [`yaml/ate-operator.yaml`](../poc/2026-10-kagent-substrate/yaml/ate-operator.yaml)
+- Scripts: [`40-kagent.sh`](../poc/2026-10-kagent-substrate/scripts/40-kagent.sh) installs both. [`lib.sh`](../poc/2026-10-kagent-substrate/scripts/lib.sh) builds `kubectl ate` from the Substrate release tag (`ate_cli`) and mints the token (`ate_operator_token`). [`70-substrate-behaviours.sh api`](../poc/2026-10-kagent-substrate/scripts/70-substrate-behaviours.sh) checks that the shared identity is refused and the operator is allowed.
+- On a running install, the `helm upgrade` in the Substrate values block under [Deploying it](#deploying-it) applies the change; only `ate-api-server` restarts.
+
+### microVM sandboxes
+
+Substrate can also run actors as microVMs, which need nested virtualisation.
+Autopilot nodes don't offer it, so actors run in gVisor, the sandbox class
+kagent's WorkerPool uses by default. There is nothing to configure.
 
 ## Tests
 
@@ -96,7 +161,6 @@ Run against the cluster on 21 October 2026. Evidence is in
 | Certificate beta APIs served | Pass | [cluster](../poc/2026-10-kagent-substrate/evidence/cluster-2026-10-21.txt) |
 | Substrate without allowlists | Refused, as above | [refusals](../poc/2026-10-kagent-substrate/evidence/warden-refusals-2026-10-21.txt) |
 | Control plane, atelet and workers running under their allowlists | Pass | [verify](../poc/2026-10-kagent-substrate/evidence/verify-2026-10-21T1622Z.txt) |
-| GPU pod refused | Pass | [verify](../poc/2026-10-kagent-substrate/evidence/verify-2026-10-21T1622Z.txt) |
 | agentgateway supplies the OpenAI key to a request sent with a dummy one | Pass, HTTP 200 | [script](../poc/2026-10-kagent-substrate/scripts/30-agentgateway.sh) |
 | Agent answers through agentgateway | Pass | [verify](../poc/2026-10-kagent-substrate/evidence/verify-2026-10-21T1622Z.txt) |
 | Sandbox runs on gVisor's kernel, not the node's | Pass: `Linux 4.19.0-gvisor`, node `6.12.105+` | [verify](../poc/2026-10-kagent-substrate/evidence/verify-2026-10-21T1622Z.txt) |
@@ -116,10 +180,10 @@ Re-run them with `scripts/60-verify.sh` (13 checks) and
 
 ## Deploying it
 
-Run order, once the cluster exists: `10-cluster.sh` → `15-gpu-guard.sh` →
-`20-allowlists.sh atelet` → `30-agentgateway.sh` → `40-kagent.sh` →
-`50-agents.sh` → `60-verify.sh` → `70-substrate-behaviours.sh`, or
-[`run-all.sh`](../poc/2026-10-kagent-substrate/scripts/run-all.sh). Secrets
+Run order, once the cluster exists: `10-cluster.sh` → `20-allowlists.sh atelet` →
+`30-agentgateway.sh` → `40-kagent.sh` → `50-agents.sh` → `60-verify.sh` →
+`70-substrate-behaviours.sh`. [`run-all.sh`](../poc/2026-10-kagent-substrate/scripts/run-all.sh)
+runs the whole chain. Secrets
 (`AGENTGATEWAY_LICENSE_KEY`, `OPENAI_API_KEY`) come from the environment.
 Paths below are relative to `poc/2026-10-kagent-substrate/`.
 
@@ -222,93 +286,6 @@ spec:
 </details>
 
 <details>
-<summary><b>GPU guard</b> · <code>yaml/gpu-guard.yaml</code></summary>
-
-```yaml
-# No GPUs on this cluster, enforced rather than merely absent.
-#
-# Autopilot provisions an accelerator node for any pod that asks for one: the
-# previous cluster ran an a3-edgegpu-8g-nolssd (H100) node for Gemma around the
-# clock. With no Node pools to remove, the only cluster-side lever is admission,
-# so this policy refuses any workload that requests an accelerator resource or
-# selects accelerator nodes.
-#
-# Checked on the workload objects as well as Pods so a Deployment is refused at
-# `kubectl apply`, where someone will see it, rather than only as a ReplicaSet
-# event. GKE's own namespaces are exempt so the policy can never block a
-# managed component.
-apiVersion: admissionregistration.k8s.io/v1
-kind: ValidatingAdmissionPolicy
-metadata:
-  name: deny-gpu-workloads
-spec:
-  failurePolicy: Fail
-  matchConstraints:
-    resourceRules:
-      - apiGroups: [""]
-        apiVersions: ["v1"]
-        operations: ["CREATE", "UPDATE"]
-        resources: ["pods"]
-      - apiGroups: ["apps"]
-        apiVersions: ["v1"]
-        operations: ["CREATE", "UPDATE"]
-        resources: ["deployments", "statefulsets", "daemonsets", "replicasets"]
-      - apiGroups: ["batch"]
-        apiVersions: ["v1"]
-        operations: ["CREATE", "UPDATE"]
-        resources: ["jobs", "cronjobs"]
-  matchConditions:
-    - name: not-a-gke-managed-namespace
-      expression: >-
-        !(request.namespace in ['kube-system', 'kube-public', 'kube-node-lease', 'gmp-system', 'gmp-public'])
-        && !request.namespace.startsWith('gke-')
-  variables:
-    - name: podSpec
-      expression: >-
-        object.kind == 'Pod' ? object.spec :
-        object.kind == 'CronJob' ? object.spec.jobTemplate.spec.template.spec :
-        object.spec.template.spec
-    - name: containers
-      expression: >-
-        variables.podSpec.containers +
-        (has(variables.podSpec.initContainers) ? variables.podSpec.initContainers : [])
-    - name: acceleratorResource
-      expression: >-
-        ['nvidia.com/', 'amd.com/', 'google.com/tpu']
-  validations:
-    - expression: >-
-        variables.containers.all(c,
-          !has(c.resources) || (
-            (!has(c.resources.limits) || !c.resources.limits.exists(k,
-              variables.acceleratorResource.exists(p, k.startsWith(p)))) &&
-            (!has(c.resources.requests) || !c.resources.requests.exists(k,
-              variables.acceleratorResource.exists(p, k.startsWith(p))))))
-      reason: Forbidden
-      message: >-
-        GPU access is disabled on this cluster: containers may not request
-        accelerator resources (nvidia.com/*, amd.com/*, google.com/tpu).
-    - expression: >-
-        !has(variables.podSpec.nodeSelector) ||
-        !variables.podSpec.nodeSelector.exists(k,
-          k in ['cloud.google.com/gke-accelerator', 'cloud.google.com/gke-tpu-accelerator',
-                'cloud.google.com/gke-accelerator-count'])
-      reason: Forbidden
-      message: >-
-        GPU access is disabled on this cluster: workloads may not select
-        accelerator nodes.
----
-apiVersion: admissionregistration.k8s.io/v1
-kind: ValidatingAdmissionPolicyBinding
-metadata:
-  name: deny-gpu-workloads
-spec:
-  policyName: deny-gpu-workloads
-  validationActions: [Deny]
-```
-
-</details>
-
-<details>
 <summary><b>PVC floor</b> for Hyperdisk · <code>yaml/pvc-floor.yaml</code></summary>
 
 ```yaml
@@ -399,10 +376,9 @@ replaces `__OPENAI_MODEL__` with `gpt-4.1-mini`.
 
 ```yaml
 # agentgateway in front of the model: the one governed hop between every agent
-# actor and the LLM. With no GPUs on this cluster the model is OpenAI, reached
-# over Cloud NAT; the API key exists only in the openai-secret Secret below
-# (created by 30-agentgateway.sh) and the gateway adds it upstream. Agents send
-# a placeholder.
+# actor and the LLM. The model is OpenAI, reached over Cloud NAT. The API key
+# exists only in the openai-secret Secret below (created by 30-agentgateway.sh),
+# and the gateway adds it upstream. Agents send a placeholder.
 #
 # ClusterIP only. Agents reach it in-cluster; nothing here needs a public IP.
 apiVersion: enterpriseagentgateway.solo.io/v1alpha1
