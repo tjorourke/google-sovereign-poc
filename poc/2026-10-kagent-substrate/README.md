@@ -40,6 +40,18 @@ kagent controller ──gRPC──▶ ate-api ──▶ ate-controller ──▶
 State: PostgreSQL (kagent and Substrate schemas, logins by Pod Certificate, no
 passwords) and RustFS (S3-compatible snapshot store), both in-cluster.
 
+**Where idle actors go.** A suspended actor is a snapshot in RustFS (bucket
+`ate-snapshots` on a 10 GiB Hyperdisk claim): conversations under
+`s3://ate-snapshots/kagent/`, sandboxes under `s3://ate-snapshots/sandboxes/`
+(the `snapshotPolicy` in `yaml/agents.yaml`). kagent's templates use
+`SNAPSHOT_FIDELITY_VOLUMES`, so only the actor's DurableDir volume (`/data`,
+which holds the conversation's `sessions.db`) is captured, not memory or the
+rest of the root filesystem; a resume boots from the template's golden tag and
+restores `/data`. Suspend keeps a node-local copy in `/var/lib/ate` (atelet) and
+uploads it in the background; an actor resuming on another worker restores from
+RustFS. Metadata (actors, tags, assignments) lives in PostgreSQL. RustFS is the
+chart's in-cluster default: snapshots do not outlive the cluster.
+
 ## What GCD forced, and how each was solved
 
 1. **Autopilot only.** GKE Warden refused both privileged Substrate workloads
@@ -201,8 +213,15 @@ Decisions left with the user:
 - Images are pulled from public registries over Cloud NAT, not mirrored into the
   in-universe Artifact Registry. Mirroring needs atelet's image credential
   provider (two more host mounts, so a regenerated allowlist).
-- All of this is uncommitted on branch `trustusbank-agent-names`, alongside the
-  user's own pending edits.
+- Committed and pushed on branch `trustusbank-agent-names` (68edf86, b7230a1,
+  add058b), not merged to `main`. The user's own pending edits in
+  `poc/2026-09-agentic-platform` remain uncommitted.
+- The GPU guard (`15-gpu-guard.sh`) still runs here and is applied on the
+  cluster; the overview page no longer mentions it. Whether to drop it from the
+  lab is the user's call.
+- The repository is public; the old console password (`solo` user) in
+  README/TASKS/DEMO-READINESS and the default in `deploy_google_console.py` have
+  been public since 2026-10-02. Rotating or removing it is the user's call.
 
 ### Found on the way
 
