@@ -1,0 +1,10 @@
+apiVersion: auto.gke.io/v1
+kind: AllowlistSynchronizer
+metadata:
+  name: substrate
+spec:
+  projectNumber: 560780937444745
+  bucketName: agentic-allowlist
+  allowlistPaths:
+    - substrate/0.6.0-alpha3/atelet.yaml
+    - substrate/0.6.0-alpha3/ateworker-gvisor.yaml

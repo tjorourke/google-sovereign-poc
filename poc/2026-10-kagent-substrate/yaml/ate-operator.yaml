@@ -1,0 +1,18 @@
+# The operator identity for Substrate's own API (`kubectl ate`).
+#
+# ate-api-server authenticates a Kubernetes ServiceAccount token as
+# `system:serviceaccount:<namespace>:<name>` and authorises it through OpenFGA.
+# yaml/substrate-values.yaml makes this account a bootstrap owner. Its power is
+# gated by Kubernetes RBAC: minting a token needs `create` on
+# serviceaccounts/token in ate-system, which only cluster admins hold.
+#
+#   kubectl -n ate-system create token ate-operator \
+#     --audience api.ate-system.svc --duration 10m > op.token
+#   kubectl ate --token-file op.token get atespaces
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: ate-operator
+  namespace: ate-system
+  labels:
+    app.kubernetes.io/part-of: kagent-substrate-lab

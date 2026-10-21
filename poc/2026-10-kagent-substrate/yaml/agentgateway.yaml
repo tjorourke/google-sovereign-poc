@@ -1,0 +1,78 @@
+# agentgateway in front of the model: the one governed hop between every agent
+# actor and the LLM. With no GPUs on this cluster the model is OpenAI, reached
+# over Cloud NAT; the API key exists only in the openai-secret Secret below
+# (created by 30-agentgateway.sh) and the gateway adds it upstream. Agents send
+# a placeholder.
+#
+# ClusterIP only. Agents reach it in-cluster; nothing here needs a public IP.
+apiVersion: enterpriseagentgateway.solo.io/v1alpha1
+kind: EnterpriseAgentgatewayParameters
+metadata:
+  name: agentgateway-proxy
+  namespace: agentgateway-system
+spec:
+  service:
+    spec:
+      type: ClusterIP
+  deployment:
+    metadata:
+      labels:
+        company: trustusbank
+    spec:
+      template:
+        metadata:
+          labels:
+            company: trustusbank
+---
+apiVersion: gateway.networking.k8s.io/v1
+kind: Gateway
+metadata:
+  name: agentgateway-proxy
+  namespace: agentgateway-system
+spec:
+  gatewayClassName: enterprise-agentgateway
+  infrastructure:
+    parametersRef:
+      group: enterpriseagentgateway.solo.io
+      kind: EnterpriseAgentgatewayParameters
+      name: agentgateway-proxy
+  listeners:
+    - name: http
+      protocol: HTTP
+      port: 80
+      allowedRoutes:
+        namespaces: { from: All }
+---
+apiVersion: agentgateway.dev/v1alpha1
+kind: AgentgatewayBackend
+metadata:
+  name: openai
+  namespace: agentgateway-system
+spec:
+  ai:
+    provider:
+      openai:
+        # Pinned here, so a caller cannot switch itself onto a pricier model.
+        model: __OPENAI_MODEL__
+  policies:
+    auth:
+      secretRef:
+        name: openai-secret
+---
+# OpenAI-shaped path: kagent's OpenAI clients post to <baseUrl>/chat/completions
+# with baseUrl .../v1 (yaml/kagent-values.yaml, yaml/agents.yaml).
+apiVersion: gateway.networking.k8s.io/v1
+kind: HTTPRoute
+metadata:
+  name: openai
+  namespace: agentgateway-system
+spec:
+  parentRefs:
+    - name: agentgateway-proxy
+  rules:
+    - matches:
+        - path: { type: PathPrefix, value: /v1 }
+      backendRefs:
+        - group: agentgateway.dev
+          kind: AgentgatewayBackend
+          name: openai

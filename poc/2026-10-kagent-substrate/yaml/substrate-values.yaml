@@ -1,0 +1,33 @@
+# Agent Substrate chart values. Read by `kagent install` (through
+# kagent-cli-config.yaml) AND by 20-allowlists.sh, which renders the chart with
+# these exact values to generate the atelet WorkloadAllowlist. Change anything
+# that reaches the atelet pod (image, args, env, volumes, security context) and
+# the allowlist must be regenerated, or GKE Warden rejects the DaemonSet.
+
+rustfs:
+  # Snapshot store for actors. Hyperdisk Balanced is the only disk type in GCD
+  # and has a 4 GiB floor; ask for something the CSI driver will not round.
+  storageSize: 10Gi
+  bucketInit:
+    # Exactly what Autopilot stores for the bucket Job. Its minimum CPU request
+    # is 50m, so it raised the chart's 10m at creation; a Job's pod template is
+    # immutable, so every later upgrade of this release (a re-run of `kagent
+    # install` included) failed on the completed Job until the two matched.
+    resources:
+      requests: { cpu: 50m, memory: 128Mi, ephemeral-storage: 1Gi }
+      limits: { cpu: 500m, memory: 256Mi, ephemeral-storage: 1Gi }
+
+ateApi:
+  authorization:
+    # Principals that always hold `owner` on Substrate's global scope. `kagent
+    # install` sets only kagent's controller (its Pod Certificate SPIFFE ID);
+    # a values file replaces that list, so it is repeated here. The second is
+    # an operator identity for `kubectl ate`: a ServiceAccount
+    # (yaml/ate-operator.yaml) whose token only cluster admins can mint. The
+    # shared `ate-client` fallback that `kubectl ate` uses without
+    # --token-file is deliberately NOT an owner (Substrate's own advice outside
+    # development). Only ate-api-server's flags change; atelet is unaffected,
+    # so its allowlist stands.
+    bootstrapOwners:
+      - spiffe://cluster.local/ns/kagent/sa/kagent-controller
+      - system:serviceaccount:ate-system:ate-operator

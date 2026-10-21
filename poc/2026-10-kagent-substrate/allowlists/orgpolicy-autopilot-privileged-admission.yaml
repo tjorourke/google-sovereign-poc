@@ -1,0 +1,26 @@
+# Organisation-scoped: this affects every GKE cluster in the org.
+#
+# Extends the policy 63-allowlist-install.sh wrote for Istio rather than
+# replacing it. Paths are EXACT objects; a directory prefix is not honoured
+# (feedback/google/evidence/berlin-allowlist-path-prefix-not-honoured-2026-09-04.txt).
+#
+#   istio/...                      the earlier ambient lab, kept so it can rebuild
+#   substrate/0.6.0-alpha3/...     Agent Substrate: atelet DaemonSet, gVisor workers
+#   substrate/spare-*.yaml         authorised in advance, unused until needed: adding
+#                                  a path later costs an org policy edit plus a
+#                                  ~20 minute cluster update
+#
+# allowAnyGKEPath: true keeps GKE's own partner allowlists. Do not change it.
+name: organizations/560780939237871/policies/container.managed.autopilotPrivilegedAdmission
+spec:
+  rules:
+    - enforce: true
+      parameters:
+        allowAnyGKEPath: true
+        allowPaths:
+          - gs://agentic-allowlist/istio/1.30.4/istio-cni.yaml
+          - gs://agentic-allowlist/istio/1.30.4/istio-ztunnel.yaml
+          - gs://agentic-allowlist/substrate/0.6.0-alpha3/atelet.yaml
+          - gs://agentic-allowlist/substrate/0.6.0-alpha3/ateworker-gvisor.yaml
+          - gs://agentic-allowlist/substrate/spare-1.yaml
+          - gs://agentic-allowlist/substrate/spare-2.yaml

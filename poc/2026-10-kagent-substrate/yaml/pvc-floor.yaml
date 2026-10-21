@@ -1,0 +1,61 @@
+# Hyperdisk Balanced is the only disk type in GCD, and it has a 4 GiB floor:
+# a smaller claim fails with "Volume provisioning failed with infeasible error
+# ... InvalidArgument" and the pod waits for ever. `kagent install` creates its
+# development PostgreSQL with a 500Mi claim (fine on kind, impossible here).
+#
+# This raises any claim below the floor to the floor at creation, and makes a
+# later attempt to shrink a claim (the CLI re-applying its 500Mi manifest on a
+# re-run) a no-op instead of an error. MutatingAdmissionPolicy is GA in 1.36.
+apiVersion: admissionregistration.k8s.io/v1
+kind: MutatingAdmissionPolicy
+metadata:
+  name: hyperdisk-pvc-floor
+spec:
+  failurePolicy: Fail
+  reinvocationPolicy: IfNeeded
+  matchConstraints:
+    resourceRules:
+      - apiGroups: [""]
+        apiVersions: ["v1"]
+        operations: ["CREATE", "UPDATE"]
+        resources: ["persistentvolumeclaims"]
+  matchConditions:
+    - name: not-a-gke-managed-namespace
+      expression: >-
+        !(request.namespace in ['kube-system', 'kube-public', 'gmp-system', 'gmp-public'])
+        && !request.namespace.startsWith('gke-')
+    - name: has-storage-request
+      expression: >-
+        has(object.spec.resources) && has(object.spec.resources.requests)
+        && 'storage' in object.spec.resources.requests
+  variables:
+    - name: requested
+      expression: string(object.spec.resources.requests['storage'])
+    - name: previous
+      expression: >-
+        request.operation == 'UPDATE' && oldObject != null && has(oldObject.spec.resources)
+        && has(oldObject.spec.resources.requests) && 'storage' in oldObject.spec.resources.requests
+        ? string(oldObject.spec.resources.requests['storage']) : ''
+    # Raise only at CREATE. On UPDATE a claim's request may not grow unless it
+    # is bound, so raising an existing claim would make EVERY update to it fail,
+    # finalizer removal included: the claim could then never be deleted. On
+    # UPDATE, only turn a shrink back into "unchanged".
+    - name: target
+      expression: >-
+        request.operation == 'CREATE'
+        ? (quantity(variables.requested).isLessThan(quantity('4Gi')) ? '4Gi' : '')
+        : (variables.previous != '' && quantity(variables.requested).isLessThan(quantity(variables.previous))
+           ? variables.previous : '')
+  mutations:
+    - patchType: JSONPatch
+      jsonPatch:
+        expression: >-
+          variables.target == '' ? [] :
+          [JSONPatch{op: 'replace', path: '/spec/resources/requests/storage', value: variables.target}]
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: MutatingAdmissionPolicyBinding
+metadata:
+  name: hyperdisk-pvc-floor
+spec:
+  policyName: hyperdisk-pvc-floor

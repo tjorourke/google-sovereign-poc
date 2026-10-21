@@ -45,3 +45,9 @@ variable "autopilot_privileged_admission" {
   type        = list(string)
   default     = ["gke://*"]
 }
+
+variable "k8s_beta_apis" {
+  description = "Beta Kubernetes APIs to serve, e.g. certificates.k8s.io/v1beta1/podcertificaterequests. Creation-time only."
+  type        = list(string)
+  default     = []
+}

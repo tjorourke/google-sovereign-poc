@@ -1,0 +1,88 @@
+# kagent 1.0.0-alpha16 / Substrate 0.6.0-alpha3 / agentgateway v2026.10.0
+# cluster agentic (eu0:soloio-eval), 2026-10-21T16:22:42Z
+
+== 1. control planes and gVisor workers
+    NAME                                      READY   UP-TO-DATE   AVAILABLE   AGE
+    deployment.apps/ate-api-server            2/2     2            2           80m
+    deployment.apps/ate-controller            1/1     1            1           80m
+    deployment.apps/ate-idp-server            2/2     2            2           80m
+    deployment.apps/atenet-egress             1/1     1            1           80m
+    deployment.apps/atenet-router             1/1     1            1           80m
+    deployment.apps/k8s-credential-provider   1/1     1            1           80m
+    deployment.apps/rustfs                    1/1     1            1           80m
+    
+    NAME                    DESIRED   CURRENT   READY   UP-TO-DATE   AVAILABLE   NODE SELECTOR   AGE
+    daemonset.apps/atelet   3         3         3       3            3           <none>          80m
+    NAME                                READY   UP-TO-DATE   AVAILABLE   AGE
+    deployment.apps/kagent-controller   1/1     1            1           78m
+    deployment.apps/kagent-default      2/2     2            2           71m
+    deployment.apps/kagent-postgresql   1/1     1            1           92m
+    deployment.apps/kagent-tools        1/1     1            1           78m
+    deployment.apps/kagent-ui           1/1     1            1           78m
+    
+    NAME                                DESIRED   REPLICAS   READY   SANDBOXCONFIG    RESOLVED   AGE
+    workerpool.ate.dev/kagent-default   2         2          2       gvisor-default   True       78m
+PASS  all Substrate deployments available
+PASS  atelet on every node (3/3)
+PASS  gVisor worker pods available: 2
+    sandboxClass=gvisor defaultVersion=v4
+
+== 2. GPU workloads refused
+PASS  H100 pod refused by deny-gpu-workloads
+
+== 3. agent conversation (actor in gVisor -> agentgateway -> OpenAI)
+    +-------------------------+-------+----------------------+
+    | NAME                    | READY | CREATED              |
+    +-------------------------+-------+----------------------+
+    | trustusbank-assistant   | True  | 2026-10-21T15:13:24Z |
+    | trustusbank-sandbox-ops | True  | 2026-10-21T15:13:25Z |
+    +-------------------------+-------+----------------------+
+PASS  session 01a15f45-c9e3-7836-9f24-81e790b4d272 created for trustusbank-assistant
+    I am TrustUsBank's general assistant, named "trustusbank_assistant," running as a Substrate actor in a gVisor sandbox inside TrustUsBank AG's sovereign platform on Google Cloud Dedicated in Berlin.
+PASS  trustusbank-assistant answered
+PASS  agentgateway logged 85 chat completion(s) in the last 10 minutes
+
+== 4. standalone sandbox runs under gVisor
+    node kernel (Container-Optimized OS): 6.12.105+
+PASS  sandbox 01a15f45-d966-7419-b753-55e676938c11 created from trustusbank-scratch
+    Process proc-a3f2aa0a9cd3fd14e5aa338a in sandbox 01a15f45-d966-7419-b753-55e676938c11: started (stdout offset 0, stderr offset 0)
+    uname: Linux 4.19.0-gvisor
+    
+    [   0.000000] Starting gVisor...
+    [   0.484381] Reticulating splines...
+    [   0.956005] Digging up root...
+    [   1.045294] Rewriting the kernel in Rust...
+    [   1.265470] Creating bureaucratic processes...
+    [   1.309809] Granting licence to kill(2)...
+    [   1.346554] DeFUSEing fork bombs...
+    [   1.665744] Waiting for children...
+    [   1.915330] Checking naughty and nice process list...
+    [   2.394689] Moving files to filing cabinet...
+    [   2.607715] Consulting tar man page...
+    [   2.709170] Ready!
+    Process proc-a3f2aa0a9cd3fd14e5aa338a: PROCESS_STATUS_COMPLETED, exit_code=0
+PASS  the sandbox's kernel log is gVisor's (dmesg names gVisor)
+PASS  sandbox kernel (uname: Linux 4.19.0-gvisor) is not the node's (6.12.105+)
+
+== 5. actor state survives suspend and resume
+    suspend: 01a15f45-d966-7419-b753-55e676938c11  kagent/trustusbank-scratch  RUNTIME_STATE_SUSPENDED  RUNTIME_OPERATION_NONE  2026-10-21T16:52:55Z  
+    resume:  01a15f45-d966-7419-b753-55e676938c11  kagent/trustusbank-scratch  RUNTIME_STATE_READY  RUNTIME_OPERATION_NONE  2026-10-21T16:52:55Z  
+    after resume: Process proc-a5dd8a70c6568acc6d873fea in sandbox 01a15f45-d966-7419-b753-55e676938c11: started (stdout offset 0, stderr offset 0)
+    verify-1792599775
+    Process proc-a5dd8a70c6568acc6d873fea: PROCESS_STATUS_COMPLETED, exit_code=0
+PASS  file written before suspend is there after resume
+PASS  sandbox deleted
+
+== 6. an agent drives a gVisor sandbox through kagent's MCP tools
+    ```
+    Linux 4.19.0-gvisor
+    [    0.000000] Starting gVisor...
+    [    0.406457] Deleting VFS and rebuilding it from scratch...
+    [    0.565674] Reading process obituaries...
+    ```
+    
+    This output shows the Linux kernel version and release along with the first three lines of the dmesg kernel ring buffer log from inside the sandbox environment.
+PASS  trustusbank-sandbox-ops ran it in a gVisor sandbox
+
+== summary
+passed=13 failed=0

@@ -1,0 +1,33 @@
+# EgressPolicy test (scripts/70-substrate-behaviours.sh egress).
+#
+# A sandbox reaches nothing unless an EgressPolicy grants it: Substrate's egress
+# gateway (atenet-egress) admits only listed HTTP(S) origins, and names that no
+# policy lists do not even resolve. kagent turns an EgressPolicy referenced
+# from a SandboxTemplate (or an Agent) into the Substrate egress policy of each
+# actor; changing the references updates running sandboxes without a restart.
+#
+# The template is applied WITHOUT the reference. The script proves the deny,
+# then adds `egressPolicyRefs`, and proves one origin opens while another stays
+# closed, in the same running sandbox.
+apiVersion: api.kagent.dev/v1alpha3
+kind: EgressPolicy
+metadata:
+  name: trustusbank-egress-example
+  namespace: kagent
+spec:
+  destinations:
+    - origin: https://example.com
+---
+apiVersion: api.kagent.dev/v1alpha3
+kind: SandboxTemplate
+metadata:
+  name: trustusbank-egress
+  namespace: kagent
+spec:
+  workload:
+    image: docker.io/library/alpine:3.22@sha256:5291449c3df73caf6ed85e649dec1b9e818b39a5d8c871e97afc13e9cd5e8fa8
+  substrate:
+    workerPoolRef:
+      name: kagent-default
+    snapshotPolicy:
+      location: s3://ate-snapshots/sandboxes

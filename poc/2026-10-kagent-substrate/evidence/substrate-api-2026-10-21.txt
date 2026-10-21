@@ -1,0 +1,80 @@
+# Substrate's own API (`kubectl ate`) on GCD, and the principal it needed
+# kagent 1.0.0-alpha16 / Substrate 0.6.0-alpha3, cluster agentic (eu0:soloio-eval), 2026-10-21
+# kubectl-ate built from kagent-dev/substrate tag v0.6.0-alpha3 (git archive, go 1.27.1): scripts/lib.sh ate_cli
+
+How ate-api-server checks a caller (cmd/ateapi/internal/apiauthn, authz):
+  authentication: a client certificate's SPIFFE ID (mTLS), else a bearer JWT from a configured issuer.
+    ConfigMap ate-api-authentication: one provider, the cluster's own issuer
+    https://container.apis-berlin-build0.goog/v1/projects/eu0:soloio-eval/locations/u-germany-northeast1/clusters/agentic,
+    audience api.ate-system.svc. A ServiceAccount token authenticates as system:serviceaccount:<ns>:<name>.
+  authorization: OpenFGA; bootstrap owners always hold owner on global:root.
+    kagent install sets --authz-bootstrap-owners=spiffe://cluster.local/ns/kagent/sa/kagent-controller (only).
+
+1. No --token-file (kubectl ate mints a token for the shared ate-system/ate-client account):
+   Warning: no --token-file given; acting as the shared identity system:serviceaccount:ate-system:ate-client rather than as yourself. Pass --token-file to act as yourself.
+   Error: failed to list atespaces: rpc error: code = PermissionDenied desc = permission denied: principal "user:system%3Aserviceaccount%3Aate-system%3Aate-client" lacks "can_list_atespaces" on "global:root"
+
+2. --token-file with a kagent-controller ServiceAccount token (kubectl create token kagent-controller -n kagent --audience api.ate-system.svc):
+   Error: failed to list atespaces: rpc error: code = PermissionDenied desc = permission denied: principal "user:system%3Aserviceaccount%3Akagent%3Akagent-controller" lacks "can_list_atespaces" on "global:root"
+   (the token authenticates, but as system:serviceaccount:kagent:kagent-controller; the owner is the controller's
+   Pod Certificate SPIFFE ID, which only an mTLS client certificate carries)
+
+3. Fix: an explicit operator principal (Substrate's own advice: never ate-client outside development)
+   yaml/ate-operator.yaml       ServiceAccount ate-system/ate-operator
+   yaml/substrate-values.yaml   ateApi.authorization.bootstrapOwners:
+                                  - spiffe://cluster.local/ns/kagent/sa/kagent-controller   (kept: a values file replaces kagent's list)
+                                  - system:serviceaccount:ate-system:ate-operator
+   helm template diff, old vs new values: exactly one line, ate-api-server's
+     --authz-bootstrap-owners=...kagent-controller  ->  ...kagent-controller,system:serviceaccount:ate-system:ate-operator
+   atelet DaemonSet unchanged (generation 1 before and after), so its WorkloadAllowlist stands.
+
+4. The upgrade, and a GCD finding on the way
+   helm upgrade substrate (revision 2): FAILED
+     server-side apply failed for object ate-system/rustfs-bucket-init batch/v1, Kind=Job:
+     Job.batch "rustfs-bucket-init" is invalid: spec.template: ... field is immutable
+   cause: Autopilot raised the bucket Job's CPU request from the chart's 10m to its 50m minimum when the Job was
+   created; every later apply re-submits 10m into the completed Job's immutable pod template. Any upgrade of the
+   substrate release, including a re-run of `kagent install`, fails this way on Autopilot.
+   fix: yaml/substrate-values.yaml sets rustfs.bucketInit.resources to exactly what Autopilot stores
+        (requests cpu 50m, memory 128Mi, ephemeral-storage 1Gi; limits cpu 500m, memory 256Mi, ephemeral-storage 1Gi)
+   helm upgrade substrate (revision 3): deployed, "Upgrade complete"; ate-api-server rolled out with the new flag.
+
+5. kubectl ate --token-file <ate-operator token> (kubectl -n ate-system create token ate-operator --audience api.ate-system.svc):
+
+$ kubectl ate get atespaces
+NAME     AGE
+kagent   52m
+
+$ kubectl ate get actor-templates -A
+ATESPACE   NAME                                               GOLDEN TAG                             ERROR   AGE
+kagent     sandbox-445c9738f679e6a1192be1503a293463a4ac9f1a   2d498058-6b15-4723-aea2-37013db7ca32           52m
+kagent     trustusbank-assistant-060b947e72a2                 42a27a24-4631-4251-ad5b-4605eaae8cbe           52m
+kagent     trustusbank-sandbox-ops-4b856d2fa86a               64706418-3139-4139-93bb-e8435573b85c           50m
+kagent     trustusbank-sandbox-ops-8108f8f49db4               f51a7cc2-83f9-4aa3-b091-754d51f9d278           52m
+
+$ kubectl ate get actors -A
+ATESPACE   NAME                                           TEMPLATE                                      STATE                   WORKER POD   WORKER IPS   VERSION   AGE
+kagent     session-01a15f07-c2ad-79b1-9428-7b3cf4afa032   kagent/trustusbank-assistant-060b947e72a2     ACTOR_STATE_SUSPENDED   <none>                    5         51m
+kagent     session-01a15f08-b02c-7f10-a332-627de528d6ce   kagent/trustusbank-assistant-060b947e72a2     ACTOR_STATE_SUSPENDED   <none>                    5         50m
+kagent     session-01a15f2b-81d9-73c4-9eac-52a48ee66e62   kagent/trustusbank-assistant-060b947e72a2     ACTOR_STATE_SUSPENDED   <none>                    5         12m
+kagent     session-01a15f08-ccb5-76fb-a6c7-b8358e45d864   kagent/trustusbank-sandbox-ops-4b856d2fa86a   ACTOR_STATE_SUSPENDED   <none>                    5         50m
+kagent     session-01a15f2b-a223-7233-9a87-f18a8b91c81f   kagent/trustusbank-sandbox-ops-4b856d2fa86a   ACTOR_STATE_SUSPENDED   <none>                    5         12m
+kagent     session-01a15f07-ec97-78b7-ab1e-d9a575997541   kagent/trustusbank-sandbox-ops-8108f8f49db4   ACTOR_STATE_SUSPENDED   <none>                    5         51m
+
+$ kubectl ate get tags -A
+ATESPACE   NAME                                   SCOPE                 STATE   SNAPSHOT                                                                                  FIDELITY                    AGE
+kagent     2d498058-6b15-4723-aea2-37013db7ca32   TAG_SCOPE_PUBLISHED   Ready   s3://ate-snapshots/sandboxes/atespaces/kagent/tags/66c622a7-934d-4ec7-a264-e5d0ad9fdff4   SNAPSHOT_FIDELITY_VOLUMES   52m
+kagent     42a27a24-4631-4251-ad5b-4605eaae8cbe   TAG_SCOPE_PUBLISHED   Ready   s3://ate-snapshots/kagent/atespaces/kagent/tags/0276a0ed-e98d-4e51-98ca-f3b7ff0fd10b      SNAPSHOT_FIDELITY_VOLUMES   52m
+kagent     64706418-3139-4139-93bb-e8435573b85c   TAG_SCOPE_PUBLISHED   Ready   s3://ate-snapshots/kagent/atespaces/kagent/tags/4a6de27d-cd4f-4895-9c5c-f18a36f60ab6      SNAPSHOT_FIDELITY_VOLUMES   50m
+kagent     f51a7cc2-83f9-4aa3-b091-754d51f9d278   TAG_SCOPE_PUBLISHED   Ready   s3://ate-snapshots/kagent/atespaces/kagent/tags/ae2a20b5-d38c-48d5-b9e9-54ac61819729      SNAPSHOT_FIDELITY_VOLUMES   52m
+
+$ kubectl ate get workers
+NAME                                   POOL             STATE                 ACTORS   CPU   MEMORY   POD                                      AGE
+03f6ea2c-3b74-42f3-8e98-805f24d3a27d   kagent-default   WORKER_STATE_ACTIVE   0/1000   0/4   0/8Gi    kagent/kagent-default-7f5f946df5-8r676   53m
+bf92e8f4-68ea-4b07-9dca-4c3df4c1322b   kagent-default   WORKER_STATE_ACTIVE   0/1000   0/4   0/8Gi    kagent/kagent-default-7f5f946df5-x4j57   53m
+
+Reading: every conversation is an actor (session-<id>) restored from its template's golden tag; all were
+suspended, so no worker held any (0/4 CPU). Each worker can hold 1000 actors by count, but each running
+actor reserves its 1 CPU / 1 GiB limits, so 4 run per worker at once. A checkpoint appears as an
+atespace-scoped tag (checkpoint-<id>, TAG_SCOPE_ATESPACE; see behaviours-2026-10-21T1619Z.txt).
+The same listing, re-run by scripts/70-substrate-behaviours.sh api, is in behaviours-2026-10-21T1619Z.txt.

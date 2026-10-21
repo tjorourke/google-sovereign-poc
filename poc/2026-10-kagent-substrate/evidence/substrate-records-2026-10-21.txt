@@ -1,0 +1,33 @@
+# Substrate's own records (PostgreSQL schema 'substrate', read-only), 2026-10-21T15:54:37Z
+# kubectl -n kagent exec deploy/kagent-postgresql -c postgresql -- psql -U postgres -d kagent
+
+## atespaces
+kagent
+
+## actor_templates
+kagent/sandbox-445c9738f679e6a1192be1503a293463a4ac9f1a
+kagent/trustusbank-assistant-060b947e72a2
+kagent/trustusbank-sandbox-ops-4b856d2fa86a
+kagent/trustusbank-sandbox-ops-8108f8f49db4
+
+## actors
+kagent/session-01a15f07-c2ad-79b1-9428-7b3cf4afa032
+kagent/session-01a15f07-ec97-78b7-ab1e-d9a575997541
+kagent/session-01a15f08-b02c-7f10-a332-627de528d6ce
+kagent/session-01a15f08-ccb5-76fb-a6c7-b8358e45d864
+kagent/session-01a15f2b-81d9-73c4-9eac-52a48ee66e62
+kagent/session-01a15f2b-a223-7233-9a87-f18a8b91c81f
+
+## tags
+kagent/2d498058-6b15-4723-aea2-37013db7ca32
+kagent/42a27a24-4631-4251-ad5b-4605eaae8cbe
+kagent/64706418-3139-4139-93bb-e8435573b85c
+kagent/f51a7cc2-83f9-4aa3-b091-754d51f9d278
+
+## workers
+03f6ea2c-3b74-42f3-8e98-805f24d3a27d
+bf92e8f4-68ea-4b07-9dca-4c3df4c1322b
+
+## worker_assignments
+
+worker_assignments empty = no actor is running on a worker: all 6 session actors are suspended to their snapshots (idle auto-suspend).

@@ -1,0 +1,39 @@
+# kagent 1.0 chart values, applied by `kagent install` over its own defaults.
+
+providers:
+  openAI:
+    # The generated default ModelConfig goes through agentgateway, which holds
+    # the real OpenAI key and adds it upstream. The kagent-openai Secret only
+    # ever holds a placeholder. Full DNS name: Substrate only resolves names
+    # that match an actor's egress policy, and short names are not inferred.
+    config:
+      baseUrl: http://agentgateway-proxy.agentgateway-system.svc.cluster.local/v1
+
+config:
+  sandboxes:
+    # Standalone sandboxes need a digest-pinned guest; empty disables them.
+    guestImage: ghcr.io/kagent-dev/kagent/sandbox-guest@sha256:d3c444e3f5472598ff520255b72cfcb9ecdf22815fd87747315aeaf0520801c3
+
+substrateWorkerPool:
+  # Worker pods host the gVisor sandboxes. Each actor reserves its runtime
+  # limits (1 CPU / 1 GiB by default) out of its worker's own limits, which
+  # atelet reads through the downward API, so the pod size IS the capacity.
+  replicas: 2
+  template:
+    annotations:
+      # GKE Warden returns a ready-made WorkloadAllowlist in its rejection when
+      # the pod carries this. The worker Deployment is created at runtime by
+      # Substrate's controller, so this is how 20-allowlists.sh gets the exact
+      # spec. Harmless once an allowlist admits the pod.
+      cloud.google.com/generate-allowlist: "true"
+    resources:
+      requests:
+        cpu: "2"
+        memory: 4Gi
+      limits:
+        cpu: "4"
+        memory: 8Gi
+
+# Needs a Grafana this cluster does not have, and pulls from Docker Hub.
+grafana-mcp:
+  enabled: false

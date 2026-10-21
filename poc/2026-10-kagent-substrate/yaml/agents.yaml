@@ -1,0 +1,102 @@
+# Agents and actors for the kagent 1.0 / Agent Substrate test.
+#
+# Every agent on the Berlin cluster is named trustusbank-*. In kagent 1.0 an
+# Agent pairs portable behaviour (an inline template here) with a Harness, which
+# says how it runs. Substrate compiles each revision into an ActorTemplate,
+# boots a golden actor and snapshots it; every conversation (a Session) is then
+# an actor restored from that snapshot onto a gVisor worker, and suspended to
+# the snapshot store when idle.
+
+# How these agents run: the Go ADK (kagent's own runtime; the release's pinned
+# golang-adk image) on the gVisor pool, snapshots in the in-cluster RustFS
+# bucket Substrate installs. The Go runtime is used rather than Python because
+# a Go binary restores cleanly from a snapshot across workers.
+apiVersion: api.kagent.dev/v1alpha3
+kind: Harness
+metadata:
+  name: trustusbank-go
+  namespace: kagent
+spec:
+  kagent: {}
+  substrate:
+    workerPoolRef:
+      name: kagent-default
+    snapshotPolicy:
+      location: s3://ate-snapshots/kagent
+---
+apiVersion: api.kagent.dev/v1alpha3
+kind: Agent
+metadata:
+  name: trustusbank-assistant
+  namespace: kagent
+spec:
+  harnessRef:
+    name: trustusbank-go
+  template:
+    inline:
+      # default-model-config: OpenAI through agentgateway (yaml/kagent-values.yaml).
+      modelConfig:
+        name: default-model-config
+      description: TrustUsBank's general assistant, running as a Substrate actor in a gVisor sandbox.
+      systemPrompt: |
+        You are the TrustUsBank assistant. TrustUsBank AG is a German bank, and
+        you run inside its sovereign platform on Google Cloud Dedicated in
+        Berlin. Answer briefly and precisely. If you do not know something, say so.
+---
+# The scratch environment a sandbox gets: a tools image (digest-pinned, as
+# kagent requires) with kagent's guest supplied as the entrypoint. No egress:
+# a sandbox with no EgressPolicy reaches nothing.
+apiVersion: api.kagent.dev/v1alpha3
+kind: SandboxTemplate
+metadata:
+  name: trustusbank-scratch
+  namespace: kagent
+spec:
+  workload:
+    image: docker.io/library/alpine:3.22@sha256:5291449c3df73caf6ed85e649dec1b9e818b39a5d8c871e97afc13e9cd5e8fa8
+  env:
+    - name: LANG
+      value: C.UTF-8
+  substrate:
+    workerPoolRef:
+      name: kagent-default
+    snapshotPolicy:
+      location: s3://ate-snapshots/sandboxes
+---
+# An agent that creates and drives sandboxes through kagent's own MCP API.
+# Asking it to inspect its environment is the in-agent gVisor proof: the
+# commands run in a separate gVisor-sandboxed actor and report gVisor's kernel.
+apiVersion: api.kagent.dev/v1alpha3
+kind: Agent
+metadata:
+  name: trustusbank-sandbox-ops
+  namespace: kagent
+spec:
+  harnessRef:
+    name: trustusbank-go
+  template:
+    inline:
+      modelConfig:
+        name: default-model-config
+      description: Runs shell commands for TrustUsBank engineers in short-lived, gVisor-isolated sandboxes.
+      systemPrompt: |
+        You run shell commands for TrustUsBank engineers in isolated sandboxes.
+        To run a command: call create_sandbox with namespace "kagent", template
+        "trustusbank-scratch" and a fresh request_id; start the command as a
+        process with command ["sh", "-c", "<command>"]; poll get_sandbox_process
+        until it has finished; read_sandbox_outputs; then delete_sandbox. Report
+        the command output verbatim in a code block, then one sentence on what
+        it shows.
+      tools:
+        - mcp:
+            server:
+              kind: RemoteMCPServer
+              name: kagent-api
+            tools:
+              - list_sandbox_templates
+              - create_sandbox
+              - get_sandbox
+              - start_sandbox_process
+              - get_sandbox_process
+              - read_sandbox_outputs
+              - delete_sandbox

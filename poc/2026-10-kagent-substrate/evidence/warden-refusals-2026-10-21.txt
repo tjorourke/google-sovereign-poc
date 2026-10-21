@@ -1,0 +1,11 @@
+# GKE Warden refusals of Agent Substrate 0.6.0-alpha3 on GCD Autopilot (1.36.4), before any allowlist
+# Captured 2026-10-21. 'Requested by' identity lines removed.
+
+## atelet DaemonSet (server-side dry run, 20-allowlists.sh atelet)
+Error from server (GKE Warden constraints violations): error when creating "/Users/thomasorourke/code/google-sov/poc/2026-10-kagent-substrate/deploy/allowlists/atelet-ds-annotated.yaml": admission webhook "warden-validating.common-webhooks.networking.gke.io" denied the request: GKE Warden rejected the request because it violates one or more constraints.
+Violations details: {"[denied by autogke-no-write-mode-hostpath]":["hostPath volume ate-base in container atelet is accessed in write mode; disallowed in Autopilot.","hostPath volume kubelet-plugins in container atelet is accessed in write mode; disallowed in Autopilot.","hostPath volume device-plugins in container atelet is accessed in write mode; disallowed in Autopilot.","hostPath volume host-dev used in container atelet uses path /dev which is not allowed in Autopilot. Allowed path prefixes for hostPath volumes are: [/var/log/].","hostPath volume ate-base in container objectstore-plugin is accessed in write mode; disallowed in Autopilot."]}
+
+
+## gVisor worker Deployment (applied by ate-controller; from its log)
+2026-10-21T15:04:07.550106019Z failed to apply Deployment: admission webhook "warden-validating.common-webhooks.networking.gke.io" denied the request: GKE Warden rejected the request because it violates one or more constraints.
+Violations details: {"[denied by autogke-default-linux-capabilities]":["linux capability 'NET_ADMIN,SYS_ADMIN' on container 'worker' not allowed; Autopilot only allows the capabilities: 'AUDIT_WRITE,CHOWN,DAC_OVERRIDE,FOWNER,FSETID,KILL,MKNOD,NET_BIND_SERVICE,NET_RAW,SETFCAP,SETGID,SETPCAP,SETUID,SYS_CHROOT,SYS_PTRACE'."],"[denied by autogke-no-write-mode-hostpath]":["hostPath volume ate-base in container worker is accessed in write mode; disallowed in Autopilot."]}

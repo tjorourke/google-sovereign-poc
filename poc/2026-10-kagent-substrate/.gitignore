@@ -1,0 +1,3 @@
+# Local working state: isolated kubeconfig, cluster describe, rendered and
+# generated scratch files. Evidence worth keeping goes in evidence/.
+deploy/

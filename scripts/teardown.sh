@@ -4,6 +4,8 @@
 #   ./scripts/teardown.sh              destroy the CLUSTER (default)
 #   ./scripts/teardown.sh --all        destroy everything, including Cloud SQL
 #   ./scripts/teardown.sh --dry-run    show what would be destroyed, change nothing
+#   ./scripts/teardown.sh --no-preclean  skip deleting load balancers and PVCs
+#                                        first (orphans them; see preclean_cluster)
 #
 # WHAT "TEARDOWN" MEANS HERE, AND WHY THE DEFAULT IS THE CLUSTER
 # Destroying the cluster destroys every piece of state this project actually
@@ -30,14 +32,54 @@ grn(){ printf '\033[32m%s\033[0m\n' "$*"; }
 ylw(){ printf '\033[33m%s\033[0m\n' "$*" >&2; }
 hdr(){ printf '\n\033[1;34m══ %s\033[0m\n' "$*"; }
 
-ALL=0; DRY=0
+ALL=0; DRY=0; PRECLEAN=1
 for a in "$@"; do
   case "$a" in
-    --all)     ALL=1 ;;
-    --dry-run) DRY=1 ;;
+    --all)         ALL=1 ;;
+    --dry-run)     DRY=1 ;;
+    --no-preclean) PRECLEAN=0 ;;
     *) red "unknown flag: $a"; exit 64 ;;
   esac
 done
+
+# Deleting a GKE cluster does not delete the cloud resources its controllers
+# created: a LoadBalancer Service leaves its forwarding rule and address, a
+# Gateway its NEGs, and a PVC its Hyperdisk. Those controllers only clean up
+# while they are running, so remove the objects first and let them. On
+# 2026-10-21 this left 6 load balancers and 4 disks (one of them 200 GiB) to be
+# cleaned by hand.
+preclean_cluster() {
+  local kcfg cluster="${CLUSTER_NAME:-agentic}"
+  kcfg="$(mktemp)"
+  if ! KUBECONFIG="$kcfg" gcloud container clusters get-credentials "$cluster" \
+      --location "$UNIVERSE_REGION" --project "$PROJECT_ID" >/dev/null 2>&1; then
+    ylw "  cluster $cluster not reachable; skipping the pre-clean"
+    rm -f "$kcfg"; return 0
+  fi
+  local k=(kubectl --kubeconfig "$kcfg" --request-timeout=30s)
+  "${k[@]}" delete gateway --all -A --wait=false >/dev/null 2>&1 || true
+  "${k[@]}" get svc -A --field-selector spec.type=LoadBalancer \
+    -o jsonpath='{range .items[*]}{.metadata.namespace}{" "}{.metadata.name}{"\n"}{end}' 2>/dev/null \
+    | while read -r ns name; do
+        [[ -n "$name" ]] && "${k[@]}" -n "$ns" delete svc "$name" --wait=false >/dev/null 2>&1
+      done
+  # Deleting the namespaces removes PVC consumers and then the PVCs; the CSI
+  # driver deletes each disk (reclaimPolicy Delete) while it still can.
+  "${k[@]}" get ns -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}{end}' 2>/dev/null \
+    | grep -v -E '^(default|kube-.*|gke-.*|gmp-.*)$' \
+    | while read -r ns; do "${k[@]}" delete ns "$ns" --wait=false >/dev/null 2>&1; done
+  local i lbs pvs
+  for i in $(seq 1 36); do
+    lbs="$("${k[@]}" get svc -A --field-selector spec.type=LoadBalancer --no-headers 2>/dev/null | wc -l | tr -d ' ')"
+    pvs="$("${k[@]}" get pv --no-headers 2>/dev/null | wc -l | tr -d ' ')"
+    [[ "$lbs" == 0 && "$pvs" == 0 ]] && break
+    sleep 5
+  done
+  [[ "$lbs" == 0 && "$pvs" == 0 ]] \
+    && grn "  ok load balancers and disks released" \
+    || ylw "  still present after 3 minutes: $lbs LoadBalancer Service(s), $pvs PV(s); check for orphans afterwards"
+  rm -f "$kcfg"
+}
 
 # shellcheck disable=SC1091
 source "$REPO/.env.local"
@@ -78,6 +120,11 @@ fi
 if [[ "$DRY" -eq 1 ]]; then
   hdr "Dry run — nothing was changed"
   exit 0
+fi
+
+if [[ "$PRECLEAN" -eq 1 ]]; then
+  hdr "Releasing load balancers and disks while the cluster's controllers can"
+  preclean_cluster
 fi
 
 hdr "Destroying (this takes ~10 minutes)"

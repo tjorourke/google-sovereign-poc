@@ -222,6 +222,18 @@ variable "autopilot_privileged_admission" {
   default     = ["gke://*"]
 }
 
+variable "k8s_beta_apis" {
+  description = <<-EOT
+    Beta Kubernetes APIs the cluster serves. Agent Substrate (kagent 1.0) needs
+    certificates.k8s.io/v1beta1/podcertificaterequests and
+    certificates.k8s.io/v1beta1/clustertrustbundles on GKE 1.36; on 1.37+ both
+    are GA and this stays empty. GKE applies it only when the cluster is
+    created, so changing it means recreating the cluster.
+  EOT
+  type        = list(string)
+  default     = []
+}
+
 variable "enable_private_nodes" {
   description = "Autopilot nodes take no external IP and egress via Cloud NAT. See the module."
   type        = bool

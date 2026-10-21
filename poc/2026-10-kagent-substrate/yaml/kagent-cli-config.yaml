@@ -1,0 +1,10 @@
+# kagent CLI configuration for `kagent install` (scripts/40-kagent.sh).
+# Paths are relative to this file. No secrets here: the CLI reads the provider
+# key from the environment, and 40-kagent.sh passes a placeholder because the
+# real OpenAI key lives only in agentgateway.
+install:
+  defaultModelProvider: OpenAI
+  kagent:
+    valuesFiles: [kagent-values.yaml]
+  substrate:
+    valuesFiles: [substrate-values.yaml]

@@ -1,0 +1,151 @@
+# kagent 1.0.0-alpha16 / Substrate 0.6.0-alpha3 / agentgateway v2026.10.0
+# cluster agentic (eu0:soloio-eval), 2026-10-21T16:19:56Z, sections: all
+
+== Substrate API view through kubectl ate
+    $ kubectl ate get atespaces        # no --token-file: the shared ate-client identity
+    Warning: no --token-file given; acting as the shared identity system:serviceaccount:ate-system:ate-client rather than as yourself. Pass --token-file to act as yourself.
+    Error: failed to list atespaces: rpc error: code = PermissionDenied desc = permission denied: principal "user:system%3Aserviceaccount%3Aate-system%3Aate-client" lacks "can_list_atespaces" on "global:root"
+PASS  the shared ate-client identity is refused (not a bootstrap owner)
+    $ kubectl ate --token-file ate-operator.token get atespaces
+    NAME     AGE
+    kagent   66m
+PASS  kubectl ate get atespaces (as ate-operator)
+    $ kubectl ate --token-file ate-operator.token get actor-templates -A
+    ATESPACE   NAME                                               GOLDEN TAG                             ERROR   AGE
+    kagent     sandbox-445c9738f679e6a1192be1503a293463a4ac9f1a   2d498058-6b15-4723-aea2-37013db7ca32           66m
+    kagent     sandbox-f0987ea175d0ad046d0eea5e40ed11387eb319cb   7f5f9e22-542c-4146-afde-990fe223a24a           3m46s
+    kagent     trustusbank-assistant-060b947e72a2                 42a27a24-4631-4251-ad5b-4605eaae8cbe           66m
+    kagent     trustusbank-sandbox-ops-4b856d2fa86a               64706418-3139-4139-93bb-e8435573b85c           64m
+    kagent     trustusbank-sandbox-ops-8108f8f49db4               f51a7cc2-83f9-4aa3-b091-754d51f9d278           66m
+PASS  kubectl ate get actor-templates -A (as ate-operator)
+    $ kubectl ate --token-file ate-operator.token get actors -A
+    ATESPACE   NAME                                           TEMPLATE                                      STATE                   WORKER POD   WORKER IPS   VERSION   AGE
+    kagent     session-01a15f07-c2ad-79b1-9428-7b3cf4afa032   kagent/trustusbank-assistant-060b947e72a2     ACTOR_STATE_SUSPENDED   <none>                    5         64m
+    kagent     session-01a15f08-b02c-7f10-a332-627de528d6ce   kagent/trustusbank-assistant-060b947e72a2     ACTOR_STATE_SUSPENDED   <none>                    5         63m
+    kagent     session-01a15f2b-81d9-73c4-9eac-52a48ee66e62   kagent/trustusbank-assistant-060b947e72a2     ACTOR_STATE_SUSPENDED   <none>                    5         25m
+    kagent     session-01a15f38-d2bd-7690-8bd3-33ec13bf9d42   kagent/trustusbank-assistant-060b947e72a2     ACTOR_STATE_SUSPENDED   <none>                    1         11m
+    kagent     session-01a15f39-3472-7d7d-88a4-c10f21c5e05e   kagent/trustusbank-assistant-060b947e72a2     ACTOR_STATE_SUSPENDED   <none>                    13        10m
+    kagent     session-01a15f39-a9f7-7ae7-b142-ec96982d5557   kagent/trustusbank-assistant-060b947e72a2     ACTOR_STATE_SUSPENDED   <none>                    5         10m
+    kagent     session-01a15f08-ccb5-76fb-a6c7-b8358e45d864   kagent/trustusbank-sandbox-ops-4b856d2fa86a   ACTOR_STATE_SUSPENDED   <none>                    5         63m
+    kagent     session-01a15f2b-a223-7233-9a87-f18a8b91c81f   kagent/trustusbank-sandbox-ops-4b856d2fa86a   ACTOR_STATE_SUSPENDED   <none>                    5         25m
+    kagent     session-01a15f07-ec97-78b7-ab1e-d9a575997541   kagent/trustusbank-sandbox-ops-8108f8f49db4   ACTOR_STATE_SUSPENDED   <none>                    5         64m
+PASS  kubectl ate get actors -A (as ate-operator)
+    $ kubectl ate --token-file ate-operator.token get tags -A
+    ATESPACE   NAME                                              SCOPE                 STATE   SNAPSHOT                                                                                  FIDELITY                    AGE
+    kagent     2d498058-6b15-4723-aea2-37013db7ca32              TAG_SCOPE_PUBLISHED   Ready   s3://ate-snapshots/sandboxes/atespaces/kagent/tags/66c622a7-934d-4ec7-a264-e5d0ad9fdff4   SNAPSHOT_FIDELITY_VOLUMES   66m
+    kagent     42a27a24-4631-4251-ad5b-4605eaae8cbe              TAG_SCOPE_PUBLISHED   Ready   s3://ate-snapshots/kagent/atespaces/kagent/tags/0276a0ed-e98d-4e51-98ca-f3b7ff0fd10b      SNAPSHOT_FIDELITY_VOLUMES   66m
+    kagent     64706418-3139-4139-93bb-e8435573b85c              TAG_SCOPE_PUBLISHED   Ready   s3://ate-snapshots/kagent/atespaces/kagent/tags/4a6de27d-cd4f-4895-9c5c-f18a36f60ab6      SNAPSHOT_FIDELITY_VOLUMES   64m
+    kagent     7f5f9e22-542c-4146-afde-990fe223a24a              TAG_SCOPE_PUBLISHED   Ready   s3://ate-snapshots/sandboxes/atespaces/kagent/tags/67f0ba88-b3f7-4781-9de9-46bed6a48269   SNAPSHOT_FIDELITY_VOLUMES   3m46s
+    kagent     checkpoint-01a15f39-79c2-75fc-9343-f22eed209dfb   TAG_SCOPE_ATESPACE    Ready   s3://ate-snapshots/kagent/atespaces/kagent/tags/ea1c9340-5857-4c31-9ae7-623acf5bdedd      SNAPSHOT_FIDELITY_VOLUMES   10m
+    kagent     f51a7cc2-83f9-4aa3-b091-754d51f9d278              TAG_SCOPE_PUBLISHED   Ready   s3://ate-snapshots/kagent/atespaces/kagent/tags/ae2a20b5-d38c-48d5-b9e9-54ac61819729      SNAPSHOT_FIDELITY_VOLUMES   66m
+PASS  kubectl ate get tags -A (as ate-operator)
+    $ kubectl ate --token-file ate-operator.token get workers
+    NAME                                   POOL             STATE                 ACTORS   CPU   MEMORY   POD                                      AGE
+    03f6ea2c-3b74-42f3-8e98-805f24d3a27d   kagent-default   WORKER_STATE_ACTIVE   0/1000   0/4   0/8Gi    kagent/kagent-default-7f5f946df5-8r676   67m
+    bf92e8f4-68ea-4b07-9dca-4c3df4c1322b   kagent-default   WORKER_STATE_ACTIVE   0/1000   0/4   0/8Gi    kagent/kagent-default-7f5f946df5-x4j57   67m
+PASS  kubectl ate get workers (as ate-operator)
+
+== session checkpoint and fork (kagent MCP: create_session_checkpoint, fork_session)
+    session 01a15f43-4ac4-7580-9de5-d87d46591ced: planted KESTREL-42 in task 01a15f43-4daa-705d-8351-0c2e1b97f56a
+    {
+      "checkpoint": {
+        "created_at": "2026-10-21T16:20:10.382003915Z",
+        "head_task_id": "01a15f43-4daa-705d-8351-0c2e1b97f56a",
+        "history_sequence": 3277,
+        "id": "01a15f43-540a-7d3e-bc33-43ac74308c32",
+        "name": "01a15f43-4ac4-7580-9de5-d87d46591ced-01a15f43-4daa-705d-8351-0c2e1b97f56a",
+        "session_id": "01a15f43-4ac4-7580-9de5-d87d46591ced",
+        "state": "CHECKPOINT_STATE_READY"
+      }
+    }
+PASS  checkpoint 01a15f43-540a-7d3e-bc33-43ac74308c32 READY at task 01a15f43-4daa-705d-8351-0c2e1b97f56a
+    session 01a15f43-4ac4-7580-9de5-d87d46591ced: planted OSPREY-7 AFTER the checkpoint
+PASS  fork_session created session 01a15f43-5f48-701b-a9d2-e922fe0c35ec
+    fork     01a15f43-5f48-701b-a9d2-e922fe0c35ec: KESTREL-42
+    original 01a15f43-4ac4-7580-9de5-d87d46591ced: KESTREL-42
+    OSPREY-7
+PASS  the fork carries the context up to the checkpoint, and nothing after it
+PASS  the original keeps its full history
+    ATESPACE   NAME                                              SCOPE                 STATE   SNAPSHOT                                                                                  FIDELITY                    AGE
+    kagent     checkpoint-01a15f43-540a-7d3e-bc33-43ac74308c32   TAG_SCOPE_ATESPACE    Ready   s3://ate-snapshots/kagent/atespaces/kagent/tags/a457a0ee-e33c-4542-b581-5289e2e6733e      SNAPSHOT_FIDELITY_VOLUMES   7s
+
+== EgressPolicy: deny by default, then exactly one origin
+PASS  sandbox 01a15f43-7ad3-764f-9658-a47b02216f00 created from trustusbank-egress (no EgressPolicy)
+    resolv.conf: nameserver 169.254.17.1
+    routes: ::1 dev lo scope link ;fe80::/64 dev eth0 scope link ;169.254.17.0/30 dev eth0 scope link ;127.0.0.0/8 dev lo scope link ;default via 169.254.17.1 dev eth0 scope link ;
+    before the grant, https://example.com: rc=1
+    wget: bad address 'example.com'
+PASS  no EgressPolicy: https://example.com unreachable
+    before the grant, https://api.github.com: rc=1
+    wget: bad address 'api.github.com'
+PASS  no EgressPolicy: https://api.github.com unreachable
+    before the grant, http://1.1.1.1/ (IP literal, no DNS): rc=1
+    wget: server returned error: HTTP/1.1 403 Forbidden
+PASS  an IP literal is refused by the egress gateway (403), not routed around it
+    Ready=True Prepared
+    EgressPoliciesApplied=True Applied
+    after the grant, https://example.com (same sandbox, not restarted): rc=0
+    <!doctype html><html lang=en><head><meta charset=utf-8><link rel=icon href=data:,><meta name=viewport content="width=device-width,initial-scale=1"><title>Exampl
+PASS  granted origin https://example.com reachable from the running sandbox
+    after the grant, https://api.github.com: rc=1
+    wget: bad address 'api.github.com'
+PASS  ungranted origin https://api.github.com still unreachable
+    atenet-egress request log for this sandbox's actor:
+    2026-10-21T16:20:22.617878Z	error	request request.id=3303 gateway=default/default listener=listener1 route=default/route0 src.addr=10.32.0.66:53962 http.method=GET http.host=1.1.1.1 http.path=/ http.version=HTTP/1.1 http.status=403 protocol=http ate.actor.name=session-01a15f43-7ad3-764f-9658-a47b02216f00 ate.actor.uid=076816be-e630-4322-bb9d-7ebd8c14a9fa ate.atespace=kagent error="actor egress policy denied destinati
+    2026-10-21T16:20:29.850410Z	info	request request.id=3304 gateway=default/default listener=listener0 route=default/route0 endpoint=example.com:443 src.addr=10.32.0.66:53962 http.method=GET http.host=example.com http.path=/ http.version=HTTP/1.1 http.status=200 protocol=http ate.actor.name=session-01a15f43-7ad3-764f-9658-a47b02216f00 ate.actor.uid=076816be-e630-4322-bb9d-7ebd8c14a9fa ate.atespace=kagent duration=41ms
+PASS  atenet-egress logged the policy denial for this actor
+
+== multiplexing: 20 conversations on the gVisor WorkerPool, two rounds
+    NAME                                   POOL             STATE                 ACTORS   CPU   MEMORY   POD                                      AGE
+    03f6ea2c-3b74-42f3-8e98-805f24d3a27d   kagent-default   WORKER_STATE_ACTIVE   0/1000   0/4   0/8Gi    kagent/kagent-default-7f5f946df5-8r676   67m
+    bf92e8f4-68ea-4b07-9dca-4c3df4c1322b   kagent-default   WORKER_STATE_ACTIVE   0/1000   0/4   0/8Gi    kagent/kagent-default-7f5f946df5-x4j57   67m
+PASS  20 sessions created (one Substrate actor each)
+PASS  round 1: all 20 concurrent invocations answered
+PASS  round 2: all 20 answered, each from its own resumed actor
+    out-1-01a15f43-c732-723a-af0f-68b0bbb554c5.txt: A bank cares where its AI agents run because security and compliance are paramount. Running AI within a trusted, controlled environment helps protect sensitive financial data from unauthorized access or breaches. It ensures adherence to regulatory requirements, such as data sovereignty laws that mandate data to remain within specific jurisdictions. Additionally, reliable infrastructure minimizes downtime and errors, safeguarding customer trust. Ultimately, the location and platform impact operational risk, privacy, and regulatory compliance, all critical for a bank's reputation and legal standing.
+    sessions: 20 (one Substrate actor each), workers: 2 (kagent-default-7f5f946df5-8r676, kagent-default-7f5f946df5-x4j57)
+    
+    round 1: 20 concurrent invocations, 20 succeeded, 0 failed
+      end-to-end seconds (create-to-answer incl. model call): p50 13.4  p95 17.0  max 17.0
+    
+    round 2: 20 concurrent invocations, 20 succeeded, 0 failed
+      end-to-end seconds (create-to-answer incl. model call): p50 5.4  p95 7.4  max 8.0
+    
+    actors assigned to a worker over time (substrate.worker_assignments):
+      16:20:44.186  total= 0  kagent-default-7f5f946df5-8r676=0  kagent-default-7f5f946df5-x4j57=0
+      16:20:45.897  total= 8  kagent-default-7f5f946df5-8r676=4  kagent-default-7f5f946df5-x4j57=4
+      16:20:47.698  total= 8  kagent-default-7f5f946df5-8r676=4  kagent-default-7f5f946df5-x4j57=4
+      16:20:49.504  total= 8  kagent-default-7f5f946df5-8r676=4  kagent-default-7f5f946df5-x4j57=4
+      16:20:51.294  total= 8  kagent-default-7f5f946df5-8r676=4  kagent-default-7f5f946df5-x4j57=4
+      16:20:53.084  total= 8  kagent-default-7f5f946df5-8r676=4  kagent-default-7f5f946df5-x4j57=4
+      16:20:54.899  total= 8  kagent-default-7f5f946df5-8r676=4  kagent-default-7f5f946df5-x4j57=4
+      16:20:56.782  total= 8  kagent-default-7f5f946df5-8r676=4  kagent-default-7f5f946df5-x4j57=4
+      16:20:58.490  total= 4  kagent-default-7f5f946df5-8r676=3  kagent-default-7f5f946df5-x4j57=1
+      16:21:00.191  total= 3  kagent-default-7f5f946df5-8r676=2  kagent-default-7f5f946df5-x4j57=1
+      16:21:01.747  total= 0  kagent-default-7f5f946df5-8r676=0  kagent-default-7f5f946df5-x4j57=0
+      16:21:03.399  total= 8  kagent-default-7f5f946df5-8r676=4  kagent-default-7f5f946df5-x4j57=4
+      16:21:05.203  total= 8  kagent-default-7f5f946df5-8r676=4  kagent-default-7f5f946df5-x4j57=4
+      16:21:06.902  total= 8  kagent-default-7f5f946df5-8r676=4  kagent-default-7f5f946df5-x4j57=4
+      16:21:08.786  total= 6  kagent-default-7f5f946df5-8r676=4  kagent-default-7f5f946df5-x4j57=2
+      16:21:10.378  total= 0  kagent-default-7f5f946df5-8r676=0  kagent-default-7f5f946df5-x4j57=0
+      peak: 8 running at once of 20 actors; per worker kagent-default-7f5f946df5-8r676 4, kagent-default-7f5f946df5-x4j57 4
+    
+    resume latency, Substrate resuming -> running (40 resumes): p50 343 ms  p95 446 ms  max 464 ms
+    transitions logged: resuming 40, running 40, suspended 40, suspending 40
+    
+    atenet-router lines naming 'no worker has room': 34
+      2026-10-21T16:20:49.586653Z	warn	http::substrate::ingress	substrate ResumeActor failed	request.id=160 actor="session-01a15f43-c8d9-7754-9c01-5e832a2dff7e" atespace="kagent" grpc.code=ResourceExhausted grpc.message="no worker has room for the actor"
+      2026-10-21T16:20:49.586779Z	error	request gateway=default/default listener=http route=default/substrate-actors-grpc src.addr=10.32.1.6:41672 http.method=POST http.host=atenet-router.ate-system.svc http.path=/lf.a2a.v1.A2AService/SendMessage http.version=HTTP/2.0 http.status=200 grpc.status=14 protoc
+      2026-10-21T16:20:49.601645Z	warn	http::substrate::ingress	substrate ResumeActor failed	request.id=161 actor="session-01a15f43-b262-71e5-a1b0-6412c6b77273" atespace="kagent" grpc.code=ResourceExhausted grpc.message="no worker has room for the actor"
+    
+    actors seen running in both rounds: 19; resumed on a different worker in round 2: 5
+      session-01a15f43-b262-71e5-a1b0-6412c6b77273: round 1 on kagent-default-7f5f946df5-8r676 -> round 2 on kagent-default-7f5f946df5-x4j57
+      session-01a15f43-b5df-7583-887f-d3b70899a954: round 1 on kagent-default-7f5f946df5-x4j57 -> round 2 on kagent-default-7f5f946df5-8r676
+      session-01a15f43-b961-71b6-b1bc-71fb86abbfa2: round 1 on kagent-default-7f5f946df5-x4j57 -> round 2 on kagent-default-7f5f946df5-8r676
+      session-01a15f43-c3c8-7467-a748-1f8144c7c45f: round 1 on kagent-default-7f5f946df5-8r676 -> round 2 on kagent-default-7f5f946df5-x4j57
+      session-01a15f43-cdf7-793b-a9a3-65def806e826: round 1 on kagent-default-7f5f946df5-x4j57 -> round 2 on kagent-default-7f5f946df5-8r676
+PASS  multiplexed: peak: 8 running at once of 20 actors
+PASS  an actor resumed on a different worker than it ran on
+
+== summary
+passed=22 failed=0

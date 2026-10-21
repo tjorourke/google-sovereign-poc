@@ -1,0 +1,23 @@
+# Re-running the installer over the live install (scripts/40-kagent.sh), 2026-10-21 16:32Z and 16:34Z
+# kagent 1.0.0-alpha16 / Substrate 0.6.0-alpha3, cluster agentic (eu0:soloio-eval)
+
+## helm history substrate (ate-system; times BST; kagent install keeps only the last revisions)
+  rev 4  2026-10-21T17:32:31  superseded  Upgrade complete
+  rev 5  2026-10-21T17:34:33  deployed    Upgrade complete
+
+  Earlier, from this session's own output (substrate-api-2026-10-21.txt):
+  rev 2 failed before the fix: Autopilot stored the bucket Job with cpu 50m, the chart re-submitted 10m into its immutable template.
+  rev 3: helm upgrade --reuse-values -f yaml/substrate-values.yaml (with rustfs.bucketInit.resources).
+  rev 4, 5: full `kagent install` re-runs via 40-kagent.sh, both on the first attempt.
+
+## kagent install lines from the re-runs
+    ok kagent install (attempt 1)
+    ok kagent install (attempt 1)
+  40-kagent.sh exit: first re-run 1 (its last line, a malformed kubectl get, since fixed), second re-run 0
+
+## after the re-runs
+  ate-api-server: --authz-bootstrap-owners=spiffe://cluster.local/ns/kagent/sa/kagent-controller,system:serviceaccount:ate-system:ate-operator
+  (a values file comes after kagent's own install values, so its bootstrapOwners list wins)
+  atelet DaemonSet generation 1, ready 3/3 (unchanged: its WorkloadAllowlist still matches)
+  substrate-atelet-0.6.0-alpha3 substrate-ateworker-gvisor-0.6.0-alpha3 
+  70-substrate-behaviours.sh all afterwards: 22 passed, 0 failed (behaviours-2026-10-21T1635Z.txt)

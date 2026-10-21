@@ -1,0 +1,79 @@
+# No GPUs on this cluster, enforced rather than merely absent.
+#
+# Autopilot provisions an accelerator node for any pod that asks for one: the
+# previous cluster ran an a3-edgegpu-8g-nolssd (H100) node for Gemma around the
+# clock. With no Node pools to remove, the only cluster-side lever is admission,
+# so this policy refuses any workload that requests an accelerator resource or
+# selects accelerator nodes.
+#
+# Checked on the workload objects as well as Pods so a Deployment is refused at
+# `kubectl apply`, where someone will see it, rather than only as a ReplicaSet
+# event. GKE's own namespaces are exempt so the policy can never block a
+# managed component.
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicy
+metadata:
+  name: deny-gpu-workloads
+spec:
+  failurePolicy: Fail
+  matchConstraints:
+    resourceRules:
+      - apiGroups: [""]
+        apiVersions: ["v1"]
+        operations: ["CREATE", "UPDATE"]
+        resources: ["pods"]
+      - apiGroups: ["apps"]
+        apiVersions: ["v1"]
+        operations: ["CREATE", "UPDATE"]
+        resources: ["deployments", "statefulsets", "daemonsets", "replicasets"]
+      - apiGroups: ["batch"]
+        apiVersions: ["v1"]
+        operations: ["CREATE", "UPDATE"]
+        resources: ["jobs", "cronjobs"]
+  matchConditions:
+    - name: not-a-gke-managed-namespace
+      expression: >-
+        !(request.namespace in ['kube-system', 'kube-public', 'kube-node-lease', 'gmp-system', 'gmp-public'])
+        && !request.namespace.startsWith('gke-')
+  variables:
+    - name: podSpec
+      expression: >-
+        object.kind == 'Pod' ? object.spec :
+        object.kind == 'CronJob' ? object.spec.jobTemplate.spec.template.spec :
+        object.spec.template.spec
+    - name: containers
+      expression: >-
+        variables.podSpec.containers +
+        (has(variables.podSpec.initContainers) ? variables.podSpec.initContainers : [])
+    - name: acceleratorResource
+      expression: >-
+        ['nvidia.com/', 'amd.com/', 'google.com/tpu']
+  validations:
+    - expression: >-
+        variables.containers.all(c,
+          !has(c.resources) || (
+            (!has(c.resources.limits) || !c.resources.limits.exists(k,
+              variables.acceleratorResource.exists(p, k.startsWith(p)))) &&
+            (!has(c.resources.requests) || !c.resources.requests.exists(k,
+              variables.acceleratorResource.exists(p, k.startsWith(p))))))
+      reason: Forbidden
+      message: >-
+        GPU access is disabled on this cluster: containers may not request
+        accelerator resources (nvidia.com/*, amd.com/*, google.com/tpu).
+    - expression: >-
+        !has(variables.podSpec.nodeSelector) ||
+        !variables.podSpec.nodeSelector.exists(k,
+          k in ['cloud.google.com/gke-accelerator', 'cloud.google.com/gke-tpu-accelerator',
+                'cloud.google.com/gke-accelerator-count'])
+      reason: Forbidden
+      message: >-
+        GPU access is disabled on this cluster: workloads may not select
+        accelerator nodes.
+---
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionPolicyBinding
+metadata:
+  name: deny-gpu-workloads
+spec:
+  policyName: deny-gpu-workloads
+  validationActions: [Deny]

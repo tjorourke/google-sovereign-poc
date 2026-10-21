@@ -1,0 +1,40 @@
+sessions: 20 (one Substrate actor each), workers: 2 (kagent-default-7f5f946df5-8r676, kagent-default-7f5f946df5-x4j57)
+
+round 1: 20 concurrent invocations, 20 succeeded, 0 failed
+  end-to-end seconds (create-to-answer incl. model call): p50 13.4  p95 17.0  max 17.0
+
+round 2: 20 concurrent invocations, 20 succeeded, 0 failed
+  end-to-end seconds (create-to-answer incl. model call): p50 5.4  p95 7.4  max 8.0
+
+actors assigned to a worker over time (substrate.worker_assignments):
+  16:20:44.186  total= 0  kagent-default-7f5f946df5-8r676=0  kagent-default-7f5f946df5-x4j57=0
+  16:20:45.897  total= 8  kagent-default-7f5f946df5-8r676=4  kagent-default-7f5f946df5-x4j57=4
+  16:20:47.698  total= 8  kagent-default-7f5f946df5-8r676=4  kagent-default-7f5f946df5-x4j57=4
+  16:20:49.504  total= 8  kagent-default-7f5f946df5-8r676=4  kagent-default-7f5f946df5-x4j57=4
+  16:20:51.294  total= 8  kagent-default-7f5f946df5-8r676=4  kagent-default-7f5f946df5-x4j57=4
+  16:20:53.084  total= 8  kagent-default-7f5f946df5-8r676=4  kagent-default-7f5f946df5-x4j57=4
+  16:20:54.899  total= 8  kagent-default-7f5f946df5-8r676=4  kagent-default-7f5f946df5-x4j57=4
+  16:20:56.782  total= 8  kagent-default-7f5f946df5-8r676=4  kagent-default-7f5f946df5-x4j57=4
+  16:20:58.490  total= 4  kagent-default-7f5f946df5-8r676=3  kagent-default-7f5f946df5-x4j57=1
+  16:21:00.191  total= 3  kagent-default-7f5f946df5-8r676=2  kagent-default-7f5f946df5-x4j57=1
+  16:21:01.747  total= 0  kagent-default-7f5f946df5-8r676=0  kagent-default-7f5f946df5-x4j57=0
+  16:21:03.399  total= 8  kagent-default-7f5f946df5-8r676=4  kagent-default-7f5f946df5-x4j57=4
+  16:21:05.203  total= 8  kagent-default-7f5f946df5-8r676=4  kagent-default-7f5f946df5-x4j57=4
+  16:21:06.902  total= 8  kagent-default-7f5f946df5-8r676=4  kagent-default-7f5f946df5-x4j57=4
+  16:21:08.786  total= 6  kagent-default-7f5f946df5-8r676=4  kagent-default-7f5f946df5-x4j57=2
+  16:21:10.378  total= 0  kagent-default-7f5f946df5-8r676=0  kagent-default-7f5f946df5-x4j57=0
+  peak: 8 running at once of 20 actors; per worker kagent-default-7f5f946df5-8r676 4, kagent-default-7f5f946df5-x4j57 4
+
+resume latency, Substrate resuming -> running (40 resumes): p50 343 ms  p95 446 ms  max 464 ms
+transitions logged: resuming 40, running 40, suspended 40, suspending 40
+
+A2A calls through atenet-router: 57; answered UNAVAILABLE (gRPC 14) because ResumeActor found no worker with room: 17 (17 'no worker has room' refusals). Every invocation above was still answered: kagent's gateway reported these sends as not accepted and the kagent CLI re-sent them
+  2026-10-21T16:20:49.586653Z	warn	http::substrate::ingress	substrate ResumeActor failed	request.id=160 actor="session-01a15f43-c8d9-7754-9c01-5e832a2dff7e" atespace="kagent" grpc.code=ResourceExhausted grpc.message="no worker has room for the actor"
+  2026-10-21T16:20:49.601645Z	warn	http::substrate::ingress	substrate ResumeActor failed	request.id=161 actor="session-01a15f43-b262-71e5-a1b0-6412c6b77273" atespace="kagent" grpc.code=ResourceExhausted grpc.message="no worker has room for the actor"
+
+actors seen running in both rounds: 19; resumed on a different worker in round 2: 5
+  session-01a15f43-b262-71e5-a1b0-6412c6b77273: round 1 on kagent-default-7f5f946df5-8r676 -> round 2 on kagent-default-7f5f946df5-x4j57
+  session-01a15f43-b5df-7583-887f-d3b70899a954: round 1 on kagent-default-7f5f946df5-x4j57 -> round 2 on kagent-default-7f5f946df5-8r676
+  session-01a15f43-b961-71b6-b1bc-71fb86abbfa2: round 1 on kagent-default-7f5f946df5-x4j57 -> round 2 on kagent-default-7f5f946df5-8r676
+  session-01a15f43-c3c8-7467-a748-1f8144c7c45f: round 1 on kagent-default-7f5f946df5-8r676 -> round 2 on kagent-default-7f5f946df5-x4j57
+  session-01a15f43-cdf7-793b-a9a3-65def806e826: round 1 on kagent-default-7f5f946df5-x4j57 -> round 2 on kagent-default-7f5f946df5-8r676

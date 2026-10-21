@@ -1,5 +1,12 @@
 # Google demo: deployed state and checks
 
+> **Not deployed since 2026-10-21.** The Berlin cluster was torn down and
+> rebuilt for kagent 1.0 on Agent Substrate (gVisor), without Istio,
+> AgentRegistry, Keycloak or GPUs: see
+> [`poc/2026-10-kagent-substrate`](../2026-10-kagent-substrate/README.md). This
+> page records the 2026-10-01/02 state of the previous platform; its load
+> balancers, hostnames and console URL no longer exist.
+
 Verified against Berlin on 2026-10-01. Console: <http://localhost:8900/google>.
 
 ## 2026-10-02: DLP, PDF summary, and AGW audit

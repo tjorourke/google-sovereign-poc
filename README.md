@@ -9,6 +9,17 @@ Everything here runs in the `berlin` preview universe
 `eu0:soloio-eval`). Nothing about `console.cloud.google.com` or `googleapis.com`
 applies: different console, different API domains, different identity model.
 
+> **Current state (2026-10-21): the cluster was rebuilt for kagent 1.0 on Agent
+> Substrate.** It now runs OSS kagent 1.0.0-alpha16 with Substrate 0.6.0-alpha3
+> (every agent is a gVisor-sandboxed actor) and Solo Enterprise for agentgateway
+> v2026.10.0 in front of OpenAI. There is no Istio, AgentRegistry, Keycloak or
+> GPU, and GPU workloads are refused at admission. See
+> [`poc/2026-10-kagent-substrate`](poc/2026-10-kagent-substrate/README.md), and
+> the one-page overview [`docs/kagent-substrate-on-gcd.md`](docs/kagent-substrate-on-gcd.md)
+> (the allowlists GKE needed, every test with its evidence, every config). The
+> stack described below, and its 18-phase chain, is the 2026-09 platform: its
+> scripts remain for reference and are not deployed.
+
 The stack: a GKE Autopilot cluster running Solo Enterprise for Istio in ambient
 mode, Solo Enterprise for kagent, enterprise agentgateway, AgentRegistry,
 Keycloak as the single OIDC issuer, a self-hosted model, TLS on every

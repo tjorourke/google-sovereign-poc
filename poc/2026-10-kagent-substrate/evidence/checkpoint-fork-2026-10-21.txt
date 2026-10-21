@@ -1,0 +1,59 @@
+# Session checkpoint and fork, through kagent's MCP server (kagent-controller /mcp)
+# kagent 1.0.0-alpha16 / Substrate 0.6.0-alpha3, cluster agentic (eu0:soloio-eval), 2026-10-21T16:09Z
+# Client: scripts/kagent_mcp.py (the kagent CLI has no checkpoint or fork commands)
+
+kagent MCP tools (tools/list):
+  create_sandbox
+  create_session_checkpoint
+  delete_sandbox
+  fork_session
+  get_sandbox
+  get_sandbox_process
+  invoke_session
+  kill_sandbox_process
+  list_sandbox_templates
+  list_sandboxes
+  list_session_checkpoints
+  list_sessions
+  read_sandbox_file
+  read_sandbox_outputs
+  resume_sandbox
+  start_sandbox_process
+  suspend_sandbox
+  write_sandbox_file
+
+1. session S1 = 01a15f39-3472-7d7d-88a4-c10f21c5e05e (trustusbank-assistant)
+   invoke: "Remember this codeword for later: KESTREL-42. Reply only with OK."
+   -> task 01a15f39-4d69-70b0-9fbd-7a0ff4beaf25 TASK_STATE_COMPLETED, reply "OK" (3.7 s, actor restored from the golden snapshot)
+
+2. create_session_checkpoint {session_id: S1, expected_head_task_id: 01a15f39-4d69-70b0-9fbd-7a0ff4beaf25}
+   {
+     "checkpoint": {
+       "created_at": "2026-10-21T16:09:24.678091506Z",
+       "head_task_id": "01a15f39-4d69-70b0-9fbd-7a0ff4beaf25",
+       "history_sequence": 428,
+       "id": "01a15f39-79c2-75fc-9343-f22eed209dfb",
+       "name": "01a15f39-3472-7d7d-88a4-c10f21c5e05e-01a15f39-4d69-70b0-9fbd-7a0ff4beaf25",
+       "session_id": "01a15f39-3472-7d7d-88a4-c10f21c5e05e",
+       "state": "CHECKPOINT_STATE_READY"
+     }
+   }
+
+3. S1 advanced past the checkpoint:
+   invoke: "Remember a second codeword too: OSPREY-7. Reply only with OK." -> "OK"
+
+4. fork_session {checkpoint_id: 01a15f39-79c2-75fc-9343-f22eed209dfb}
+   {
+     "session": {
+       "agent": "trustusbank-assistant",
+       "id": "01a15f39-a9f7-7ae7-b142-ec96982d5557",
+       "state": "RUNTIME_STATE_READY"
+     }
+   }
+
+5. the same question to both: "Which codewords have I given you in this conversation? List them, nothing else."
+   fork S2 = 01a15f39-a9f7-7ae7-b142-ec96982d5557   -> "KESTREL-42"            (context up to the checkpoint only; 1.7 s)
+   original S1     -> "KESTREL-42, OSPREY-7"  (its own later turn as well)
+
+Result: PASS. The fork is a new session (new actor) carrying the conversation as it
+was at the checkpoint, and diverges from the original afterwards.

@@ -13,21 +13,33 @@ project_number           = "560780937444745"
 region                   = "u-germany-northeast1"
 
 cluster_name = "agentic"
-# RAPID + an explicit 1.36 pin, to test Google's claim that ComputeClass is
-# served there. Their engineer reproduced our missing-CRD failure on 1.35.6 and
-# reported success on a 1.36 Rapid cluster (2026-09-11), so the version IS the
-# experiment here and is pinned rather than left to a channel default that will
-# move. Revert to REGULAR once the question is settled -- RAPID is not where a
-# customer-facing environment should live.
+# 2026-10-21 rebuild for kagent 1.0 on Agent Substrate (poc/2026-10-kagent-substrate).
+# Substrate needs the PodCertificateRequest and ClusterTrustBundle APIs: GA and
+# served by default on 1.37, beta on 1.36. Berlin offers nothing newer than
+# 1.36.4-gke.1391000 (the RAPID default), so this pins that build and enables
+# both beta APIs below. RAPID is still not where a customer-facing environment
+# should live; it is here because no other channel has 1.36 as its default.
 release_channel    = "RAPID"
-min_master_version = "1.36.0-gke.4681000"
+min_master_version = "1.36.4-gke.1391000"
 
-# Keep the admission paths installed by phase 63. Omitting these makes an
-# ordinary plan remove the allowlists that Solo Istio ambient depends on.
+# Creation-time only: GKE ignores a later change, so editing this means
+# recreating the cluster. Empty it once Berlin serves 1.37.
+k8s_beta_apis = [
+  "certificates.k8s.io/v1beta1/podcertificaterequests",
+  "certificates.k8s.io/v1beta1/clustertrustbundles",
+]
+
+# Agent Substrate's atelet DaemonSet and gVisor worker pods, admitted through
+# WorkloadAllowlists that poc/2026-10-kagent-substrate generates. Each path must
+# also be in the org policy (that lab's allowlists/orgpolicy-*.yaml), and must
+# be set here at creation to avoid a ~20 minute cluster update. The spares are
+# authorised but empty until needed. Istio's paths are gone: no mesh this time.
 autopilot_privileged_admission = [
   "gke://*",
-  "gs://agentic-allowlist/istio/1.30.4/istio-cni.yaml",
-  "gs://agentic-allowlist/istio/1.30.4/istio-ztunnel.yaml",
+  "gs://agentic-allowlist/substrate/0.6.0-alpha3/atelet.yaml",
+  "gs://agentic-allowlist/substrate/0.6.0-alpha3/ateworker-gvisor.yaml",
+  "gs://agentic-allowlist/substrate/spare-1.yaml",
+  "gs://agentic-allowlist/substrate/spare-2.yaml",
 ]
 # The cluster exists and these five bindings are live. A default plan must not
 # propose deleting them just because the bootstrap second-pass flag was omitted.

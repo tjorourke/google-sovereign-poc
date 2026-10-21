@@ -2,7 +2,9 @@
 #
 # What that costs us, from /kubernetes-engine/docs/tpc-differences:
 #   - privileged workloads need approved WorkloadAllowlists. Phases 62/63
-#     install them; Solo Istio ambient is verified on this 1.36 preview cluster.
+#     installed them for Solo Istio ambient (2026-09); since the 2026-10-21
+#     rebuild, poc/2026-10-kagent-substrate/scripts/20-allowlists.sh installs
+#     Agent Substrate's (atelet DaemonSet, gVisor worker pods).
 #   - Cloud Service Mesh is unavailable, so there is no managed alternative
 #   - GKE network policies are unavailable
 #   - max 32 pods per node; Hyperdisk Balanced storage only
@@ -35,6 +37,17 @@ resource "google_container_cluster" "this" {
 
   release_channel {
     channel = var.release_channel
+  }
+
+  # Beta Kubernetes APIs, e.g. the PodCertificateRequest and ClusterTrustBundle
+  # APIs Agent Substrate needs on 1.36. GKE honours this only at CREATION: added
+  # later, the update succeeds and the APIs are still not served, so the cluster
+  # has to be recreated. Empty (the 1.37+ case, where both are GA) omits it.
+  dynamic "enable_k8s_beta_apis" {
+    for_each = length(var.k8s_beta_apis) > 0 ? [1] : []
+    content {
+      enabled_apis = var.k8s_beta_apis
+    }
   }
 
   # ── node network isolation ─────────────────────────────────────────────────

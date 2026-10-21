@@ -1,0 +1,68 @@
+apiVersion: auto.gke.io/v1
+kind: WorkloadAllowlist
+metadata:
+    name: substrate-ateworker-gvisor-0.6.0-alpha3
+    annotations:
+        autopilot.gke.io/no-connect: "true"
+exemptions:
+    - autogke-default-linux-capabilities
+    - autogke-no-write-mode-hostpath
+matchingCriteria:
+    containers:
+        - name: worker
+          image: ghcr.io/kagent-dev/substrate/ateworker-gvisor:v0.6.0-alpha3
+          args:
+            - --pod-uid=$(POD_UID)
+            - --atunnel-listen-address=:443
+            - --atunnel-connect-listen-address=:8443
+            - --atunnel-credential-bundle=/run/podidentity.podcert.ate.dev/credential-bundle.pem
+            - --atunnel-trust-bundle=/run/podidentity.podcert.ate.dev/trust-bundle.pem
+            - --atunnel-client-identity=spiffe://cluster.local/ns/ate-system/sa/atenet-router
+            - --atunnel-egress-listen-address=0.0.0.0:15001
+            - --atunnel-egress-trust-bundle=/run/servicedns.podcert.ate.dev/trust-bundle.pem
+            - --dns-egress-policy=enforce-in-atunnel
+            - --preview=
+          env:
+            - name: POD_UID
+            - name: POD_NAMESPACE
+            - name: WORKER_POOL_NAME
+          securityContext:
+            appArmorProfile:
+                type: Unconfined
+            capabilities:
+                add:
+                    - NET_ADMIN
+                    - SYS_ADMIN
+                    - SYS_CHROOT
+                    - SYS_PTRACE
+                    - SETUID
+                    - SETGID
+                    - SETPCAP
+                    - DAC_OVERRIDE
+                    - FOWNER
+                    - CHOWN
+                    - MKNOD
+                    - NET_RAW
+                    - SETFCAP
+                drop:
+                    - ALL
+            privileged: false
+          volumeMounts:
+            - mountPath: /run/worker-capacity
+              name: worker-capacity
+              readOnly: true
+            - mountPath: /var/lib/ate
+              name: ate-base
+            - mountPath: /run/podidentity.podcert.ate.dev
+              name: atunnel-identity
+              readOnly: true
+            - mountPath: /run/servicedns.podcert.ate.dev
+              name: atunnel-egress-trust
+              readOnly: true
+    volumes:
+        - name: worker-capacity
+        - hostPath:
+            path: /var/lib/ate
+          name: ate-base
+        - name: atunnel-identity
+        - name: atunnel-egress-trust

@@ -1,0 +1,32 @@
+# Agent Substrate actors run under gVisor (runsc) — Berlin GCD, 2026-10-21T15:17:00Z
+
+## node kernel
+gk3-agentic-nap-13pv4bqc-327a55c9-rln7   6.12.105+   Container-Optimized OS from Google   c3-standard-4
+gk3-agentic-nap-13pv4bqc-83583f7e-2ddm   6.12.105+   Container-Optimized OS from Google   c3-standard-4
+gk3-agentic-nap-13pv4bqc-bfdd185a-242v   6.12.105+   Container-Optimized OS from Google   c3-standard-4
+gk3-agentic-nap-2sdazdrb-217ea0fc-5bqn   6.12.105+   Container-Optimized OS from Google   c3-highcpu-4
+
+## worker pods (WorkerPool kagent-default, sandbox class gvisor)
+kagent-default-7f5f946df5-8r676   1/1   Running   0     5m21s   10.32.1.2    gk3-agentic-nap-13pv4bqc-83583f7e-2ddm   <none>   <none>
+kagent-default-7f5f946df5-x4j57   1/1   Running   0     5m21s   10.32.0.66   gk3-agentic-nap-13pv4bqc-bfdd185a-242v   <none>   <none>
+true <- admitted by WorkloadAllowlist (no-connect)
+
+## runsc launches per actor (worker logs)
+   1 I1021 15:16:12.475062     572 cli.go:278] Args: [/var/lib/ate/actors/57e891d5-30ee-4423-a415-3f94734ac35e/sandbox-assets/gvisor/runsc ...
+   1 I1021 15:16:23.565814     658 cli.go:278] Args: [/var/lib/ate/actors/49b3c621-91ea-4a18-822d-9707105ef5ad/sandbox-assets/gvisor/runsc ...
+   1 I1021 15:16:23.572078     663 cli.go:278] Args: [/var/lib/ate/actors/49b3c621-91ea-4a18-822d-9707105ef5ad/sandbox-assets/gvisor/runsc ...
+   1 I1021 15:16:23.576122     668 cli.go:278] Args: [/var/lib/ate/actors/49b3c621-91ea-4a18-822d-9707105ef5ad/sandbox-assets/gvisor/runsc ...
+   1 I1021 15:16:23.579608     673 cli.go:278] Args: [/var/lib/ate/actors/49b3c621-91ea-4a18-822d-9707105ef5ad/sandbox-assets/gvisor/runsc ...
+   1 I1021 15:16:23.583729     678 cli.go:278] Args: [/var/lib/ate/actors/49b3c621-91ea-4a18-822d-9707105ef5ad/sandbox-assets/gvisor/runsc ...
+   1 I1021 15:16:23.587261     684 cli.go:278] Args: [/var/lib/ate/actors/49b3c621-91ea-4a18-822d-9707105ef5ad/sandbox-assets/gvisor/runsc ...
+   1 I1021 15:16:23.591206     689 cli.go:278] Args: [/var/lib/ate/actors/49b3c621-91ea-4a18-822d-9707105ef5ad/sandbox-assets/gvisor/runsc ...
+
+## actors seen by the workers
+"ate.actor.name":"2d498058-6b15-4723-aea2-37013db7ca32"
+"ate.actor.name":"42a27a24-4631-4251-ad5b-4605eaae8cbe"
+"ate.actor.name":"session-01a15f07-ec97-78b7-ab1e-d9a575997541"
+"ate.actor.name":"session-01a15f08-b02c-7f10-a332-627de528d6ce"
+"ate.actor.name":"session-01a15f08-bd94-7676-b073-eab08b76cf00"
+"ate.actor.name":"session-01a15f08-d6e9-78ce-bdca-e18482aa39b6"
+
+## gVisor runtime fetched by atelet

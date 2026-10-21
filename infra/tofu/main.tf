@@ -98,6 +98,7 @@ module "cluster_autopilot" {
 
   enable_private_nodes           = var.enable_private_nodes
   autopilot_privileged_admission = var.autopilot_privileged_admission
+  k8s_beta_apis                  = var.k8s_beta_apis
 }
 
 module "cloudsql" {

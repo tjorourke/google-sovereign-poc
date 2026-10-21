@@ -1,0 +1,98 @@
+apiVersion: auto.gke.io/v1
+kind: WorkloadAllowlist
+metadata:
+    name: substrate-atelet-0.6.0-alpha3
+    annotations:
+        autopilot.gke.io/no-connect: "true"
+exemptions:
+    - autogke-no-write-mode-hostpath
+matchingCriteria:
+    initContainers:
+        - name: objectstore-plugin
+          image: ghcr.io/kagent-dev/substrate/objectstore-plugin:v0.6.0-alpha3
+          args:
+            - node
+            - --socket=/run/objectstore-plugin/node.sock
+            - --root=/var/lib/ate
+            - --asset-staging-dir=/var/lib/objectstore-plugin/asset-staging
+            - --asset-staging-capacity=8Gi
+          env:
+            - name: ATE_STORAGE_BACKEND
+            - name: AWS_REGION
+            - name: AWS_ENDPOINT_URL
+            - name: AWS_S3_USE_PATH_STYLE
+            - name: AWS_ACCESS_KEY_ID
+            - name: AWS_SECRET_ACCESS_KEY
+          securityContext:
+            capabilities:
+                drop:
+                    - ALL
+          startupProbe:
+            exec:
+                command:
+                    - /ko-app/objectstore-plugin
+                    - healthcheck
+                    - --socket=/run/objectstore-plugin/node.sock
+          volumeMounts:
+            - mountPath: /var/lib/ate
+              name: ate-base
+            - mountPath: /run/objectstore-plugin
+              name: objectstore-plugin
+            - mountPath: /var/lib/objectstore-plugin/asset-staging
+              name: asset-staging
+    containers:
+        - name: atelet
+          image: ghcr.io/kagent-dev/substrate/atelet:v0.6.0-alpha3
+          args:
+            - --preview=
+            - --objectstore-plugin-socket=/run/objectstore-plugin/node.sock
+            - --grpc-server-cred-bundle=/run/podidentity.podcert.ate.dev/credential-bundle.pem
+            - --client-ca-certs=/run/podidentity.podcert.ate.dev/trust-bundle.pem
+            - --ateapi-ca-file=/run/servicedns.podcert.ate.dev/trust-bundle.pem
+          env:
+            - name: NODE_NAME
+            - name: POD_NAME
+            - name: POD_NAMESPACE
+            - name: POD_UID
+            - name: OTEL_RESOURCE_ATTRIBUTES
+          securityContext:
+            capabilities:
+                add:
+                    - DAC_OVERRIDE
+                drop:
+                    - ALL
+          volumeMounts:
+            - mountPath: /run/objectstore-plugin
+              name: objectstore-plugin
+            - mountPath: /var/lib/ate
+              name: ate-base
+            - mountPath: /run/podidentity.podcert.ate.dev
+              name: podidentity
+              readOnly: true
+            - mountPath: /run/servicedns.podcert.ate.dev
+              name: servicedns-ca
+              readOnly: true
+            - mountPath: /var/lib/kubelet/plugins
+              name: kubelet-plugins
+            - mountPath: /var/lib/kubelet/device-plugins
+              name: device-plugins
+            - mountPath: /host/dev
+              name: host-dev
+              readOnly: true
+    volumes:
+        - name: objectstore-plugin
+        - name: asset-staging
+        - hostPath:
+            path: /var/lib/ate
+          name: ate-base
+        - hostPath:
+            path: /var/lib/kubelet/plugins
+          name: kubelet-plugins
+        - hostPath:
+            path: /var/lib/kubelet/device-plugins
+          name: device-plugins
+        - hostPath:
+            path: /dev
+          name: host-dev
+        - name: podidentity
+        - name: servicedns-ca

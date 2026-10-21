@@ -1,0 +1,12 @@
+version:             1.36.4-gke.1391000
+channel:             RAPID
+autopilot:           True
+beta APIs:           ['certificates.k8s.io/v1beta1/clustertrustbundles', 'certificates.k8s.io/v1beta1/podcertificaterequests']
+allowlist paths:     ['gke://*', 'gs://agentic-allowlist/substrate/0.6.0-alpha3/atelet.yaml', 'gs://agentic-allowlist/substrate/0.6.0-alpha3/ateworker-gvisor.yaml', 'gs://agentic-allowlist/substrate/spare-1.yaml', 'gs://agentic-allowlist/substrate/spare-2.yaml']
+workload pool:       soloio-eval.eu0.svc.id.goog
+NAME                         SHORTNAMES   APIVERSION                    NAMESPACED   KIND                        VERBS                                                        CATEGORIES
+certificatesigningrequests   csr          certificates.k8s.io/v1        false        CertificateSigningRequest   create,delete,deletecollection,get,list,patch,update,watch   
+clustertrustbundles                       certificates.k8s.io/v1beta1   false        ClusterTrustBundle          create,delete,deletecollection,get,list,patch,update,watch   
+podcertificaterequests                    certificates.k8s.io/v1beta1   true         PodCertificateRequest       create,delete,deletecollection,get,list,patch,update,watch   
+NAME                                     STATUS   ROLES    AGE   VERSION               MACHINE-FAMILY   INSTANCE-TYPE   GKE-ACCELERATOR
+gk3-agentic-default-pool-05baf073-bxpq   Ready    <none>   43s   v1.36.4-gke.1391000   c3               c3-standard-4   
