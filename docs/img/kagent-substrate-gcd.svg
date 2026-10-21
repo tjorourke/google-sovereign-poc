@@ -1,0 +1,232 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1280 860" width="1280" height="860" font-family="Helvetica, Arial, sans-serif">
+  <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#5f6368"/>
+    </marker>
+    <marker id="ay" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#c8a415"/>
+    </marker>
+  </defs>
+
+  <rect width="1280" height="860" fill="#ffffff"/>
+  <text x="30" y="36" font-size="19" font-weight="700" fill="#202124">kagent 1.0 on Agent Substrate · Google Cloud Dedicated, Berlin</text>
+  <text x="30" y="57" font-size="12" fill="#5f6368">Project eu0:soloio-eval · u-germany-northeast1 · every agent conversation and sandbox is a gVisor actor · verified 2026-10-21</text>
+
+  <!-- ============ OPERATOR ============ -->
+  <rect x="20" y="200" width="164" height="100" rx="6" fill="#ffffff" stroke="#dadce0" stroke-width="1.2"/>
+  <text x="32" y="222" font-size="13" font-weight="700" fill="#202124">Operator</text>
+  <text x="32" y="240" font-size="11" fill="#3c4043">kagent CLI (A2A, MCP)</text>
+  <text x="32" y="256" font-size="11" fill="#3c4043">kubectl ate</text>
+  <text x="32" y="284" font-size="10" fill="#5f6368">WIF login + port-forward</text>
+
+  <!-- ============ GOOGLE CLOUD DEDICATED ============ -->
+  <rect x="196" y="72" width="844" height="664" rx="10" fill="#f8f9fa" stroke="#c4c7cc" stroke-width="1.2"/>
+  <text x="212" y="92" font-size="11" font-weight="700" fill="#5f6368" letter-spacing="1.1">GOOGLE CLOUD DEDICATED · BERLIN (eu0)</text>
+
+  <rect x="212" y="102" width="300" height="50" rx="6" fill="#ffffff" stroke="#dadce0" stroke-width="1.2"/>
+  <text x="224" y="122" font-size="12.5" font-weight="700" fill="#202124">Org policy · privileged admission</text>
+  <text x="224" y="140" font-size="10" fill="#5f6368" font-family="SF Mono, Menlo, Consolas, monospace">exact gs:// paths, set before creation</text>
+
+  <rect x="524" y="102" width="188" height="50" rx="6" fill="#ffffff" stroke="#dadce0" stroke-width="1.2"/>
+  <text x="536" y="122" font-size="12.5" font-weight="700" fill="#202124">Workforce Identity</text>
+  <text x="536" y="140" font-size="10" fill="#5f6368">operator sign-in, ~1 h</text>
+
+  <rect x="724" y="102" width="300" height="50" rx="6" fill="#ffffff" stroke="#dadce0" stroke-width="1.2"/>
+  <text x="736" y="122" font-size="12.5" font-weight="700" fill="#202124">Cloud Storage · agentic-allowlist</text>
+  <text x="736" y="140" font-size="10" fill="#5f6368" font-family="SF Mono, Menlo, Consolas, monospace">WorkloadAllowlist files (Warden-made)</text>
+
+  <!-- ============ GKE AUTOPILOT CLUSTER ============ -->
+  <rect x="212" y="166" width="812" height="554" rx="8" fill="#ffffff" stroke="#9aa0a6" stroke-width="1.2"/>
+  <text x="228" y="186" font-size="12" font-weight="700" fill="#202124">GKE Autopilot · cluster agentic · 1.36.4-gke.1391000<tspan font-weight="400" font-size="11" fill="#5f6368"> · certificate beta APIs on at creation</tspan></text>
+
+  <!-- admission -->
+  <rect x="228" y="196" width="780" height="72" rx="6" fill="#fff8e6" stroke="#c8a415" stroke-width="1"/>
+  <text x="240" y="212" font-size="9.5" font-weight="700" fill="#8a6d00" letter-spacing="1">ADMISSION · GKE WARDEN</text>
+
+  <rect x="240" y="220" width="144" height="42" rx="5" fill="#ffffff" stroke="#c8a415" stroke-width="1.2"/>
+  <text x="312" y="237" font-size="10.5" font-weight="700" fill="#202124" text-anchor="middle">WorkloadAllowlist</text>
+  <text x="312" y="252" font-size="10" fill="#5f6368" text-anchor="middle" font-family="SF Mono, Menlo, Consolas, monospace">atelet</text>
+
+  <rect x="393" y="220" width="144" height="42" rx="5" fill="#ffffff" stroke="#c8a415" stroke-width="1.2"/>
+  <text x="465" y="237" font-size="10.5" font-weight="700" fill="#202124" text-anchor="middle">WorkloadAllowlist</text>
+  <text x="465" y="252" font-size="10" fill="#5f6368" text-anchor="middle" font-family="SF Mono, Menlo, Consolas, monospace">gVisor worker</text>
+
+  <rect x="546" y="220" width="144" height="42" rx="5" fill="#ffffff" stroke="#7b3fbf" stroke-width="1.2"/>
+  <text x="618" y="237" font-size="10.5" font-weight="700" fill="#202124" text-anchor="middle">No GPUs</text>
+  <text x="618" y="252" font-size="9" fill="#5f6368" text-anchor="middle">ValidatingAdmissionPolicy</text>
+
+  <rect x="699" y="220" width="144" height="42" rx="5" fill="#ffffff" stroke="#7b3fbf" stroke-width="1.2"/>
+  <text x="771" y="237" font-size="10.5" font-weight="700" fill="#202124" text-anchor="middle">PVC ≥ 4 GiB</text>
+  <text x="771" y="252" font-size="9" fill="#5f6368" text-anchor="middle">MutatingAdmissionPolicy</text>
+
+  <rect x="852" y="220" width="144" height="42" rx="5" fill="#ffffff" stroke="#c8a415" stroke-width="1.2"/>
+  <text x="924" y="237" font-size="10" font-weight="700" fill="#202124" text-anchor="middle">AllowlistSynchronizer</text>
+  <text x="924" y="252" font-size="9.5" fill="#5f6368" text-anchor="middle">from Cloud Storage</text>
+
+  <!-- namespace kagent -->
+  <rect x="228" y="284" width="380" height="116" rx="6" fill="#f8f9fa" stroke="#dadce0" stroke-width="1" stroke-dasharray="5 4"/>
+  <text x="240" y="299" font-size="9.5" font-weight="700" fill="#5f6368" letter-spacing="1">NAMESPACE KAGENT</text>
+
+  <rect x="240" y="308" width="164" height="80" rx="6" fill="#ffffff" stroke="#dadce0" stroke-width="1.2"/>
+  <text x="252" y="330" font-size="12.5" font-weight="700" fill="#202124">PostgreSQL</text>
+  <text x="252" y="348" font-size="10.5" fill="#3c4043">kagent + Substrate state</text>
+  <text x="252" y="366" font-size="9.5" fill="#5f6368" font-family="SF Mono, Menlo, Consolas, monospace">Pod Certificate logins</text>
+
+  <rect x="416" y="308" width="180" height="80" rx="6" fill="#ffffff" stroke="#dadce0" stroke-width="1.2"/>
+  <text x="428" y="330" font-size="12.5" font-weight="700" fill="#202124">kagent-controller</text>
+  <text x="428" y="348" font-size="10.5" fill="#3c4043">API · MCP · A2A gateway</text>
+  <text x="428" y="366" font-size="9.5" fill="#5f6368" font-family="SF Mono, Menlo, Consolas, monospace">kagent 1.0.0-alpha16</text>
+
+  <!-- namespace ate-system -->
+  <rect x="620" y="284" width="388" height="116" rx="6" fill="#f8f9fa" stroke="#dadce0" stroke-width="1" stroke-dasharray="5 4"/>
+  <text x="632" y="299" font-size="9.5" font-weight="700" fill="#5f6368" letter-spacing="1">NAMESPACE ATE-SYSTEM · AGENT SUBSTRATE 0.6.0-ALPHA3</text>
+
+  <rect x="632" y="308" width="116" height="80" rx="6" fill="#ffffff" stroke="#dadce0" stroke-width="1.2"/>
+  <text x="642" y="330" font-size="12" font-weight="700" fill="#202124">ate-api-server</text>
+  <text x="642" y="347" font-size="10" fill="#3c4043">gRPC API, OpenFGA</text>
+  <text x="642" y="364" font-size="9" fill="#5f6368" font-family="SF Mono, Menlo, Consolas, monospace">schedules actors</text>
+
+  <rect x="756" y="308" width="116" height="80" rx="6" fill="#ffffff" stroke="#dadce0" stroke-width="1.2"/>
+  <text x="766" y="330" font-size="12" font-weight="700" fill="#202124">ate-controller</text>
+  <text x="766" y="347" font-size="10" fill="#3c4043">runs the workers</text>
+  <text x="766" y="364" font-size="9" fill="#5f6368" font-family="SF Mono, Menlo, Consolas, monospace">per WorkerPool</text>
+
+  <rect x="880" y="308" width="116" height="80" rx="6" fill="#ffffff" stroke="#dadce0" stroke-width="1.2"/>
+  <text x="890" y="330" font-size="12" font-weight="700" fill="#202124">ate-idp-server</text>
+  <text x="890" y="347" font-size="10" fill="#3c4043">actor identity</text>
+  <text x="890" y="364" font-size="9" fill="#5f6368" font-family="SF Mono, Menlo, Consolas, monospace">JWT issuer</text>
+
+  <!-- data plane: router, RustFS -->
+  <rect x="228" y="470" width="130" height="64" rx="6" fill="#ffffff" stroke="#dadce0" stroke-width="1.2"/>
+  <text x="240" y="492" font-size="12" font-weight="700" fill="#202124">atenet-router</text>
+  <text x="240" y="509" font-size="10" fill="#3c4043">A2A to actors</text>
+  <text x="240" y="525" font-size="9" fill="#5f6368" font-family="SF Mono, Menlo, Consolas, monospace">ate-system</text>
+
+  <rect x="228" y="566" width="130" height="60" rx="6" fill="#ffffff" stroke="#dadce0" stroke-width="1.2"/>
+  <text x="240" y="588" font-size="12" font-weight="700" fill="#202124">RustFS</text>
+  <text x="240" y="605" font-size="10" fill="#3c4043">actor snapshots</text>
+  <text x="240" y="619" font-size="9" fill="#5f6368" font-family="SF Mono, Menlo, Consolas, monospace">S3 · 10 GiB</text>
+
+  <!-- gVisor WorkerPool -->
+  <rect x="374" y="420" width="340" height="208" rx="8" fill="#fffdf6" stroke="#c8a415" stroke-width="1.4"/>
+  <text x="386" y="440" font-size="12.5" font-weight="700" fill="#202124">gVisor WorkerPool kagent-default</text>
+  <text x="386" y="456" font-size="10" fill="#3c4043">2 workers, 4 CPU / 8 GiB each · 1 CPU per running actor</text>
+
+  <rect x="388" y="466" width="150" height="150" rx="6" fill="#ffffff" stroke="#dadce0" stroke-width="1.2"/>
+  <text x="400" y="484" font-size="11" font-weight="700" fill="#202124">worker pod · runsc</text>
+  <rect x="400" y="494" width="126" height="24" rx="4" fill="#e8f5ee" stroke="#0b7a5a" stroke-width="1"/>
+  <text x="463" y="510" font-size="10" fill="#0b5d45" text-anchor="middle">session actor</text>
+  <rect x="400" y="522" width="126" height="24" rx="4" fill="#e8f5ee" stroke="#0b7a5a" stroke-width="1"/>
+  <text x="463" y="538" font-size="10" fill="#0b5d45" text-anchor="middle">session actor</text>
+  <rect x="400" y="550" width="126" height="24" rx="4" fill="#e8f5ee" stroke="#0b7a5a" stroke-width="1"/>
+  <text x="463" y="566" font-size="10" fill="#0b5d45" text-anchor="middle">session actor</text>
+  <rect x="400" y="578" width="126" height="24" rx="4" fill="#e8f5ee" stroke="#0b7a5a" stroke-width="1"/>
+  <text x="463" y="594" font-size="10" fill="#0b5d45" text-anchor="middle">sandbox actor</text>
+
+  <rect x="550" y="466" width="150" height="150" rx="6" fill="#ffffff" stroke="#dadce0" stroke-width="1.2"/>
+  <text x="562" y="484" font-size="11" font-weight="700" fill="#202124">worker pod · runsc</text>
+  <rect x="562" y="494" width="126" height="24" rx="4" fill="#e8f5ee" stroke="#0b7a5a" stroke-width="1"/>
+  <text x="625" y="510" font-size="10" fill="#0b5d45" text-anchor="middle">session actor</text>
+  <rect x="562" y="522" width="126" height="24" rx="4" fill="#e8f5ee" stroke="#0b7a5a" stroke-width="1"/>
+  <text x="625" y="538" font-size="10" fill="#0b5d45" text-anchor="middle">session actor</text>
+  <rect x="562" y="550" width="126" height="24" rx="4" fill="#e8f5ee" stroke="#0b7a5a" stroke-width="1"/>
+  <text x="625" y="566" font-size="10" fill="#0b5d45" text-anchor="middle">session actor</text>
+  <rect x="562" y="578" width="126" height="24" rx="4" fill="#e8f5ee" stroke="#0b7a5a" stroke-width="1"/>
+  <text x="625" y="594" font-size="10" fill="#0b5d45" text-anchor="middle">session actor</text>
+
+  <!-- egress, agentgateway -->
+  <rect x="730" y="470" width="120" height="64" rx="6" fill="#ffffff" stroke="#dadce0" stroke-width="1.2"/>
+  <text x="742" y="492" font-size="12" font-weight="700" fill="#202124">atenet-egress</text>
+  <text x="742" y="509" font-size="10" fill="#3c4043">egress policy</text>
+  <text x="742" y="525" font-size="9" fill="#5f6368" font-family="SF Mono, Menlo, Consolas, monospace">deny by default</text>
+
+  <rect x="862" y="430" width="146" height="136" rx="6" fill="#f8f9fa" stroke="#dadce0" stroke-width="1" stroke-dasharray="5 4"/>
+  <text x="870" y="446" font-size="9" font-weight="700" fill="#5f6368" letter-spacing="0.6">AGENTGATEWAY-SYSTEM</text>
+  <rect x="872" y="456" width="126" height="98" rx="6" fill="#eef3fd" stroke="#3367d6" stroke-width="1.2"/>
+  <text x="884" y="478" font-size="12" font-weight="700" fill="#202124">agentgateway</text>
+  <text x="884" y="495" font-size="10" fill="#3c4043">Solo Enterprise</text>
+  <text x="884" y="511" font-size="9" fill="#5f6368" font-family="SF Mono, Menlo, Consolas, monospace">v2026.10.0</text>
+  <text x="884" y="530" font-size="10" fill="#3c4043">holds the OpenAI key</text>
+
+  <!-- atelet -->
+  <rect x="228" y="650" width="780" height="50" rx="6" fill="#fff8e6" stroke="#c8a415" stroke-width="1.2"/>
+  <text x="240" y="670" font-size="12" font-weight="700" fill="#202124">atelet DaemonSet · on every node</text>
+  <text x="240" y="688" font-size="10" fill="#3c4043">gVisor runtime, actor files and snapshots in /var/lib/ate · allowlisted, so no exec or port-forward</text>
+
+  <!-- Cloud NAT, on the edge of GCD -->
+  <rect x="1028" y="440" width="24" height="276" rx="4" fill="#ffffff" stroke="#5f6368" stroke-width="1.2"/>
+  <text transform="translate(1044,590) rotate(-90)" font-size="11" font-weight="700" fill="#3c4043" text-anchor="middle">Cloud NAT</text>
+
+  <!-- ============ INTERNET ============ -->
+  <text x="1100" y="462" font-size="9.5" font-weight="700" fill="#5f6368" letter-spacing="1">INTERNET</text>
+  <rect x="1100" y="474" width="156" height="64" rx="6" fill="#ffffff" stroke="#9aa0a6" stroke-width="1.2" stroke-dasharray="5 4"/>
+  <text x="1112" y="496" font-size="12" font-weight="700" fill="#202124">OpenAI API</text>
+  <text x="1112" y="513" font-size="10" fill="#5f6368" font-family="SF Mono, Menlo, Consolas, monospace">gpt-4.1-mini</text>
+  <text x="1112" y="529" font-size="9.5" fill="#5f6368">key added by agentgateway</text>
+
+  <rect x="1100" y="643" width="156" height="64" rx="6" fill="#ffffff" stroke="#9aa0a6" stroke-width="1.2" stroke-dasharray="5 4"/>
+  <text x="1112" y="665" font-size="12" font-weight="700" fill="#202124">Public registries</text>
+  <text x="1112" y="682" font-size="9.5" fill="#5f6368" font-family="SF Mono, Menlo, Consolas, monospace">ghcr.io · Docker Hub</text>
+  <text x="1112" y="697" font-size="9.5" fill="#5f6368" font-family="SF Mono, Menlo, Consolas, monospace">gs://gvisor</text>
+
+  <!-- ============ FLOWS ============ -->
+  <g fill="none" stroke="#5f6368" stroke-width="1.4">
+    <path d="M184,278 H504 V306" marker-end="url(#a)"/>
+    <path d="M596,348 H630" marker-end="url(#a)"/>
+    <path d="M690,388 V418" marker-end="url(#a)"/>
+    <path d="M440,388 V410 H293 V468" marker-end="url(#a)"/>
+    <path d="M358,506 H398" marker-end="url(#a)"/>
+    <path d="M688,506 H728" marker-end="url(#a)"/>
+    <path d="M850,506 H870" marker-end="url(#a)"/>
+    <path d="M998,506 H1098" marker-end="url(#a)"/>
+    <path d="M360,596 H386" marker-start="url(#a)" marker-end="url(#a)"/>
+    <path d="M1008,675 H1098" stroke-dasharray="5 4" marker-end="url(#a)"/>
+  </g>
+  <path d="M924,152 V218" fill="none" stroke="#c8a415" stroke-width="1.4" stroke-dasharray="5 4" marker-end="url(#ay)"/>
+
+  <g font-size="9.5" font-weight="700" fill="#ffffff" text-anchor="middle">
+    <circle cx="330" cy="278" r="8" fill="#202124"/><text x="330" y="281.5">1</text>
+    <circle cx="614" cy="334" r="8" fill="#202124"/><text x="614" y="337.5">2</text>
+    <circle cx="704" cy="410" r="8" fill="#202124"/><text x="704" y="413.5">3</text>
+    <circle cx="366" cy="410" r="8" fill="#202124"/><text x="366" y="413.5">4</text>
+    <circle cx="716" cy="492" r="8" fill="#202124"/><text x="716" y="495.5">5</text>
+    <circle cx="1076" cy="492" r="8" fill="#202124"/><text x="1076" y="495.5">6</text>
+    <circle cx="373" cy="582" r="8" fill="#202124"/><text x="373" y="585.5">7</text>
+    <circle cx="940" cy="186" r="8" fill="#202124"/><text x="940" y="189.5">8</text>
+    <circle cx="1076" cy="661" r="8" fill="#202124"/><text x="1076" y="664.5">9</text>
+  </g>
+
+  <!-- ============ LEGEND ============ -->
+  <text x="30" y="766" font-size="9.5" font-weight="700" fill="#5f6368" letter-spacing="1">FLOWS</text>
+  <rect x="700" y="756" width="12" height="12" rx="2" fill="#e8f5ee" stroke="#0b7a5a"/>
+  <text x="718" y="766" font-size="10.5" fill="#3c4043">gVisor actor</text>
+  <rect x="810" y="756" width="12" height="12" rx="2" fill="#fff8e6" stroke="#c8a415"/>
+  <text x="828" y="766" font-size="10.5" fill="#3c4043">needs a WorkloadAllowlist</text>
+  <rect x="990" y="756" width="12" height="12" rx="2" fill="#eef3fd" stroke="#3367d6"/>
+  <text x="1008" y="766" font-size="10.5" fill="#3c4043">Solo agentgateway</text>
+  <rect x="1120" y="756" width="12" height="12" rx="2" fill="#ffffff" stroke="#7b3fbf"/>
+  <text x="1138" y="766" font-size="10.5" fill="#3c4043">admission policy</text>
+
+  <g font-size="11" fill="#3c4043">
+    <text x="52" y="792">Operator: kagent CLI and kubectl ate, through a port-forward</text>
+    <text x="472" y="792">kagent → ate-api: templates and sessions, gRPC over mTLS</text>
+    <text x="892" y="792">ate-api places actors: resume, suspend, move between workers</text>
+    <text x="52" y="816">A2A: kagent-controller → atenet-router → the session's actor</text>
+    <text x="472" y="816">Actor egress, only to origins an EgressPolicy grants</text>
+    <text x="892" y="816">agentgateway adds the OpenAI key; out through Cloud NAT</text>
+    <text x="52" y="840">Suspend writes a snapshot to RustFS; resume restores it anywhere</text>
+    <text x="472" y="840">Allowlists synced from Cloud Storage into the cluster</text>
+    <text x="892" y="840">Image pulls over Cloud NAT from public registries</text>
+  </g>
+  <g font-size="9.5" font-weight="700" fill="#ffffff" text-anchor="middle">
+    <circle cx="38" cy="788" r="8" fill="#202124"/><text x="38" y="791.5">1</text>
+    <circle cx="458" cy="788" r="8" fill="#202124"/><text x="458" y="791.5">2</text>
+    <circle cx="878" cy="788" r="8" fill="#202124"/><text x="878" y="791.5">3</text>
+    <circle cx="38" cy="812" r="8" fill="#202124"/><text x="38" y="815.5">4</text>
+    <circle cx="458" cy="812" r="8" fill="#202124"/><text x="458" y="815.5">5</text>
+    <circle cx="878" cy="812" r="8" fill="#202124"/><text x="878" y="815.5">6</text>
+    <circle cx="38" cy="836" r="8" fill="#202124"/><text x="38" y="839.5">7</text>
+    <circle cx="458" cy="836" r="8" fill="#202124"/><text x="458" y="839.5">8</text>
+    <circle cx="878" cy="836" r="8" fill="#202124"/><text x="878" y="839.5">9</text>
+  </g>
+</svg>

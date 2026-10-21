@@ -1,176 +1,132 @@
-# kagent 1.0 on Agent Substrate in Google Cloud Dedicated (Berlin)
+# kagent 1.0 on Agent Substrate in Google Cloud Dedicated
 
-**Status: working.** Verified 2026-10-21 on `eu0:soloio-eval`, cluster `agentic`
-(`u-germany-northeast1`): GKE Autopilot 1.36.4-gke.1391000, OSS kagent
-1.0.0-alpha16 on Agent Substrate 0.6.0-alpha3 (every agent conversation and
-sandbox is a gVisor actor), Solo Enterprise for agentgateway v2026.10.0 in front
-of OpenAI `gpt-4.1-mini`. No Istio, AgentRegistry, Keycloak or GPU.
+![kagent 1.0 on Agent Substrate in Google Cloud Dedicated, Berlin](img/kagent-substrate-gcd.svg)
 
-The page has two parts. **Part 1** is the overview: the allowlists GKE needed,
-how they were made, the other GCD constraints, and every test with its result.
-**Part 2** is every file needed to deploy it, in install order, copied verbatim
-from the lab ([`poc/2026-10-kagent-substrate`](../poc/2026-10-kagent-substrate/README.md)),
-which remains the source of truth and has the scripts that apply them.
+kagent 1.0 runs every agent conversation, and every sandbox, as an Agent
+Substrate actor inside its own gVisor sandbox. We built that stack on Google
+Cloud Dedicated in Berlin on 21 October 2026 and tested it end to end. This
+page covers what GKE Autopilot had to allow, what we tested, and the
+configuration to rebuild it. The scripts are in
+[`poc/2026-10-kagent-substrate`](../poc/2026-10-kagent-substrate/README.md).
 
----
+## What's deployed
 
-# Part 1: overview
+| Layer | What runs |
+|---|---|
+| Cloud | Google Cloud Dedicated, Berlin · project `eu0:soloio-eval` · region `u-germany-northeast1` |
+| Cluster | GKE Autopilot `1.36.4-gke.1391000`, certificate beta APIs enabled at creation |
+| Agent platform | kagent `1.0.0-alpha16` (open source) |
+| Agent runtime | Agent Substrate `0.6.0-alpha3`: gVisor sandboxes on two worker pods of 4 CPU / 8 GiB |
+| LLM gateway | Solo Enterprise for agentgateway `v2026.10.0`, the only holder of the OpenAI key |
+| Model | OpenAI `gpt-4.1-mini`, reached through agentgateway and Cloud NAT |
+| Agents | `trustusbank-assistant`, `trustusbank-sandbox-ops`; sandbox templates `trustusbank-scratch`, `trustusbank-egress` |
+| Left out | Istio, AgentRegistry, Keycloak and GPUs. GPU workloads are refused at admission. |
 
-## The allowlists: two Substrate workloads, refused by Autopilot without one
+## Allowlists
 
-GKE Warden (Autopilot's admission control) refused exactly two of Substrate's
-workloads. Everything else in Substrate (ate-api-server, ate-controller,
-ate-idp-server, atenet-router, atenet-egress, the credential provider, the Pod
-Certificate controller, RustFS), kagent, its PostgreSQL and agentgateway is
-admitted unaided.
+Autopilot admits everything in kagent, Substrate and agentgateway except two
+privileged Substrate workloads. Each runs under a WorkloadAllowlist.
 
-| Workload | Created by | Why it needs host access | Warden's refusal, verbatim | WorkloadAllowlist (exemptions) |
-|---|---|---|---|---|
-| `atelet` DaemonSet, `ate-system` | the Substrate Helm chart (`kagent install`) | Substrate's node agent: stages actor runtimes, sandbox assets and snapshots under `/var/lib/ate` (shared with the workers), uses the kubelet's plugin and device-plugin directories, mounts the host's `/dev` read-only | `[denied by autogke-no-write-mode-hostpath]` hostPath volume `ate-base` / `kubelet-plugins` / `device-plugins` in container atelet "is accessed in write mode; disallowed in Autopilot"; `host-dev` "uses path /dev which is not allowed in Autopilot. Allowed path prefixes for hostPath volumes are: [/var/log/]"; `ate-base` in init container objectstore-plugin "is accessed in write mode" | `substrate-atelet-0.6.0-alpha3` (`autogke-no-write-mode-hostpath`) |
-| gVisor worker Deployment `kagent/kagent-default` (one per WorkerPool) | Substrate's `ate-controller` at runtime, from kagent's WorkerPool | each actor is a `runsc` sandbox: setting up its network and mounts needs `NET_ADMIN` and `SYS_ADMIN`; actor files live in the node's `/var/lib/ate` | `[denied by autogke-default-linux-capabilities]` "linux capability 'NET_ADMIN,SYS_ADMIN' on container 'worker' not allowed; Autopilot only allows the capabilities: 'AUDIT_WRITE,CHOWN,DAC_OVERRIDE,FOWNER,FSETID,KILL,MKNOD,NET_BIND_SERVICE,NET_RAW,SETFCAP,SETGID,SETPCAP,SETUID,SYS_CHROOT,SYS_PTRACE'"; `[denied by autogke-no-write-mode-hostpath]` hostPath volume `ate-base` in container worker "is accessed in write mode" | `substrate-ateworker-gvisor-0.6.0-alpha3` (`autogke-default-linux-capabilities`, `autogke-no-write-mode-hostpath`) |
-
-The full refusals are in [`evidence/warden-refusals-2026-10-21.txt`](../poc/2026-10-kagent-substrate/evidence/warden-refusals-2026-10-21.txt).
-
-**What Warden did not object to**: atelet and the workers running as root
-(`runAsUser: 0`), atelet's `hostPort: 21998`, atelet's read-only mounts and its
-`DAC_OVERRIDE` capability, the workers' eleven other added capabilities
-(`SYS_CHROOT`, `SYS_PTRACE`, `SETUID`, `SETGID`, `SETPCAP`, `DAC_OVERRIDE`,
-`FOWNER`, `CHOWN`, `MKNOD`, `NET_RAW`, `SETFCAP`, all inside Autopilot's
-default set), and the workers' `Unconfined` seccomp and AppArmor profiles.
-
-### How they were generated and installed
-
-1. **Paths authorised before the cluster existed.** Autopilot admits an
-   allowlist only from an object path listed *exactly* (a directory prefix is
-   not honoured) in two places: the org policy
-   `container.managed.autopilotPrivilegedAdmission` (organisation-wide; it keeps
-   `allowAnyGKEPath: true` for GKE's own partner allowlists) and the cluster's
-   `autopilot_privileged_admission`. Adding a path later costs an org-policy edit
-   plus a ~20 minute cluster update, so the atelet and worker paths, and two
-   spares, were set at creation ([2.1](#21-cluster-opentofu), [2.2](#22-org-policy-allowlist-paths)).
-2. **Warden writes the allowlist.** A pod carrying the annotation
-   `cloud.google.com/generate-allowlist: "true"` is still refused, but the
-   refusal then contains a ready-made `WorkloadAllowlist` pinned to that exact
-   spec (images, args, env names, security context, volumes).
-   - *atelet*: render the Substrate chart with the exact install values
-     (`helm template … --set postgres.clientCertificates.enabled=true -f substrate-values.yaml`),
-     add the annotation, and `kubectl apply --dry-run=server`. Nothing is
-     created; the error carries the allowlist.
-   - *worker*: its Deployment is created at runtime by `ate-controller`, so the
-     refusal reaches only that controller's log. kagent's values put the
-     annotation on the WorkerPool's pod template; the script reads the generated
-     allowlist out of the `ate-controller` log.
-3. **Rename and upload**: each is renamed to a versioned name and copied to
-   `gs://agentic-allowlist/substrate/0.6.0-alpha3/{atelet,ateworker-gvisor}.yaml`.
-4. **Install with an `AllowlistSynchronizer`** ([2.6](#26-workloadallowlists-and-the-synchronizer)),
-   which copies listed bucket objects into the cluster as `WorkloadAllowlist`s.
-   *Gotcha:* it re-reads files only when its own spec changes. A file
-   re-uploaded to an existing path sat unsynced for over 7 minutes, then
-   installed within 5 seconds of the path list changing; the script flips the
-   list order when it is otherwise unchanged.
-5. **Order**: atelet's allowlist before `kagent install` (the Substrate release
-   waits for the DaemonSet); the worker's after it (its Deployment only exists
-   once kagent creates the WorkerPool), then the pool is touched to reconcile.
-
-**Consequences.** GKE stamps `autopilot.gke.io/no-connect: "true"` on allowlisted
-pods: atelet and the workers cannot be exec'd, attached or port-forwarded
-(`kubectl logs` works). An allowlist pins the spec, so any Substrate version
-bump or values change that reaches either pod means regenerating both, at new
-versioned paths that must first be added to the org policy and the cluster.
-Changes that reach neither pod need nothing: this lab later changed
-ate-api-server's flags and the RustFS bucket Job, `helm template` showed only
-those lines changing, and the atelet DaemonSet stayed at generation 1.
-
-Automated by [`scripts/20-allowlists.sh`](../poc/2026-10-kagent-substrate/scripts/20-allowlists.sh) (`atelet`, `worker`, `sync`, `status`).
-
-## The other GCD constraints, and what solved each
-
-| Constraint in GCD | Effect on Substrate / kagent | Solution ([Part 2](#part-2-every-file-needed-in-install-order)) |
-|---|---|---|
-| Autopilot is the only GKE mode | atelet and workers refused (above) | WorkloadAllowlists |
-| Substrate needs `PodCertificateRequest` and `ClusterTrustBundle`: GA in 1.37, beta in 1.36; Berlin's newest is 1.36.4 | install hangs at "Waiting for podcertificate ClusterTrustBundles" | both beta APIs enabled **at cluster creation** (GKE ignores a later change) |
-| Hyperdisk Balanced is the only disk type; 4 GiB floor | `kagent install`'s 500Mi PostgreSQL claim never provisions | `MutatingAdmissionPolicy` raising claims to 4Gi at creation, shrink becomes a no-op |
-| Autopilot raises small CPU requests (the bucket Job's 10m was stored as 50m) | the chart's RustFS bucket Job no longer matches what is stored, so every later upgrade of the release (a re-run of `kagent install` included) fails on its immutable pod template | `rustfs.bucketInit.resources` set to exactly what Autopilot stores |
-| Substrate's API admits only its bootstrap owners; `kagent install` names only kagent's controller, by Pod Certificate SPIFFE ID | `kubectl ate` refused, whatever token it sends | explicit operator principal `system:serviceaccount:ate-system:ate-operator` |
-| No GPUs wanted (the old cluster ran an H100 around the clock) | Autopilot would provision accelerator nodes on demand | `ValidatingAdmissionPolicy` refusing accelerator requests and selectors |
-| No nested virtualisation on Autopilot | Substrate's microVM sandbox class cannot run | gVisor class only (the default) |
-| Images | public registries reachable over Cloud NAT | pulled directly; mirroring into the in-universe Artifact Registry would need atelet's image credential provider (two more host mounts, so a regenerated allowlist) |
-
-## Every test, and its result
-
-All on 2026-10-21. Evidence paths are under
-[`poc/2026-10-kagent-substrate/evidence/`](../poc/2026-10-kagent-substrate/evidence/).
-`60-verify.sh` passed 13/13 at 15:15Z, 15:54Z and 16:22Z (after the Substrate
-upgrade below); its first run, at 15:14Z, failed one check before the sandbox
-agent's prompt was tightened. `70-substrate-behaviours.sh` passed 22/22 at 16:19Z
-and again at 16:35Z, after `kagent install` had been re-run over the live install.
-
-| # | Test | Result | Evidence |
+| Workload | Why it is privileged | Warden rule | Allowlist |
 |---|---|---|---|
-| 1 | Cluster serves the certificate beta APIs and the allowlist paths | `clustertrustbundles`, `podcertificaterequests` served as `certificates.k8s.io/v1beta1`; five admission paths | `cluster-2026-10-21.txt` |
-| 2 | Substrate without allowlists | atelet and worker refused, reasons above | `warden-refusals-2026-10-21.txt` |
-| 3 | Control planes; atelet and workers admitted by their allowlists | all Substrate Deployments available; atelet on every node; 2/2 workers, `no-connect: true` | `verify-*.txt`, `gvisor-actors-2026-10-21.txt` |
-| 4 | GPU guard | H100 pod refused by `deny-gpu-workloads` | `verify-*.txt` |
-| 5 | agentgateway holds the only OpenAI key | in-cluster call with a placeholder key: HTTP 200 from `gpt-4.1-mini` | `30-agentgateway.sh` run; lab README |
-| 6 | Agent conversation: Substrate actor (gVisor) → agentgateway → OpenAI | `trustusbank-assistant` answered; agentgateway logged the completions | `verify-*.txt` |
-| 7 | A sandbox runs under gVisor, not the node kernel | `uname`: `Linux 4.19.0-gvisor`; `dmesg`: `Starting gVisor...`; node `6.12.105+` (COS); a `runsc` launch per actor in the worker logs | `verify-*.txt`, `gvisor-actors-2026-10-21.txt` |
-| 8 | Actor state survives suspend → resume | file written before suspend read back after resume | `verify-*.txt` |
-| 9 | An agent drives a sandbox through kagent's MCP tools | `trustusbank-sandbox-ops` created a sandbox, ran `uname -sr && dmesg`, reported gVisor | `verify-*.txt` |
-| 10 | Substrate's own records (PostgreSQL schema `substrate`) | 1 atespace, 4 ActorTemplates, 4 snapshot tags, 6 session actors, no worker assignments (all suspended when idle) | `substrate-records-2026-10-21.txt` |
-| 11 | Substrate's API through `kubectl ate` | shared `ate-client` identity and a kagent-controller token both `PermissionDenied`; as `ate-operator`: atespaces, templates, actors with state, tags, workers listed | `substrate-api-2026-10-21.txt`, `behaviours-*.txt` |
-| 12 | Multiplexing: 20 conversations invoked at once, two rounds (three runs) | 20 actors, at most **8 running at once**: 4 per worker, as each actor reserves 1 CPU of a worker's 4 (Substrate's own view at the peak, on each worker: `ACTORS 4/1000  CPU 4/4  MEMORY 4Gi/8Gi`). All 40 invocations answered in every run. Resume (Substrate `resuming` → `running`): **p50 343–357 ms, p95 446–531 ms, max 582 ms** over 120 resumes. End to end with the model call: round 1 p50 13.4–14.2 s (queueing for a worker), round 2 p50 5.4–6.3 s | `multiplex-2026-10-21T1635Z/report.txt`, `…T1619Z`, `…T1613Z` |
-| 13 | What happens when no worker has room | 17–20 of 57–60 calls per run refused at resume (`ResourceExhausted: no worker has room for the actor`), answered UNAVAILABLE at once: atenet-router did not hold them. kagent's gateway reported each as not accepted (`KAGENT_SEND_NOT_ACCEPTED`) and the kagent CLI re-sent it (every 100 ms, up to 30 s), so no invocation failed | same |
-| 14 | An actor resumes on a different worker than it ran on | 5, 7 and 10 actors in the three runs came back on the other worker in round 2; each one's round-2 reply summarised its own round-1 answer, so the conversation moved with the snapshot | same |
-| 15 | Session checkpoint and fork (kagent MCP `create_session_checkpoint`, `fork_session`) | codeword planted, checkpoint READY, second codeword planted after it; the fork recalls only `KESTREL-42`, the original both. The checkpoint is an atespace-scoped Substrate tag; the fork a new actor | `checkpoint-fork-2026-10-21.txt`, `behaviours-*.txt` |
-| 16 | EgressPolicy: deny by default, then one origin | no policy: `example.com` and `api.github.com` do not even resolve (`bad address`), an IP literal gets **403** from atenet-egress (`actor egress policy denied destination`). After adding the policy to the SandboxTemplate, the **same running sandbox** fetched `https://example.com` (rc 0); `api.github.com` still closed | `behaviours-*.txt` |
-| 17 | Re-running `kagent install` over the live install | clean on the first attempt, twice (after the bucket-Job fix; before it, the same upgrade failed); the operator principal kept, the atelet DaemonSet unchanged (generation 1) | `reinstall-2026-10-21.txt` |
-| 18 | microVM sandbox class | not attempted: Autopilot has no nested virtualisation | — |
+| `atelet` DaemonSet, `ate-system` | Substrate's node agent: writes to `/var/lib/ate`, `/var/lib/kubelet/plugins` and `/var/lib/kubelet/device-plugins`, mounts the host's `/dev` | `autogke-no-write-mode-hostpath` | `substrate-atelet-0.6.0-alpha3` |
+| gVisor worker Deployment, `kagent/kagent-default` | runs `runsc`, which needs `NET_ADMIN` and `SYS_ADMIN`; writes to `/var/lib/ate` | `autogke-default-linux-capabilities`, `autogke-no-write-mode-hostpath` | `substrate-ateworker-gvisor-0.6.0-alpha3` |
 
-Re-run them with `scripts/60-verify.sh` and
-`scripts/70-substrate-behaviours.sh [api|multiplex|fork|egress|all]`.
+Running as root, atelet's host port, the workers' other eleven capabilities and
+their Unconfined seccomp and AppArmor profiles all pass without an exemption.
 
-## Findings worth knowing
+<details>
+<summary>Warden's refusals, as returned</summary>
 
-- **Capacity is CPU, not actor count.** Each worker advertises room for 1000
-  actors, but a running actor reserves its template's limits (1 CPU / 1 GiB
-  here) out of the worker pod's own limits (4 CPU / 8 GiB), so the pod size is
-  the concurrency. Idle actors suspended within seconds of replying.
-- **No request parking in this router.** Substrate's request-parking design
-  describes the Envoy ext_proc router; 0.6.0-alpha3's atenet-router is
-  agentgateway-based and refused at once. kagent's own CLI recovers through the
-  `KAGENT_SEND_NOT_ACCEPTED` retry contract; any other A2A client of kagent must
-  honour it too, or it will see the error under load.
-- **Sandbox egress is closed at two layers**: names no policy grants do not
-  resolve (the sandbox's only DNS server and route is `169.254.17.1`), and an IP
-  literal still meets the egress gateway. Policy changes reach running sandboxes
-  without a restart.
-- **`kubectl ate` needs an operator principal** that `kagent install` does not
-  create, and the shared `ate-client` fallback should not be one (Substrate's
-  own advice outside development).
-- Earlier, on the same day: `kagent install`'s 500Mi PostgreSQL claim cannot
-  provision on Hyperdisk Balanced (worth raising with kagent: make it
-  configurable); Substrate's CAs last a year and nothing renews them (re-run
-  per the kagent Helm README before 2027-10-21).
+```text
+# GKE Warden refusals of Agent Substrate 0.6.0-alpha3 on GCD Autopilot (1.36.4), before any allowlist
+# Captured 2026-10-21. 'Requested by' identity lines removed.
 
----
+## atelet DaemonSet (server-side dry run, 20-allowlists.sh atelet)
+Error from server (GKE Warden constraints violations): error when creating "/Users/thomasorourke/code/google-sov/poc/2026-10-kagent-substrate/deploy/allowlists/atelet-ds-annotated.yaml": admission webhook "warden-validating.common-webhooks.networking.gke.io" denied the request: GKE Warden rejected the request because it violates one or more constraints.
+Violations details: {"[denied by autogke-no-write-mode-hostpath]":["hostPath volume ate-base in container atelet is accessed in write mode; disallowed in Autopilot.","hostPath volume kubelet-plugins in container atelet is accessed in write mode; disallowed in Autopilot.","hostPath volume device-plugins in container atelet is accessed in write mode; disallowed in Autopilot.","hostPath volume host-dev used in container atelet uses path /dev which is not allowed in Autopilot. Allowed path prefixes for hostPath volumes are: [/var/log/].","hostPath volume ate-base in container objectstore-plugin is accessed in write mode; disallowed in Autopilot."]}
 
-# Part 2: every file needed, in install order
 
-Run order, once the cluster exists:
-`10-cluster.sh` → `15-gpu-guard.sh` → `20-allowlists.sh atelet` →
-`30-agentgateway.sh` → `40-kagent.sh` (runs `20-allowlists.sh worker`) →
-`50-agents.sh` → `60-verify.sh` → `70-substrate-behaviours.sh`
-([`scripts/run-all.sh`](../poc/2026-10-kagent-substrate/scripts/run-all.sh)).
-Secrets (`AGENTGATEWAY_LICENSE_KEY`, `OPENAI_API_KEY`) come from the
-environment and appear in no file. Paths in commands are relative to
-`poc/2026-10-kagent-substrate/`.
+## gVisor worker Deployment (applied by ate-controller; from its log)
+2026-10-21T15:04:07.550106019Z failed to apply Deployment: admission webhook "warden-validating.common-webhooks.networking.gke.io" denied the request: GKE Warden rejected the request because it violates one or more constraints.
+Violations details: {"[denied by autogke-default-linux-capabilities]":["linux capability 'NET_ADMIN,SYS_ADMIN' on container 'worker' not allowed; Autopilot only allows the capabilities: 'AUDIT_WRITE,CHOWN,DAC_OVERRIDE,FOWNER,FSETID,KILL,MKNOD,NET_BIND_SERVICE,NET_RAW,SETFCAP,SETGID,SETPCAP,SETUID,SYS_CHROOT,SYS_PTRACE'."],"[denied by autogke-no-write-mode-hostpath]":["hostPath volume ate-base in container worker is accessed in write mode; disallowed in Autopilot."]}
+```
 
-## 2.1 Cluster (OpenTofu)
+</details>
 
-The profile settings this lab depends on. GKE honours `k8s_beta_apis` only at
-creation, and the admission paths should be set then too.
+### How the allowlists were made
 
-[`infra/tofu/profiles/gcd-autopilot.tfvars`](../infra/tofu/profiles/gcd-autopilot.tfvars) (excerpt):
+1. **Authorise the paths first.** Autopilot only accepts an allowlist from a
+   bucket path listed exactly in the org policy and in the cluster's
+   `autopilot_privileged_admission`. Adding one later costs a ~20 minute
+   cluster update, so the paths, and two spares, were set at creation.
+2. **Let Warden write it.** With `cloud.google.com/generate-allowlist: "true"`
+   on the pod template, Warden still refuses the pod, but its refusal carries a
+   WorkloadAllowlist for that exact spec. atelet's came from a server-side dry
+   run of the rendered chart; the workers' from the `ate-controller` log,
+   because that controller creates them.
+3. **Upload and sync.** Each file goes to
+   `gs://agentic-allowlist/substrate/0.6.0-alpha3/` and an
+   `AllowlistSynchronizer` installs it. The synchronizer only re-reads a file
+   when its own spec changes, so the script reorders the path list to force it.
+4. **Live with `no-connect`.** Allowlisted pods can't be exec'd or
+   port-forwarded; logs still work. Anything that changes either pod, such as a
+   new Substrate version, means generating both allowlists again.
+
+[`scripts/20-allowlists.sh`](../poc/2026-10-kagent-substrate/scripts/20-allowlists.sh) does all four.
+
+## Other changes GCD needed
+
+| Problem | Fix |
+|---|---|
+| Substrate needs PodCertificateRequest and ClusterTrustBundle, which are beta on 1.36, the newest version in Berlin | enable both when the cluster is created; GKE ignores a later change |
+| Hyperdisk Balanced is the only disk type and starts at 4 GiB, but `kagent install` asks for 500 Mi | a MutatingAdmissionPolicy raises small claims to 4 GiB |
+| Autopilot stored the RustFS bucket Job with a higher CPU request than the chart sets, so every later upgrade failed on the Job's immutable template | `rustfs.bucketInit.resources` set to what Autopilot stores |
+| `kubectl ate` is refused: `kagent install` makes only kagent's controller an owner of Substrate's API | an `ate-operator` service account added as a bootstrap owner |
+| No GPUs on this cluster | a ValidatingAdmissionPolicy refuses accelerator requests and accelerator node selectors |
+| No nested virtualisation on Autopilot | gVisor only; Substrate's microVM class can't run |
+
+## Tests
+
+Run against the cluster on 21 October 2026. Evidence is in
+[`evidence/`](../poc/2026-10-kagent-substrate/evidence/).
+
+| Test | Result | Evidence |
+|---|---|---|
+| Certificate beta APIs served | Pass | [cluster](../poc/2026-10-kagent-substrate/evidence/cluster-2026-10-21.txt) |
+| Substrate without allowlists | Refused, as above | [refusals](../poc/2026-10-kagent-substrate/evidence/warden-refusals-2026-10-21.txt) |
+| Control plane, atelet and workers running under their allowlists | Pass | [verify](../poc/2026-10-kagent-substrate/evidence/verify-2026-10-21T1622Z.txt) |
+| GPU pod refused | Pass | [verify](../poc/2026-10-kagent-substrate/evidence/verify-2026-10-21T1622Z.txt) |
+| agentgateway supplies the OpenAI key to a request sent with a dummy one | Pass, HTTP 200 | [script](../poc/2026-10-kagent-substrate/scripts/30-agentgateway.sh) |
+| Agent answers through agentgateway | Pass | [verify](../poc/2026-10-kagent-substrate/evidence/verify-2026-10-21T1622Z.txt) |
+| Sandbox runs on gVisor's kernel, not the node's | Pass: `Linux 4.19.0-gvisor`, node `6.12.105+` | [verify](../poc/2026-10-kagent-substrate/evidence/verify-2026-10-21T1622Z.txt) |
+| A file survives suspend and resume | Pass | [verify](../poc/2026-10-kagent-substrate/evidence/verify-2026-10-21T1622Z.txt) |
+| An agent runs a command in a sandbox through kagent's MCP tools | Pass | [verify](../poc/2026-10-kagent-substrate/evidence/verify-2026-10-21T1622Z.txt) |
+| Substrate's API through `kubectl ate` | Pass as `ate-operator`; the default identity is refused | [api](../poc/2026-10-kagent-substrate/evidence/substrate-api-2026-10-21.txt) |
+| 20 conversations at once, two rounds, three runs | Pass: 8 run at a time (4 per worker), all 40 answered every run, resume p50 343–357 ms | [report](../poc/2026-10-kagent-substrate/evidence/multiplex-2026-10-21T1635Z/report.txt) |
+| A request when no worker is free | Pass: refused at once and retried by the kagent CLI; none failed | [report](../poc/2026-10-kagent-substrate/evidence/multiplex-2026-10-21T1635Z/report.txt) |
+| An actor resumes on the other worker | Pass: 5 to 10 of 20 per run, conversation intact | [report](../poc/2026-10-kagent-substrate/evidence/multiplex-2026-10-21T1635Z/report.txt) |
+| Checkpoint and fork | Pass: the fork knows only what came before the checkpoint | [fork](../poc/2026-10-kagent-substrate/evidence/checkpoint-fork-2026-10-21.txt) |
+| EgressPolicy | Pass: nothing reachable by default; one origin opened in a running sandbox | [run](../poc/2026-10-kagent-substrate/evidence/behaviours-2026-10-21T1635Z.txt) |
+| `kagent install` re-run over the live install | Pass, twice | [reinstall](../poc/2026-10-kagent-substrate/evidence/reinstall-2026-10-21.txt) |
+| microVM sandbox class | Not possible on Autopilot | |
+
+Re-run them with `scripts/60-verify.sh` (13 checks) and
+`scripts/70-substrate-behaviours.sh` (22).
+
+## Deploying it
+
+Run order, once the cluster exists: `10-cluster.sh` → `15-gpu-guard.sh` →
+`20-allowlists.sh atelet` → `30-agentgateway.sh` → `40-kagent.sh` →
+`50-agents.sh` → `60-verify.sh` → `70-substrate-behaviours.sh`, or
+[`run-all.sh`](../poc/2026-10-kagent-substrate/scripts/run-all.sh). Secrets
+(`AGENTGATEWAY_LICENSE_KEY`, `OPENAI_API_KEY`) come from the environment.
+Paths below are relative to `poc/2026-10-kagent-substrate/`.
+
+<details>
+<summary><b>Cluster</b> · OpenTofu profile and module</summary>
+
+[`infra/tofu/profiles/gcd-autopilot.tfvars`](../infra/tofu/profiles/gcd-autopilot.tfvars), excerpt:
 
 ```hcl
 cluster_name = "agentic"
@@ -204,7 +160,7 @@ autopilot_privileged_admission = [
 ]
 ```
 
-How the module applies them ([`infra/tofu/modules/gke-autopilot/main.tf`](../infra/tofu/modules/gke-autopilot/main.tf), excerpt):
+[`infra/tofu/modules/gke-autopilot/main.tf`](../infra/tofu/modules/gke-autopilot/main.tf), excerpt:
 
 ```hcl
 resource "google_container_cluster" "this" {
@@ -223,15 +179,16 @@ resource "google_container_cluster" "this" {
 }
 ```
 
-Recreate the cluster with the replace in the header of
+The replace command that recreates the cluster is in the header of
 [`scripts/10-cluster.sh`](../poc/2026-10-kagent-substrate/scripts/10-cluster.sh).
 
-## 2.2 Org policy: allowlist paths
+</details>
 
-Organisation-scoped; set with `gcloud org-policies set-policy`. The `istio/`
-paths are the earlier ambient lab's.
+<details>
+<summary><b>Org policy</b> · allowlist paths · <code>allowlists/orgpolicy-autopilot-privileged-admission.yaml</code></summary>
 
-[`poc/2026-10-kagent-substrate/allowlists/orgpolicy-autopilot-privileged-admission.yaml`](../poc/2026-10-kagent-substrate/allowlists/orgpolicy-autopilot-privileged-admission.yaml):
+Applied with `gcloud org-policies set-policy`. The `istio/` paths belong to the
+earlier ambient lab.
 
 ```yaml
 # Organisation-scoped: this affects every GKE cluster in the org.
@@ -262,9 +219,10 @@ spec:
           - gs://agentic-allowlist/substrate/spare-2.yaml
 ```
 
-## 2.3 GPU guard
+</details>
 
-[`poc/2026-10-kagent-substrate/yaml/gpu-guard.yaml`](../poc/2026-10-kagent-substrate/yaml/gpu-guard.yaml):
+<details>
+<summary><b>GPU guard</b> · <code>yaml/gpu-guard.yaml</code></summary>
 
 ```yaml
 # No GPUs on this cluster, enforced rather than merely absent.
@@ -348,9 +306,10 @@ spec:
   validationActions: [Deny]
 ```
 
-## 2.4 Hyperdisk floor for PVCs
+</details>
 
-[`poc/2026-10-kagent-substrate/yaml/pvc-floor.yaml`](../poc/2026-10-kagent-substrate/yaml/pvc-floor.yaml):
+<details>
+<summary><b>PVC floor</b> for Hyperdisk · <code>yaml/pvc-floor.yaml</code></summary>
 
 ```yaml
 # Hyperdisk Balanced is the only disk type in GCD, and it has a 4 GiB floor:
@@ -416,7 +375,10 @@ spec:
   policyName: hyperdisk-pvc-floor
 ```
 
-## 2.5 agentgateway (Enterprise) in front of OpenAI
+</details>
+
+<details>
+<summary><b>agentgateway</b> · Helm install and <code>yaml/agentgateway.yaml</code></summary>
 
 ```bash
 kubectl apply --server-side --force-conflicts \
@@ -432,10 +394,8 @@ kubectl -n agentgateway-system create secret generic openai-secret \
   --from-literal=Authorization="Bearer $OPENAI_API_KEY"
 ```
 
-Then the Gateway, backend and route (`__OPENAI_MODEL__` is replaced with
-`gpt-4.1-mini` by [`30-agentgateway.sh`](../poc/2026-10-kagent-substrate/scripts/30-agentgateway.sh)):
-
-[`poc/2026-10-kagent-substrate/yaml/agentgateway.yaml`](../poc/2026-10-kagent-substrate/yaml/agentgateway.yaml):
+Gateway, backend and route. [`30-agentgateway.sh`](../poc/2026-10-kagent-substrate/scripts/30-agentgateway.sh)
+replaces `__OPENAI_MODEL__` with `gpt-4.1-mini`.
 
 ```yaml
 # agentgateway in front of the model: the one governed hop between every agent
@@ -518,16 +478,12 @@ spec:
           name: openai
 ```
 
-## 2.6 WorkloadAllowlists and the synchronizer
+</details>
 
-Generated by Warden (see [How they were generated](#how-they-were-generated-and-installed)),
-renamed, uploaded to `gs://agentic-allowlist/substrate/0.6.0-alpha3/`, and
-installed by the synchronizer. Do not hand-edit: they must match the pods
-exactly, so regenerate with `20-allowlists.sh`.
+<details>
+<summary><b>WorkloadAllowlist</b> for atelet · <code>allowlists/atelet.yaml</code></summary>
 
-atelet, before `kagent install`:
-
-[`poc/2026-10-kagent-substrate/allowlists/atelet.yaml`](../poc/2026-10-kagent-substrate/allowlists/atelet.yaml):
+Generated by Warden; don't edit by hand. Install it before `kagent install`.
 
 ```yaml
 apiVersion: auto.gke.io/v1
@@ -630,9 +586,12 @@ matchingCriteria:
         - name: servicedns-ca
 ```
 
-gVisor worker, after `kagent install` (from the `ate-controller` log):
+</details>
 
-[`poc/2026-10-kagent-substrate/allowlists/ateworker-gvisor.yaml`](../poc/2026-10-kagent-substrate/allowlists/ateworker-gvisor.yaml):
+<details>
+<summary><b>WorkloadAllowlist</b> for the gVisor worker · <code>allowlists/ateworker-gvisor.yaml</code></summary>
+
+Generated by Warden from the `ate-controller` log after `kagent install`.
 
 ```yaml
 apiVersion: auto.gke.io/v1
@@ -705,9 +664,10 @@ matchingCriteria:
         - name: atunnel-egress-trust
 ```
 
-The synchronizer (`20-allowlists.sh sync` writes it):
+</details>
 
-[`poc/2026-10-kagent-substrate/allowlists/allowlistsynchronizer.yaml`](../poc/2026-10-kagent-substrate/allowlists/allowlistsynchronizer.yaml):
+<details>
+<summary><b>AllowlistSynchronizer</b> · <code>allowlists/allowlistsynchronizer.yaml</code></summary>
 
 ```yaml
 apiVersion: auto.gke.io/v1
@@ -722,23 +682,21 @@ spec:
     - substrate/0.6.0-alpha3/ateworker-gvisor.yaml
 ```
 
-## 2.7 kagent 1.0 with Agent Substrate
+</details>
 
-`kagent install` (the kagent docs' installer) installs kagent's and
-Substrate's CRDs, Substrate's CAs and API authentication config, the Pod
-Certificate controller, a development PostgreSQL (logins by Pod Certificate,
-no passwords), Substrate in `ate-system`, and kagent with a gVisor WorkerPool:
+<details>
+<summary><b>kagent install</b> · command and <code>yaml/kagent-cli-config.yaml</code></summary>
+
+`kagent install` installs kagent's and Substrate's CRDs, Substrate's CAs, the
+Pod Certificate controller, a development PostgreSQL, Substrate in
+`ate-system`, and kagent with a gVisor WorkerPool.
 
 ```bash
-kubectl apply -f yaml/pvc-floor.yaml            # 2.4, before the installer's PostgreSQL claim
+kubectl apply -f yaml/pvc-floor.yaml       # before the installer's PostgreSQL claim
 OPENAI_API_KEY=placeholder-the-key-is-in-agentgateway \
   kagent --config yaml/kagent-cli-config.yaml install --namespace kagent
 kubectl apply -f yaml/ate-operator.yaml
 ```
-
-The CLI configuration:
-
-[`poc/2026-10-kagent-substrate/yaml/kagent-cli-config.yaml`](../poc/2026-10-kagent-substrate/yaml/kagent-cli-config.yaml):
 
 ```yaml
 # kagent CLI configuration for `kagent install` (scripts/40-kagent.sh).
@@ -753,10 +711,10 @@ install:
     valuesFiles: [substrate-values.yaml]
 ```
 
-kagent values (provider through agentgateway, sandbox guest, the WorkerPool
-size and its generate-allowlist annotation):
+</details>
 
-[`poc/2026-10-kagent-substrate/yaml/kagent-values.yaml`](../poc/2026-10-kagent-substrate/yaml/kagent-values.yaml):
+<details>
+<summary><b>kagent values</b> · <code>yaml/kagent-values.yaml</code></summary>
 
 ```yaml
 # kagent 1.0 chart values, applied by `kagent install` over its own defaults.
@@ -800,10 +758,12 @@ grafana-mcp:
   enabled: false
 ```
 
-Substrate values. Neither setting reaches the atelet pod, so its allowlist
-stands (a change that did would need a regenerated one):
+</details>
 
-[`poc/2026-10-kagent-substrate/yaml/substrate-values.yaml`](../poc/2026-10-kagent-substrate/yaml/substrate-values.yaml):
+<details>
+<summary><b>Substrate values</b> · <code>yaml/substrate-values.yaml</code>, and what <code>kagent install</code> adds</summary>
+
+Neither setting here reaches the atelet pod, so its allowlist stands.
 
 ```yaml
 # Agent Substrate chart values. Read by `kagent install` (through
@@ -841,9 +801,9 @@ ateApi:
       - system:serviceaccount:ate-system:ate-operator
 ```
 
-What `kagent install` adds by itself, before the values files above (from
-kagent's `install.go`; a values file *replaces* a list, which is why the
-controller principal is repeated in `bootstrapOwners`):
+`kagent install` adds these itself, before the values files (from kagent's
+`install.go`). A values file replaces a list, which is why the controller is
+repeated in `bootstrapOwners` above.
 
 ```yaml
 # Substrate release
@@ -861,9 +821,17 @@ substrateWorkerPool:
   workerImage: "ghcr.io/kagent-dev/substrate/ateworker-gvisor:v0.6.0-alpha3"
 ```
 
-The operator principal for `kubectl ate`:
+To change Substrate's values later without re-running the installer:
 
-[`poc/2026-10-kagent-substrate/yaml/ate-operator.yaml`](../poc/2026-10-kagent-substrate/yaml/ate-operator.yaml):
+```bash
+helm upgrade substrate oci://ghcr.io/kagent-dev/substrate/helm/substrate --version 0.6.0-alpha3 \
+  -n ate-system --reuse-values -f yaml/substrate-values.yaml --wait
+```
+
+</details>
+
+<details>
+<summary><b>Operator account</b> for <code>kubectl ate</code> · <code>yaml/ate-operator.yaml</code></summary>
 
 ```yaml
 # The operator identity for Substrate's own API (`kubectl ate`).
@@ -886,16 +854,10 @@ metadata:
     app.kubernetes.io/part-of: kagent-substrate-lab
 ```
 
-Later changes to Substrate's values, without re-running the whole installer:
+</details>
 
-```bash
-helm upgrade substrate oci://ghcr.io/kagent-dev/substrate/helm/substrate --version 0.6.0-alpha3 \
-  -n ate-system --reuse-values -f yaml/substrate-values.yaml --wait
-```
-
-## 2.8 Agents, sandbox template
-
-[`poc/2026-10-kagent-substrate/yaml/agents.yaml`](../poc/2026-10-kagent-substrate/yaml/agents.yaml):
+<details>
+<summary><b>Agents and sandbox template</b> · <code>yaml/agents.yaml</code></summary>
 
 ```yaml
 # Agents and actors for the kagent 1.0 / Agent Substrate test.
@@ -1002,9 +964,10 @@ spec:
               - delete_sandbox
 ```
 
-## 2.9 EgressPolicy
+</details>
 
-[`poc/2026-10-kagent-substrate/yaml/egress.yaml`](../poc/2026-10-kagent-substrate/yaml/egress.yaml):
+<details>
+<summary><b>EgressPolicy</b> · <code>yaml/egress.yaml</code></summary>
 
 ```yaml
 # EgressPolicy test (scripts/70-substrate-behaviours.sh egress).
@@ -1042,14 +1005,17 @@ spec:
       location: s3://ate-snapshots/sandboxes
 ```
 
-Granting it to a template (running sandboxes pick it up without a restart):
+Grant it to the template; running sandboxes pick it up without a restart:
 
 ```bash
 kubectl -n kagent patch sandboxtemplate trustusbank-egress --type merge \
   -p '{"spec":{"egressPolicyRefs":[{"name":"trustusbank-egress-example"}]}}'
 ```
 
-## 2.10 Using it
+</details>
+
+<details>
+<summary><b>Using it</b> · kagent CLI, <code>kubectl ate</code>, checkpoints and forks</summary>
 
 ```bash
 export KUBECONFIG=$PWD/deploy/.kubeconfig
@@ -1074,3 +1040,5 @@ scripts/kagent_mcp.py http://127.0.0.1:$PORT call create_session_checkpoint \
   '{"session_id":"<sid>","expected_head_task_id":"<task id>"}'
 scripts/kagent_mcp.py http://127.0.0.1:$PORT call fork_session '{"checkpoint_id":"<checkpoint id>"}'
 ```
+
+</details>
